@@ -1,0 +1,14 @@
+cloud: "azure"
+paths:
+  lake_root: "abfss://lake@acct.dfs.core.windows.net"
+  checkpoints_root: "abfss://lake@acct.dfs.core.windows.net/_checkpoints"
+observability:
+  sink: "log_analytics"
+security:
+  key_vault_uri: "https://kv-prod.vault.azure.net/"
+
+
+
+
+
+

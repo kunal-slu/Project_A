@@ -1,0 +1,141 @@
+# Azure Development Configuration
+# This file contains Azure-specific settings for running the ETL pipeline
+
+# Azure-specific configuration
+azure:
+  storage:
+    account_name: "pysparketlstorage"
+    account_key: "${SECRET:azure:storage-account-key}"
+    container_name: "lakehouse"
+  databricks:
+    workspace_url: "https://${WORKSPACE_URL}"
+    token: "${SECRET:databricks:token}"
+
+# Input data paths (Azure Storage)
+input:
+  customer_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/customers.csv"
+  product_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/products.csv"
+  orders_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/orders.json"
+  returns_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/returns.json"
+  exchange_rates_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/exchange_rates.csv"
+  inventory_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/inventory_snapshots.csv"
+  customers_changes_path: "abfss://input-data@pysparketlstorage.dfs.core.windows.net/customers_changes.csv"
+
+# Output data paths (Azure Storage)
+output:
+  bronze_path: "abfss://lakehouse@pysparketlstorage.dfs.core.windows.net/bronze"
+  silver_path: "abfss://lakehouse@pysparketlstorage.dfs.core.windows.net/silver"
+  gold_path: "abfss://lakehouse@pysparketlstorage.dfs.core.windows.net/gold"
+  parquet_path: "abfss://output-data@pysparketlstorage.dfs.core.windows.net/final.parquet"
+  delta_path: "abfss://output-data@pysparketlstorage.dfs.core.windows.net/final_delta"
+
+# Spark configuration for Azure
+spark:
+  app_name: "PySpark ETL Azure"
+  config:
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.hadoop.fs.azure.account.key.pysparketlstorage.dfs.core.windows.net: "${SECRET:azure:storage-account-key}"
+    spark.hadoop.fs.azure.account.auth.type.pysparketlstorage.dfs.core.windows.net: "SharedKey"
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.localShuffleReader.enabled: "true"
+    spark.sql.adaptive.advisoryPartitionSizeInBytes: "128m"
+    spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.maxBroadcastHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.optimizeSkewedJoin.enabled: "true"
+    spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256m"
+    spark.sql.adaptive.skewJoin.skewedPartitionFactor: "5"
+    spark.sql.adaptive.advisoryPartitionSizeInBytes: "128m"
+    spark.sql.adaptive.coalescePartitions.minPartitionNum: "1"
+    spark.sql.adaptive.coalescePartitions.initialPartitionNum: "200"
+    spark.sql.adaptive.coalescePartitions.parallelismFirst: "false"
+    spark.sql.adaptive.fetchShuffleBlocksInBatch.enabled: "true"
+    spark.sql.adaptive.localShuffleReader.enabled: "true"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin: "0.2"
+    spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.maxBroadcastHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.optimizeSkewedJoin.enabled: "true"
+    spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256m"
+    spark.sql.adaptive.skewJoin.skewedPartitionFactor: "5"
+    spark.sql.adaptive.advisoryPartitionSizeInBytes: "128m"
+    spark.sql.adaptive.coalescePartitions.minPartitionNum: "1"
+    spark.sql.adaptive.coalescePartitions.initialPartitionNum: "200"
+    spark.sql.adaptive.coalescePartitions.parallelismFirst: "false"
+    spark.sql.adaptive.fetchShuffleBlocksInBatch.enabled: "true"
+    spark.sql.adaptive.localShuffleReader.enabled: "true"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin: "0.2"
+
+# Performance optimization settings
+performance:
+  cache_enabled: true
+  partition_size_mb: 128
+  max_partitions: 200
+  broadcast_threshold_mb: 10
+  shuffle_partitions: 200
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_export: "prometheus"
+  log_level: "INFO"
+  pipeline_metrics: true
+
+# Data quality settings
+data_quality:
+  enabled: true
+  validation_rules:
+    - name: "customer_id_not_null"
+      rule: "customer_id IS NOT NULL"
+    - name: "email_format"
+      rule: "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+    - name: "positive_amount"
+      rule: "amount > 0"
+
+# Streaming configuration
+streaming:
+  enable: false
+  checkpoint_location: "abfss://lakehouse@pysparketlstorage.dfs.core.windows.net/checkpoints"
+  trigger_interval: "5 minutes"
+  kafka:
+    bootstrap_servers: "${ENV:KAFKA_BOOTSTRAP_SERVERS}"
+    topic: "orders-stream"
+    group_id: "pyspark-etl-group"
+
+# Disaster recovery settings
+disaster_recovery:
+  enabled: true
+  backup_frequency: "daily"
+  retention_days: 30
+  replication_enabled: true
+  backup_location: "abfss://backups@pysparketlstorage.dfs.core.windows.net"
+
+# Maintenance settings
+maintenance:
+  enable: true
+  delta_vacuum_retention_hours: 168  # 7 days
+  delta_optimize_frequency: "daily"
+  z_order_columns:
+    - "customer_id"
+    - "order_date"
+    - "product_id"
+
+# Security settings
+security:
+  encryption_enabled: true
+  audit_logging: true
+  data_masking: false
+  access_control:
+    - role: "data_engineer"
+      permissions: ["read", "write", "delete"]
+    - role: "data_analyst"
+      permissions: ["read"]
+
+# Environment-specific settings
+environment: "azure-dev"
+region: "East US"
+timezone: "UTC"
+

@@ -1,0 +1,12 @@
+cloud: "local"
+paths:
+  lake_root: "/tmp/lakehouse"
+  checkpoints_root: "/tmp/lakehouse/_checkpoints"
+observability:
+  sink: "stdout"
+
+
+
+
+
+

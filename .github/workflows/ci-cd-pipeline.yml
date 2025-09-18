@@ -1,0 +1,394 @@
+name: CI/CD Pipeline - PySpark Data Engineering
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - staging
+        - prod
+
+env:
+  AWS_REGION: us-west-2
+  PYTHON_VERSION: '3.11'
+  SPARK_VERSION: '3.5.0'
+  DELTA_VERSION: '2.4.0'
+
+jobs:
+  # Code Quality & Testing
+  code-quality:
+    name: Code Quality & Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        
+    - name: Run linting
+      run: |
+        flake8 src/ tests/ --max-line-length=120 --extend-ignore=E203,W503
+        black --check --diff src/ tests/
+        isort --check-only --diff src/ tests/
+        
+    - name: Run type checking
+      run: |
+        mypy src/ --ignore-missing-imports
+        
+    - name: Run security scan
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+        
+    - name: Run unit tests
+      run: |
+        pytest tests/ --cov=src --cov-report=xml --cov-report=html --junitxml=test-results.xml
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: code-coverage
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          test-results.xml
+          coverage.xml
+          htmlcov/
+          bandit-report.json
+
+  # Integration Testing
+  integration-test:
+    name: Integration Testing
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        
+    - name: Set up test environment
+      run: |
+        mkdir -p data/test
+        cp -r tests/data/* data/test/
+        
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ --integration --junitxml=integration-results.xml
+        
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: integration-results
+        path: integration-results.xml
+
+  # Build & Package
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: [code-quality, integration-test]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install build wheel
+        
+    - name: Build package
+      run: |
+        python -m build
+        
+    - name: Create deployment package
+      run: |
+        mkdir -p dist/deploy
+        cp -r src/pyspark_interview_project dist/deploy/
+        cp -r config dist/deploy/
+        cp requirements.txt dist/deploy/
+        cp -r scripts dist/deploy/
+        tar -czf dist/pyspark-pipeline.tar.gz -C dist deploy/
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: |
+          dist/*.whl
+          dist/*.tar.gz
+          dist/deploy/
+
+  # Deploy to Dev
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    environment: dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+        path: dist/
+        
+    - name: Deploy to S3
+      run: |
+        aws s3 cp dist/pyspark-pipeline.tar.gz s3://${{ secrets.DEV_ARTIFACTS_BUCKET }}/pyspark-pipeline.tar.gz
+        aws s3 cp config/config-dev.yaml s3://${{ secrets.DEV_ARTIFACTS_BUCKET }}/config-prod.yaml
+        
+    - name: Trigger EMR pipeline
+      run: |
+        aws emr add-steps \
+          --cluster-id ${{ secrets.DEV_EMR_CLUSTER_ID }} \
+          --steps Type=Spark,Name="Data Pipeline",ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,s3://${{ secrets.DEV_ARTIFACTS_BUCKET }}/pyspark-pipeline.tar.gz,--config,s3://${{ secrets.DEV_ARTIFACTS_BUCKET }}/config-prod.yaml]
+        
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: '✅ Deployed to DEV environment successfully!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+        path: dist/
+        
+    - name: Deploy to S3
+      run: |
+        aws s3 cp dist/pyspark-pipeline.tar.gz s3://${{ secrets.STAGING_ARTIFACTS_BUCKET }}/pyspark-pipeline.tar.gz
+        aws s3 cp config/config-staging.yaml s3://${{ secrets.STAGING_ARTIFACTS_BUCKET }}/config-prod.yaml
+        
+    - name: Trigger EMR pipeline
+      run: |
+        aws emr add-steps \
+          --cluster-id ${{ secrets.STAGING_EMR_CLUSTER_ID }} \
+          --steps Type=Spark,Name="Data Pipeline",ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,s3://${{ secrets.STAGING_ARTIFACTS_BUCKET }}/pyspark-pipeline.tar.gz,--config,s3://${{ secrets.STAGING_ARTIFACTS_BUCKET }}/config-prod.yaml]
+        
+    - name: Run smoke tests
+      run: |
+        # Wait for pipeline to complete
+        sleep 300
+        # Run basic validation tests
+        python scripts/validate_deployment.py --environment staging
+        
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: '✅ Deployed to STAGING environment successfully!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Deploy to Production
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: build-artifacts
+        path: dist/
+        
+    - name: Deploy to S3
+      run: |
+        aws s3 cp dist/pyspark-pipeline.tar.gz s3://${{ secrets.PROD_ARTIFACTS_BUCKET }}/pyspark-pipeline.tar.gz
+        aws s3 cp config/config-prod.yaml s3://${{ secrets.PROD_ARTIFACTS_BUCKET }}/config-prod.yaml
+        
+    - name: Trigger EMR pipeline
+      run: |
+        aws emr add-steps \
+          --cluster-id ${{ secrets.PROD_EMR_CLUSTER_ID }} \
+          --steps Type=Spark,Name="Data Pipeline",ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,s3://${{ secrets.PROD_ARTIFACTS_BUCKET }}/pyspark-pipeline.tar.gz,--config,s3://${{ secrets.PROD_ARTIFACTS_BUCKET }}/config-prod.yaml]
+        
+    - name: Run production validation
+      run: |
+        # Wait for pipeline to complete
+        sleep 600
+        # Run comprehensive validation tests
+        python scripts/validate_deployment.py --environment production
+        
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: '🚀 Deployed to PRODUCTION environment successfully!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Security & Compliance
+  security-scan:
+    name: Security & Compliance
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Run dependency vulnerability scan
+      run: |
+        pip install safety
+        safety check --json --output safety-report.json || true
+        
+    - name: Upload safety report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          trivy-results.sarif
+          safety-report.json
+
+  # Performance Testing
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        
+    - name: Run performance tests
+      run: |
+        python -m pytest tests/performance/ --benchmark-only --benchmark-save=performance-results
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: |
+          .benchmarks/
+          performance-results.json

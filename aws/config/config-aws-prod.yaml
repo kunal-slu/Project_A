@@ -1,0 +1,379 @@
+# AWS Production Configuration - Real-World ETL Pipeline
+# This configuration uses actual data sources that data engineers work with
+
+# AWS-specific configuration
+aws:
+  region: "us-east-1"
+  s3:
+    data_lake_bucket: "company-data-lake-ACCOUNT_ID"
+    backup_bucket: "company-backups-ACCOUNT_ID"
+    logs_bucket: "company-logs-ACCOUNT_ID"
+    artifacts_bucket: "company-artifacts-ACCOUNT_ID"
+  emr:
+    cluster_name: "production-etl-cluster"
+    release_label: "emr-6.15.0"
+    instance_type: "m5.2xlarge"
+    instance_count: 5
+    applications: ["Spark", "Hive", "Hadoop", "Delta"]
+  glue:
+    database_name: "company_data_warehouse"
+    crawler_name: "production-data-crawler"
+  step_functions:
+    state_machine_name: "production-etl-workflow"
+  cloudwatch:
+    namespace: "CompanyETL"
+    log_group: "/aws/emr/company-etl"
+
+# Real-world data sources
+data_sources:
+  # E-commerce data
+  ecommerce:
+    orders:
+      source: "s3://company-raw-data/orders/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+    customers:
+      source: "s3://company-raw-data/customers/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+    products:
+      source: "s3://company-raw-data/products/"
+      format: "Parquet"
+      frequency: "daily"
+      schema: "auto"
+    transactions:
+      source: "s3://company-raw-data/transactions/"
+      format: "JSON"
+      frequency: "real-time"
+      schema: "auto"
+  
+  # Payment processing
+  payments:
+    stripe:
+      source: "s3://stripe-export/charges/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+    paypal:
+      source: "s3://paypal-export/transactions/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+  
+  # Analytics platforms
+  analytics:
+    google_analytics:
+      source: "s3://ga4-export/events/"
+      format: "BigQuery export"
+      frequency: "daily"
+      schema: "auto"
+    firebase:
+      source: "s3://firebase-analytics-export/events/"
+      format: "BigQuery export"
+      frequency: "daily"
+      schema: "auto"
+  
+  # Marketing platforms
+  marketing:
+    google_ads:
+      source: "s3://google-ads-export/campaigns/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+    facebook_ads:
+      source: "s3://facebook-ads-export/insights/"
+      format: "JSON"
+      frequency: "daily"
+      schema: "auto"
+    linkedin_ads:
+      source: "s3://linkedin-ads-export/analytics/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+  
+  # Customer support
+  support:
+    zendesk:
+      source: "s3://zendesk-export/tickets/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+    intercom:
+      source: "s3://intercom-export/conversations/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+    hubspot:
+      source: "s3://hubspot-export/contacts/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+  
+  # Internal systems
+  internal:
+    erp:
+      source: "s3://erp-export/inventory/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+    hr:
+      source: "s3://hr-export/employees/"
+      format: "CSV"
+      frequency: "weekly"
+      schema: "auto"
+    accounting:
+      source: "s3://accounting-export/transactions/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+
+# Data lake paths
+data_lake:
+  bronze_path: "s3://company-data-lake-ACCOUNT_ID/bronze"
+  silver_path: "s3://company-data-lake-ACCOUNT_ID/silver"
+  gold_path: "s3://company-data-lake-ACCOUNT_ID/gold"
+  metrics_path: "s3://company-data-lake-ACCOUNT_ID/metrics"
+  checkpoint_path: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  backup_path: "s3://company-backups-ACCOUNT_ID"
+
+# Spark configuration for production
+spark:
+  app_name: "Company Production ETL"
+  config:
+    # Delta Lake configuration
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.sql.catalog.spark_catalog.warehouse: "s3://company-data-lake-ACCOUNT_ID/warehouse"
+    
+    # S3 configuration
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
+    spark.hadoop.fs.s3a.endpoint: "s3.amazonaws.com"
+    spark.hadoop.fs.s3a.path.style.access: "false"
+    
+    # Performance optimization
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.localShuffleReader.enabled: "true"
+    spark.sql.adaptive.advisoryPartitionSizeInBytes: "128m"
+    spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.maxBroadcastHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.optimizeSkewedJoin.enabled: "true"
+    spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256m"
+    spark.sql.adaptive.skewJoin.skewedPartitionFactor: "5"
+    spark.sql.adaptive.coalescePartitions.minPartitionNum: "1"
+    spark.sql.adaptive.coalescePartitions.initialPartitionNum: "200"
+    spark.sql.adaptive.coalescePartitions.parallelismFirst: "false"
+    spark.sql.adaptive.fetchShuffleBlocksInBatch.enabled: "true"
+    spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin: "0.2"
+    
+    # Memory and execution
+    spark.executor.memory: "8g"
+    spark.executor.cores: "4"
+    spark.driver.memory: "4g"
+    spark.sql.shuffle.partitions: "200"
+    spark.default.parallelism: "200"
+    
+    # Delta Lake optimization
+    spark.databricks.delta.optimizeWrite.enabled: "true"
+    spark.databricks.delta.autoCompact.enabled: "true"
+    spark.databricks.delta.properties.defaults.enableChangeDataFeed: "true"
+
+# Performance optimization settings
+performance:
+  cache_enabled: true
+  partition_size_mb: 128
+  max_partitions: 200
+  broadcast_threshold_mb: 10
+  shuffle_partitions: 200
+  executor_instances: 5
+  executor_memory: "8g"
+  executor_cores: 4
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_export: "cloudwatch"
+  log_level: "INFO"
+  pipeline_metrics: true
+  custom_metrics:
+    - name: "RecordsProcessed"
+      type: "counter"
+    - name: "ProcessingTime"
+      type: "gauge"
+    - name: "DataQualityScore"
+      type: "gauge"
+    - name: "ErrorCount"
+      type: "counter"
+
+# Data quality settings
+data_quality:
+  enabled: true
+  validation_rules:
+    # E-commerce data quality rules
+    - name: "order_id_not_null"
+      rule: "order_id IS NOT NULL"
+      table: "orders"
+    - name: "customer_id_not_null"
+      rule: "customer_id IS NOT NULL"
+      table: "customers"
+    - name: "positive_amount"
+      rule: "total_amount > 0"
+      table: "orders"
+    - name: "valid_email_format"
+      rule: "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+      table: "customers"
+    - name: "valid_date_range"
+      rule: "order_date BETWEEN '2020-01-01' AND CURRENT_DATE"
+      table: "orders"
+    
+    # Payment data quality rules
+    - name: "payment_status_valid"
+      rule: "status IN ('succeeded', 'pending', 'failed', 'refunded')"
+      table: "payments"
+    - name: "positive_payment_amount"
+      rule: "amount > 0"
+      table: "payments"
+    
+    # Analytics data quality rules
+    - name: "session_id_not_null"
+      rule: "session_id IS NOT NULL"
+      table: "analytics_sessions"
+    - name: "valid_event_timestamp"
+      rule: "event_timestamp <= CURRENT_TIMESTAMP"
+      table: "analytics_events"
+
+# Streaming configuration
+streaming:
+  enable: true
+  checkpoint_location: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  trigger_interval: "5 minutes"
+  kinesis:
+    stream_name: "company-orders-stream"
+    region: "us-east-1"
+    batch_size: 1000
+    max_records_per_batch: 10000
+
+# Disaster recovery settings
+disaster_recovery:
+  enabled: true
+  backup_frequency: "hourly"
+  retention_days: 90
+  replication_enabled: true
+  backup_location: "s3://company-backups-ACCOUNT_ID"
+  cross_region_backup:
+    enabled: true
+    destination_region: "us-west-2"
+    destination_bucket: "company-backups-west-ACCOUNT_ID"
+
+# Maintenance settings
+maintenance:
+  enable: true
+  delta_vacuum_retention_hours: 168  # 7 days
+  delta_optimize_frequency: "daily"
+  z_order_columns:
+    - "customer_id"
+    - "order_date"
+    - "product_id"
+    - "country"
+    - "category"
+  cleanup_old_data:
+    enabled: true
+    retention_days: 1095  # 3 years
+    tables:
+      - "bronze_orders"
+      - "bronze_analytics_events"
+      - "bronze_support_tickets"
+
+# Security settings
+security:
+  encryption_enabled: true
+  audit_logging: true
+  data_masking: true
+  access_control:
+    - role: "data_engineer"
+      permissions: ["read", "write", "delete"]
+      tables: ["*"]
+    - role: "data_analyst"
+      permissions: ["read"]
+      tables: ["gold_*", "silver_*"]
+    - role: "business_user"
+      permissions: ["read"]
+      tables: ["gold_fact_sales", "gold_dim_customers"]
+  data_classification:
+    pii_columns:
+      - "email"
+      - "phone"
+      - "address"
+      - "credit_card_number"
+    sensitive_columns:
+      - "salary"
+      - "revenue"
+      - "profit_margin"
+
+# ETL pipeline configuration
+etl_pipeline:
+  # Ingestion jobs
+  ingestion:
+    orders:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 10000
+      timeout_minutes: 30
+    customers:
+      enabled: true
+      frequency: "daily"
+      batch_size: 50000
+      timeout_minutes: 60
+    analytics:
+      enabled: true
+      frequency: "daily"
+      batch_size: 100000
+      timeout_minutes: 120
+    payments:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 5000
+      timeout_minutes: 45
+  
+  # Processing jobs
+  processing:
+    orders_cleaning:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["ingestion.orders"]
+    customers_enrichment:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["ingestion.customers"]
+    analytics_aggregation:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["ingestion.analytics"]
+  
+  # Data warehouse jobs
+  data_warehouse:
+    sales_fact_table:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.orders_cleaning", "processing.customers_enrichment"]
+    customer_dimension:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["processing.customers_enrichment"]
+    marketing_attribution:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["processing.analytics_aggregation"]
+
+# Environment-specific settings
+environment: "aws-prod"
+region: "us-east-1"
+timezone: "UTC"
+data_retention_days: 1095  # 3 years
+max_concurrent_jobs: 10
+alert_email: "data-team@company.com"
+sla_hours: 2  # Service Level Agreement in hours

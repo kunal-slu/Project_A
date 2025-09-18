@@ -1,0 +1,38 @@
+# Development dependencies with pinned versions
+-r requirements.txt
+
+# Testing and Development Tools
+pytest==7.4.0
+pytest-spark==0.6.0
+pytest-cov==4.1.0
+pytest-mock==3.11.1
+pytest-xdist==3.3.1
+
+# Code Quality and Linting
+black==24.4.2
+isort==5.13.2
+flake8==7.1.1
+mypy==1.5.1
+ruff==0.1.6
+
+# Security Scanning
+detect-secrets==1.5.0
+bandit==1.7.5
+
+# Documentation
+sphinx==7.2.6
+sphinx-rtd-theme==1.3.0
+
+# Development Utilities
+ipython==8.15.0
+jupyter==1.0.0
+notebook==7.0.2
+
+# Performance and Profiling
+memory-profiler==0.61.0
+line-profiler==4.1.2
+
+# Type Checking
+types-PyYAML==6.0.12.12
+types-requests==2.31.0.10
+

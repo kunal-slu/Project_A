@@ -1,0 +1,15 @@
+cloud: "aws"
+paths:
+  lake_root: "s3a://my-prod-lake"
+  checkpoints_root: "s3a://my-prod-lake/_checkpoints"
+observability:
+  sink: "cloudwatch"
+security:
+  sse: "aws:kms"
+  kms_key_arn: "arn:aws:kms:us-east-1:...:key/..."
+
+
+
+
+
+

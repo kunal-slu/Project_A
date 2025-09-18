@@ -1,0 +1,4 @@
+[sqlfluff]
+dialect = ansi
+rules = L013,L019,L020,L025
+exclude_rules = L031,L034

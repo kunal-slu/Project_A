@@ -1,0 +1,27 @@
+cloud: "local"  # local | aws | azure
+
+spark:
+  app_name: "pdi"
+  shuffle_partitions: 400
+  enable_aqe: true
+
+paths:
+  lake_root: "/tmp/lakehouse"              # overridden by cloud
+  checkpoints_root: "/tmp/lakehouse/_chk"  # overridden by cloud
+
+streaming:
+  watermark: "2 hours"
+  dlq_path: "lake://dlq/returns"
+
+lineage:
+  enabled: true
+  url: "http://localhost:5000"  # your OpenLineage/Marquez if any
+
+observability:
+  sink: "stdout"  # stdout | cloudwatch | log_analytics
+
+
+
+
+
+

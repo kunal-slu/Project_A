@@ -1,0 +1,452 @@
+# Enterprise AWS ETL Configuration (1 External + 2 Internal Sources)
+# This configuration uses 1 external data source and 2 internal data sources
+
+# AWS-specific configuration
+aws:
+  region: "us-east-1"
+  s3:
+    # Separate storage buckets for different data sources
+    external_data_bucket: "company-external-data-ACCOUNT_ID"
+    internal_data_bucket: "company-internal-data-ACCOUNT_ID"
+    streaming_data_bucket: "company-streaming-data-ACCOUNT_ID"
+    
+    # Data lake storage
+    data_lake_bucket: "company-data-lake-ACCOUNT_ID"
+    backup_bucket: "company-backups-ACCOUNT_ID"
+    logs_bucket: "company-logs-ACCOUNT_ID"
+    artifacts_bucket: "company-artifacts-ACCOUNT_ID"
+  
+  emr:
+    cluster_name: "enterprise-etl-cluster"
+    release_label: "emr-6.15.0"
+    instance_type: "m5.2xlarge"
+    instance_count: 5
+    applications: ["Spark", "Hive", "Hadoop", "Delta"]
+  
+  glue:
+    database_name: "company_data_warehouse"
+    crawler_name: "enterprise-data-crawler"
+  
+  step_functions:
+    state_machine_name: "enterprise-etl-workflow"
+  
+  cloudwatch:
+    namespace: "CompanyETL"
+    log_group: "/aws/emr/company-etl"
+  
+  kinesis:
+    stream_name: "company-real-time-data-stream"
+    firehose_name: "company-data-firehose"
+
+# Data sources: 1 External + 2 Internal
+data_sources:
+  # 1. EXTERNAL SOURCE - Snowflake Data Warehouse
+  external:
+    snowflake:
+      account: "company.snowflakecomputing.com"
+      warehouse: "ETL_WH"
+      database: "RAW_DATA"
+      schema: "PUBLIC"
+      username: "${SNOWFLAKE_USERNAME}"
+      password: "${SNOWFLAKE_PASSWORD}"
+      role: "ETL_ROLE"
+      tables:
+        - name: "customer_orders"
+          source: "salesforce_orders"
+          frequency: "hourly"
+          description: "Customer order data from external Salesforce CRM"
+        - name: "product_catalog"
+          source: "netsuite_products"
+          frequency: "daily"
+          description: "Product catalog from external NetSuite ERP"
+        - name: "financial_transactions"
+          source: "quickbooks_transactions"
+          frequency: "daily"
+          description: "Financial transactions from external QuickBooks"
+  
+  # 2. INTERNAL SOURCE - PostgreSQL Production Database
+  internal:
+    postgresql:
+      host: "company-prod-db.company.com"
+      port: 5432
+      database: "company_production"
+      username: "${POSTGRES_USERNAME}"
+      password: "${POSTGRES_PASSWORD}"
+      ssl_mode: "require"
+      tables:
+        - name: "users"
+          schema: "public"
+          frequency: "daily"
+          description: "Internal user data from production database"
+        - name: "subscriptions"
+          schema: "billing"
+          frequency: "hourly"
+          description: "Internal subscription data from billing system"
+        - name: "product_inventory"
+          schema: "inventory"
+          frequency: "real-time"
+          description: "Internal inventory data from inventory management system"
+        - name: "user_sessions"
+          schema: "analytics"
+          frequency: "hourly"
+          description: "Internal user session data from analytics system"
+  
+  # 3. INTERNAL SOURCE - Apache Kafka Streaming Platform
+  internal_streaming:
+    kafka:
+      bootstrap_servers: "company-kafka.company.com:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "PLAIN"
+      username: "${KAFKA_USERNAME}"
+      password: "${KAFKA_PASSWORD}"
+      topics:
+        - name: "user_events"
+          partitions: 12
+          frequency: "real-time"
+          description: "Internal real-time user behavior events"
+        - name: "order_events"
+          partitions: 8
+          frequency: "real-time"
+          description: "Internal real-time order processing events"
+        - name: "inventory_updates"
+          partitions: 6
+          frequency: "real-time"
+          description: "Internal real-time inventory changes"
+        - name: "system_metrics"
+          partitions: 4
+          frequency: "real-time"
+          description: "Internal system performance metrics"
+
+# Data lake paths with separate storage
+data_lake:
+  bronze_path: "s3://company-data-lake-ACCOUNT_ID/bronze"
+  silver_path: "s3://company-data-lake-ACCOUNT_ID/silver"
+  gold_path: "s3://company-data-lake-ACCOUNT_ID/gold"
+  metrics_path: "s3://company-data-lake-ACCOUNT_ID/metrics"
+  checkpoint_path: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  warehouse_path: "s3://company-data-lake-ACCOUNT_ID/warehouse"
+  backup_path: "s3://company-backups-ACCOUNT_ID"
+
+# Separate storage for different data types
+storage_config:
+  # External data storage
+  external:
+    raw_path: "s3://company-external-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/external"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/external"
+    backup_path: "s3://company-backups-ACCOUNT_ID/external"
+  
+  # Internal data storage
+  internal:
+    raw_path: "s3://company-internal-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/internal"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/internal"
+    backup_path: "s3://company-backups-ACCOUNT_ID/internal"
+  
+  # Streaming data storage
+  streaming:
+    raw_path: "s3://company-streaming-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/streaming"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/streaming"
+    backup_path: "s3://company-backups-ACCOUNT_ID/streaming"
+
+# Spark configuration for production
+spark:
+  app_name: "Company Enterprise ETL"
+  config:
+    # Delta Lake configuration
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.sql.catalog.spark_catalog.warehouse: "s3://company-data-lake-ACCOUNT_ID/warehouse"
+    
+    # S3 configuration for multiple buckets
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
+    spark.hadoop.fs.s3a.endpoint: "s3.amazonaws.com"
+    spark.hadoop.fs.s3a.path.style.access: "false"
+    
+    # JDBC configurations for internal databases
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.localShuffleReader.enabled: "true"
+    spark.sql.adaptive.advisoryPartitionSizeInBytes: "128m"
+    spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.maxBroadcastHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.optimizeSkewedJoin.enabled: "true"
+    spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256m"
+    spark.sql.adaptive.skewJoin.skewedPartitionFactor: "5"
+    spark.sql.adaptive.coalescePartitions.minPartitionNum: "1"
+    spark.sql.adaptive.coalescePartitions.initialPartitionNum: "200"
+    spark.sql.adaptive.coalescePartitions.parallelismFirst: "false"
+    spark.sql.adaptive.fetchShuffleBlocksInBatch.enabled: "true"
+    spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin: "0.2"
+    
+    # Memory and execution
+    spark.executor.memory: "8g"
+    spark.executor.cores: "4"
+    spark.driver.memory: "4g"
+    spark.sql.shuffle.partitions: "200"
+    spark.default.parallelism: "200"
+    
+    # Delta Lake optimization
+    spark.databricks.delta.optimizeWrite.enabled: "true"
+    spark.databricks.delta.autoCompact.enabled: "true"
+    spark.databricks.delta.properties.defaults.enableChangeDataFeed: "true"
+    
+    # Streaming configurations
+    spark.sql.streaming.checkpointLocation: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+    spark.sql.streaming.schemaInference: "true"
+    spark.sql.streaming.metricsEnabled: "true"
+
+# Performance optimization settings
+performance:
+  cache_enabled: true
+  partition_size_mb: 128
+  max_partitions: 200
+  broadcast_threshold_mb: 10
+  shuffle_partitions: 200
+  executor_instances: 5
+  executor_memory: "8g"
+  executor_cores: 4
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_export: "cloudwatch"
+  log_level: "INFO"
+  pipeline_metrics: true
+  custom_metrics:
+    - name: "RecordsProcessed"
+      type: "counter"
+    - name: "ProcessingTime"
+      type: "gauge"
+    - name: "DataQualityScore"
+      type: "gauge"
+    - name: "ErrorCount"
+      type: "counter"
+    - name: "StorageUsage"
+      type: "gauge"
+    - name: "SourceLatency"
+      type: "gauge"
+    - name: "APIResponseTime"
+      type: "gauge"
+
+# Data quality settings
+data_quality:
+  enabled: true
+  validation_rules:
+    # External data quality rules
+    - name: "external_order_id_not_null"
+      rule: "order_id IS NOT NULL"
+      table: "customer_orders"
+      source: "external"
+    - name: "external_customer_id_not_null"
+      rule: "customer_id IS NOT NULL"
+      table: "customer_orders"
+      source: "external"
+    - name: "external_positive_amount"
+      rule: "total_amount > 0"
+      table: "customer_orders"
+      source: "external"
+    - name: "external_valid_date_range"
+      rule: "order_date BETWEEN '2020-01-01' AND CURRENT_DATE"
+      table: "customer_orders"
+      source: "external"
+    
+    # Internal data quality rules
+    - name: "internal_user_id_not_null"
+      rule: "user_id IS NOT NULL"
+      table: "users"
+      source: "internal"
+    - name: "internal_valid_email_format"
+      rule: "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+      table: "users"
+      source: "internal"
+    - name: "internal_subscription_active"
+      rule: "status IN ('active', 'pending', 'cancelled')"
+      table: "subscriptions"
+      source: "internal"
+    - name: "internal_inventory_positive"
+      rule: "quantity >= 0"
+      table: "product_inventory"
+      source: "internal"
+    
+    # Streaming data quality rules
+    - name: "streaming_event_id_not_null"
+      rule: "event_id IS NOT NULL"
+      table: "user_events"
+      source: "streaming"
+    - name: "streaming_valid_timestamp"
+      rule: "timestamp <= CURRENT_TIMESTAMP"
+      table: "user_events"
+      source: "streaming"
+
+# Streaming configuration
+streaming:
+  enable: true
+  checkpoint_location: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  trigger_interval: "5 minutes"
+  kafka:
+    bootstrap_servers: "company-kafka.company.com:9092"
+    topics:
+      - "user_events"
+      - "order_events"
+      - "inventory_updates"
+      - "system_metrics"
+
+# Disaster recovery settings
+disaster_recovery:
+  enabled: true
+  backup_frequency: "hourly"
+  retention_days: 90
+  replication_enabled: true
+  backup_location: "s3://company-backups-ACCOUNT_ID"
+  rto_hours: 4  # Recovery Time Objective
+  rpo_hours: 1  # Recovery Point Objective
+
+# Maintenance settings
+maintenance:
+  enable: true
+  delta_vacuum_retention_hours: 168  # 7 days
+  delta_optimize_frequency: "daily"
+  z_order_columns:
+    - "customer_id"
+    - "user_id"
+    - "order_date"
+    - "product_id"
+    - "event_id"
+  cleanup_old_data:
+    enabled: true
+    retention_days: 1095  # 3 years
+    tables:
+      - "bronze_external_orders"
+      - "bronze_internal_users"
+      - "bronze_streaming_events"
+
+# Security settings
+security:
+  encryption_enabled: true
+  audit_logging: true
+  data_masking: true
+  access_control:
+    - role: "data_engineer"
+      permissions: ["read", "write", "delete"]
+      tables: ["*"]
+    - role: "data_analyst"
+      permissions: ["read"]
+      tables: ["gold_*", "silver_*"]
+    - role: "business_user"
+      permissions: ["read"]
+      tables: ["gold_fact_sales", "gold_dim_customers", "gold_dim_users"]
+    - role: "internal_analyst"
+      permissions: ["read"]
+      tables: ["gold_internal_*"]
+    - role: "external_analyst"
+      permissions: ["read"]
+      tables: ["gold_external_*"]
+  data_classification:
+    pii_columns:
+      - "email"
+      - "phone"
+      - "address"
+      - "customer_id"
+      - "user_id"
+    sensitive_columns:
+      - "amount"
+      - "revenue"
+      - "price"
+      - "salary"
+      - "subscription_amount"
+    restricted_data:
+      - "external_customer_data"
+      - "internal_user_data"
+      - "financial_transactions"
+      - "user_behavior_data"
+  compliance:
+    gdpr_enabled: true
+    ccpa_enabled: true
+    sox_compliance: true
+    data_retention_policies:
+      - data_type: "pii"
+        retention_days: 2555  # 7 years
+      - data_type: "financial"
+        retention_days: 3650  # 10 years
+      - data_type: "operational"
+        retention_days: 1095  # 3 years
+
+# ETL pipeline configuration
+etl_pipeline:
+  # Ingestion jobs for 3 data sources
+  ingestion:
+    # 1. External source - Snowflake data warehouse ingestion
+    external_snowflake_ingestion:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 10000
+      timeout_minutes: 30
+      source_type: "external_data_warehouse"
+      description: "Ingest customer orders, product catalog, and financial transactions from external Snowflake"
+    
+    # 2. Internal source - PostgreSQL database ingestion
+    internal_postgresql_ingestion:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 5000
+      timeout_minutes: 20
+      source_type: "internal_database"
+      description: "Ingest users, subscriptions, and inventory data from internal PostgreSQL"
+    
+    # 3. Internal source - Kafka streaming ingestion
+    internal_kafka_ingestion:
+      enabled: true
+      frequency: "real-time"
+      batch_size: 1000
+      timeout_minutes: 10
+      source_type: "internal_streaming"
+      description: "Ingest real-time user events, order events, and system metrics from internal Kafka"
+  
+  # Processing jobs
+  processing:
+    data_cleaning:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["ingestion.*"]
+    data_enrichment:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.data_cleaning"]
+    data_validation:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.data_enrichment"]
+    data_deduplication:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.data_validation"]
+  
+  # Data warehouse jobs
+  data_warehouse:
+    dimension_tables:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["processing.data_deduplication"]
+    fact_tables:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["data_warehouse.dimension_tables"]
+    aggregate_tables:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["data_warehouse.fact_tables"]
+
+# Environment-specific settings
+environment: "aws-enterprise-production"
+region: "us-east-1"
+timezone: "UTC"
+data_retention_days: 1095  # 3 years
+max_concurrent_jobs: 20
+alert_email: "data-team@company.com"
+sla_hours: 2  # Service Level Agreement in hours
+rto_hours: 4  # Recovery Time Objective
+rpo_hours: 1  # Recovery Point Objective

@@ -1,0 +1,95 @@
+version: "3.8"
+
+x-project-volume: &project_volume
+  - .:/opt/project
+
+services:
+  spark-master:
+    image: bitnami/spark:3.5.1
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_LOCAL_IP=127.0.0.1
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    volumes: *project_volume
+
+  spark-worker:
+    image: bitnami/spark:3.5.1
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_NO_DAEMONIZE=true
+    ports:
+      - "8081:8081"
+    volumes: *project_volume
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.4-python3.10
+    container_name: airflow-scheduler
+    restart: unless-stopped
+    depends_on:
+      - spark-master
+      - spark-worker
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
+      - AIRFLOW_HOME=/opt/airflow
+      - PROJECT_HOME=/opt/project
+      - CONFIG_FILE=config/config-dev.yaml
+      - VENV_ACTIVATE=.venv/bin/activate
+      - USE_SPARK_SUBMIT=true
+      - SPARK_APP=src/pyspark_interview_project/pipeline.py
+      # Install provider at startup; you can bake this into a custom image later.
+      - PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-apache-spark==4.7.0
+    volumes:
+      - airflow_home:/opt/airflow
+      - .:/opt/project
+    command: ["bash", "-lc", "airflow db init && airflow scheduler"]
+
+  airflow-webserver:
+    image: apache/airflow:2.8.4-python3.10
+    container_name: airflow-webserver
+    restart: unless-stopped
+    depends_on:
+      - airflow-scheduler
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
+      - AIRFLOW_HOME=/opt/airflow
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-apache-spark==4.7.0
+    ports:
+      - "8088:8080"
+    volumes:
+      - airflow_home:/opt/airflow
+      - .:/opt/project
+    command: ["bash", "-lc", "airflow db upgrade && airflow users create --username admin --firstname a --lastname b --role Admin --email a@b.c --password admin || true && airflow webserver"]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+
+volumes:
+  airflow_home:

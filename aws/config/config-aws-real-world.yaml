@@ -1,0 +1,621 @@
+# Real-World AWS ETL Configuration
+# This configuration uses actual data sources with separate storage locations
+
+# AWS-specific configuration
+aws:
+  region: "us-east-1"
+  s3:
+    # Separate storage buckets for different data sources
+    ecommerce_data_bucket: "ecommerce-raw-data-ACCOUNT_ID"
+    marketing_data_bucket: "marketing-data-ACCOUNT_ID"
+    analytics_data_bucket: "analytics-data-ACCOUNT_ID"
+    payment_data_bucket: "payment-data-ACCOUNT_ID"
+    support_data_bucket: "support-data-ACCOUNT_ID"
+    hr_data_bucket: "hr-data-ACCOUNT_ID"
+    finance_data_bucket: "finance-data-ACCOUNT_ID"
+    
+    # Data lake storage
+    data_lake_bucket: "company-data-lake-ACCOUNT_ID"
+    backup_bucket: "company-backups-ACCOUNT_ID"
+    logs_bucket: "company-logs-ACCOUNT_ID"
+    artifacts_bucket: "company-artifacts-ACCOUNT_ID"
+    
+    # Cross-region backup
+    backup_west_bucket: "company-backups-west-ACCOUNT_ID"
+  
+  emr:
+    cluster_name: "production-etl-cluster"
+    release_label: "emr-6.15.0"
+    instance_type: "m5.2xlarge"
+    instance_count: 5
+    applications: ["Spark", "Hive", "Hadoop", "Delta"]
+  
+  glue:
+    database_name: "company_data_warehouse"
+    crawler_name: "production-data-crawler"
+  
+  step_functions:
+    state_machine_name: "production-etl-workflow"
+  
+  cloudwatch:
+    namespace: "CompanyETL"
+    log_group: "/aws/emr/company-etl"
+
+# Real-world data sources with separate storage
+data_sources:
+  # E-commerce data (separate bucket)
+  ecommerce:
+    orders:
+      source: "s3://ecommerce-raw-data-ACCOUNT_ID/orders/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+    customers:
+      source: "s3://ecommerce-raw-data-ACCOUNT_ID/customers/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    products:
+      source: "s3://ecommerce-raw-data-ACCOUNT_ID/products/"
+      format: "Parquet"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    inventory:
+      source: "s3://ecommerce-raw-data-ACCOUNT_ID/inventory/"
+      format: "JSON"
+      frequency: "real-time"
+      schema: "auto"
+      storage_class: "STANDARD"
+  
+  # Marketing data (separate bucket)
+  marketing:
+    google_ads:
+      source: "s3://marketing-data-ACCOUNT_ID/google-ads/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    facebook_ads:
+      source: "s3://marketing-data-ACCOUNT_ID/facebook-ads/"
+      format: "JSON"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    linkedin_ads:
+      source: "s3://marketing-data-ACCOUNT_ID/linkedin-ads/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    email_campaigns:
+      source: "s3://marketing-data-ACCOUNT_ID/email-campaigns/"
+      format: "JSON"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+  
+  # Analytics data (separate bucket)
+  analytics:
+    google_analytics:
+      source: "s3://analytics-data-ACCOUNT_ID/google-analytics/"
+      format: "BigQuery export"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    firebase:
+      source: "s3://analytics-data-ACCOUNT_ID/firebase/"
+      format: "BigQuery export"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    mixpanel:
+      source: "s3://analytics-data-ACCOUNT_ID/mixpanel/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+    amplitude:
+      source: "s3://analytics-data-ACCOUNT_ID/amplitude/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+  
+  # Payment data (separate bucket with encryption)
+  payments:
+    stripe:
+      source: "s3://payment-data-ACCOUNT_ID/stripe/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+    paypal:
+      source: "s3://payment-data-ACCOUNT_ID/paypal/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+    square:
+      source: "s3://payment-data-ACCOUNT_ID/square/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+    adyen:
+      source: "s3://payment-data-ACCOUNT_ID/adyen/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+  
+  # Customer support data (separate bucket)
+  support:
+    zendesk:
+      source: "s3://support-data-ACCOUNT_ID/zendesk/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+    intercom:
+      source: "s3://support-data-ACCOUNT_ID/intercom/"
+      format: "JSON"
+      frequency: "hourly"
+      schema: "auto"
+      storage_class: "STANDARD"
+    freshdesk:
+      source: "s3://support-data-ACCOUNT_ID/freshdesk/"
+      format: "JSON"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+    salesforce_service:
+      source: "s3://support-data-ACCOUNT_ID/salesforce-service/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+  
+  # HR data (separate bucket with restricted access)
+  hr:
+    workday:
+      source: "s3://hr-data-ACCOUNT_ID/workday/"
+      format: "CSV"
+      frequency: "weekly"
+      schema: "auto"
+      storage_class: "STANDARD"
+      access_control: "restricted"
+    bamboohr:
+      source: "s3://hr-data-ACCOUNT_ID/bamboohr/"
+      format: "CSV"
+      frequency: "weekly"
+      schema: "auto"
+      storage_class: "STANDARD"
+      access_control: "restricted"
+    adp:
+      source: "s3://hr-data-ACCOUNT_ID/adp/"
+      format: "CSV"
+      frequency: "monthly"
+      schema: "auto"
+      storage_class: "STANDARD"
+      access_control: "restricted"
+  
+  # Finance data (separate bucket with high security)
+  finance:
+    quickbooks:
+      source: "s3://finance-data-ACCOUNT_ID/quickbooks/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+      access_control: "high_security"
+    xero:
+      source: "s3://finance-data-ACCOUNT_ID/xero/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+      access_control: "high_security"
+    netsuite:
+      source: "s3://finance-data-ACCOUNT_ID/netsuite/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+      access_control: "high_security"
+    sap:
+      source: "s3://finance-data-ACCOUNT_ID/sap/"
+      format: "CSV"
+      frequency: "daily"
+      schema: "auto"
+      storage_class: "STANDARD"
+      encryption: "AES256"
+      access_control: "high_security"
+
+# Data lake paths with separate storage
+data_lake:
+  bronze_path: "s3://company-data-lake-ACCOUNT_ID/bronze"
+  silver_path: "s3://company-data-lake-ACCOUNT_ID/silver"
+  gold_path: "s3://company-data-lake-ACCOUNT_ID/gold"
+  metrics_path: "s3://company-data-lake-ACCOUNT_ID/metrics"
+  checkpoint_path: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  warehouse_path: "s3://company-data-lake-ACCOUNT_ID/warehouse"
+  backup_path: "s3://company-backups-ACCOUNT_ID"
+
+# Separate storage for different data types
+storage_config:
+  # E-commerce data storage
+  ecommerce:
+    raw_path: "s3://ecommerce-raw-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/ecommerce"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/ecommerce"
+    backup_path: "s3://company-backups-ACCOUNT_ID/ecommerce"
+  
+  # Marketing data storage
+  marketing:
+    raw_path: "s3://marketing-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/marketing"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/marketing"
+    backup_path: "s3://company-backups-ACCOUNT_ID/marketing"
+  
+  # Analytics data storage
+  analytics:
+    raw_path: "s3://analytics-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/analytics"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/analytics"
+    backup_path: "s3://company-backups-ACCOUNT_ID/analytics"
+  
+  # Payment data storage (encrypted)
+  payments:
+    raw_path: "s3://payment-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/payments"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/payments"
+    backup_path: "s3://company-backups-ACCOUNT_ID/payments"
+  
+  # Support data storage
+  support:
+    raw_path: "s3://support-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/support"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/support"
+    backup_path: "s3://company-backups-ACCOUNT_ID/support"
+  
+  # HR data storage (restricted)
+  hr:
+    raw_path: "s3://hr-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/hr"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/hr"
+    backup_path: "s3://company-backups-ACCOUNT_ID/hr"
+  
+  # Finance data storage (high security)
+  finance:
+    raw_path: "s3://finance-data-ACCOUNT_ID"
+    processed_path: "s3://company-data-lake-ACCOUNT_ID/bronze/finance"
+    analytics_path: "s3://company-data-lake-ACCOUNT_ID/gold/finance"
+    backup_path: "s3://company-backups-ACCOUNT_ID/finance"
+
+# Spark configuration for production
+spark:
+  app_name: "Company Production ETL"
+  config:
+    # Delta Lake configuration
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.sql.catalog.spark_catalog.warehouse: "s3://company-data-lake-ACCOUNT_ID/warehouse"
+    
+    # S3 configuration for multiple buckets
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
+    spark.hadoop.fs.s3a.endpoint: "s3.amazonaws.com"
+    spark.hadoop.fs.s3a.path.style.access: "false"
+    
+    # Performance optimization
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.localShuffleReader.enabled: "true"
+    spark.sql.adaptive.advisoryPartitionSizeInBytes: "128m"
+    spark.sql.adaptive.maxShuffledHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.maxBroadcastHashJoinLocalMapThreshold: "0"
+    spark.sql.adaptive.optimizeSkewedJoin.enabled: "true"
+    spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256m"
+    spark.sql.adaptive.skewJoin.skewedPartitionFactor: "5"
+    spark.sql.adaptive.coalescePartitions.minPartitionNum: "1"
+    spark.sql.adaptive.coalescePartitions.initialPartitionNum: "200"
+    spark.sql.adaptive.coalescePartitions.parallelismFirst: "false"
+    spark.sql.adaptive.fetchShuffleBlocksInBatch.enabled: "true"
+    spark.sql.adaptive.nonEmptyPartitionRatioForBroadcastJoin: "0.2"
+    
+    # Memory and execution
+    spark.executor.memory: "8g"
+    spark.executor.cores: "4"
+    spark.driver.memory: "4g"
+    spark.sql.shuffle.partitions: "200"
+    spark.default.parallelism: "200"
+    
+    # Delta Lake optimization
+    spark.databricks.delta.optimizeWrite.enabled: "true"
+    spark.databricks.delta.autoCompact.enabled: "true"
+    spark.databricks.delta.properties.defaults.enableChangeDataFeed: "true"
+
+# Performance optimization settings
+performance:
+  cache_enabled: true
+  partition_size_mb: 128
+  max_partitions: 200
+  broadcast_threshold_mb: 10
+  shuffle_partitions: 200
+  executor_instances: 5
+  executor_memory: "8g"
+  executor_cores: 4
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_export: "cloudwatch"
+  log_level: "INFO"
+  pipeline_metrics: true
+  custom_metrics:
+    - name: "RecordsProcessed"
+      type: "counter"
+    - name: "ProcessingTime"
+      type: "gauge"
+    - name: "DataQualityScore"
+      type: "gauge"
+    - name: "ErrorCount"
+      type: "counter"
+    - name: "StorageUsage"
+      type: "gauge"
+
+# Data quality settings
+data_quality:
+  enabled: true
+  validation_rules:
+    # E-commerce data quality rules
+    - name: "order_id_not_null"
+      rule: "order_id IS NOT NULL"
+      table: "orders"
+    - name: "customer_id_not_null"
+      rule: "customer_id IS NOT NULL"
+      table: "customers"
+    - name: "positive_amount"
+      rule: "total_amount > 0"
+      table: "orders"
+    - name: "valid_email_format"
+      rule: "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+      table: "customers"
+    - name: "valid_date_range"
+      rule: "order_date BETWEEN '2020-01-01' AND CURRENT_DATE"
+      table: "orders"
+    
+    # Payment data quality rules
+    - name: "payment_status_valid"
+      rule: "status IN ('succeeded', 'pending', 'failed', 'refunded')"
+      table: "payments"
+    - name: "positive_payment_amount"
+      rule: "amount > 0"
+      table: "payments"
+    
+    # Analytics data quality rules
+    - name: "session_id_not_null"
+      rule: "session_id IS NOT NULL"
+      table: "analytics_sessions"
+    - name: "valid_event_timestamp"
+      rule: "event_timestamp <= CURRENT_TIMESTAMP"
+      table: "analytics_events"
+
+# Streaming configuration
+streaming:
+  enable: true
+  checkpoint_location: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  trigger_interval: "5 minutes"
+  kinesis:
+    stream_name: "company-orders-stream"
+    region: "us-east-1"
+    batch_size: 1000
+    max_records_per_batch: 10000
+
+# Disaster recovery settings
+disaster_recovery:
+  enabled: true
+  backup_frequency: "hourly"
+  retention_days: 90
+  replication_enabled: true
+  backup_location: "s3://company-backups-ACCOUNT_ID"
+  cross_region_backup:
+    enabled: true
+    destination_region: "us-west-2"
+    destination_bucket: "s3://company-backups-west-ACCOUNT_ID"
+
+# Maintenance settings
+maintenance:
+  enable: true
+  delta_vacuum_retention_hours: 168  # 7 days
+  delta_optimize_frequency: "daily"
+  z_order_columns:
+    - "customer_id"
+    - "order_date"
+    - "product_id"
+    - "country"
+    - "category"
+  cleanup_old_data:
+    enabled: true
+    retention_days: 1095  # 3 years
+    tables:
+      - "bronze_orders"
+      - "bronze_analytics_events"
+      - "bronze_support_tickets"
+
+# Security settings
+security:
+  encryption_enabled: true
+  audit_logging: true
+  data_masking: true
+  access_control:
+    - role: "data_engineer"
+      permissions: ["read", "write", "delete"]
+      tables: ["*"]
+    - role: "data_analyst"
+      permissions: ["read"]
+      tables: ["gold_*", "silver_*"]
+    - role: "business_user"
+      permissions: ["read"]
+      tables: ["gold_fact_sales", "gold_dim_customers"]
+    - role: "hr_analyst"
+      permissions: ["read"]
+      tables: ["gold_hr_*"]
+      restricted_access: true
+    - role: "finance_analyst"
+      permissions: ["read"]
+      tables: ["gold_finance_*"]
+      high_security_access: true
+  data_classification:
+    pii_columns:
+      - "email"
+      - "phone"
+      - "address"
+      - "credit_card_number"
+      - "ssn"
+      - "salary"
+    sensitive_columns:
+      - "salary"
+      - "revenue"
+      - "profit_margin"
+      - "customer_credit_limit"
+    restricted_data:
+      - "hr_employee_data"
+      - "finance_transactions"
+      - "payment_card_data"
+
+# ETL pipeline configuration
+etl_pipeline:
+  # Ingestion jobs for different data sources
+  ingestion:
+    ecommerce:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 10000
+      timeout_minutes: 30
+      source_bucket: "ecommerce-raw-data-ACCOUNT_ID"
+    marketing:
+      enabled: true
+      frequency: "daily"
+      batch_size: 50000
+      timeout_minutes: 60
+      source_bucket: "marketing-data-ACCOUNT_ID"
+    analytics:
+      enabled: true
+      frequency: "daily"
+      batch_size: 100000
+      timeout_minutes: 120
+      source_bucket: "analytics-data-ACCOUNT_ID"
+    payments:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 5000
+      timeout_minutes: 45
+      source_bucket: "payment-data-ACCOUNT_ID"
+      encryption_required: true
+    support:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 2000
+      timeout_minutes: 30
+      source_bucket: "support-data-ACCOUNT_ID"
+    hr:
+      enabled: true
+      frequency: "weekly"
+      batch_size: 1000
+      timeout_minutes: 60
+      source_bucket: "hr-data-ACCOUNT_ID"
+      restricted_access: true
+    finance:
+      enabled: true
+      frequency: "daily"
+      batch_size: 5000
+      timeout_minutes: 90
+      source_bucket: "finance-data-ACCOUNT_ID"
+      high_security_access: true
+  
+  # Processing jobs
+  processing:
+    ecommerce_cleaning:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["ingestion.ecommerce"]
+    marketing_enrichment:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["ingestion.marketing"]
+    analytics_aggregation:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["ingestion.analytics"]
+    payments_validation:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["ingestion.payments"]
+    support_analysis:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["ingestion.support"]
+    hr_processing:
+      enabled: true
+      frequency: "weekly"
+      dependencies: ["ingestion.hr"]
+      restricted_access: true
+    finance_processing:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["ingestion.finance"]
+      high_security_access: true
+  
+  # Data warehouse jobs
+  data_warehouse:
+    sales_fact_table:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.ecommerce_cleaning"]
+    customer_dimension:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["processing.ecommerce_cleaning"]
+    marketing_attribution:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["processing.marketing_enrichment", "processing.analytics_aggregation"]
+    payment_analytics:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.payments_validation"]
+    support_analytics:
+      enabled: true
+      frequency: "hourly"
+      dependencies: ["processing.support_analysis"]
+    hr_analytics:
+      enabled: true
+      frequency: "weekly"
+      dependencies: ["processing.hr_processing"]
+      restricted_access: true
+    finance_analytics:
+      enabled: true
+      frequency: "daily"
+      dependencies: ["processing.finance_processing"]
+      high_security_access: true
+
+# Environment-specific settings
+environment: "aws-production"
+region: "us-east-1"
+timezone: "UTC"
+data_retention_days: 1095  # 3 years
+max_concurrent_jobs: 10
+alert_email: "data-team@company.com"
+sla_hours: 2  # Service Level Agreement in hours
