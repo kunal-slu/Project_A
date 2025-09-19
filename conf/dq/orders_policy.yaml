@@ -1,0 +1,22 @@
+table: silver.orders
+rules:
+  - name: not_null_order_id
+    type: not_null
+    column: order_id
+    severity: error
+  - name: unique_order_id
+    type: unique
+    columns: [order_id]
+    severity: error
+  - name: valid_amount
+    type: expression
+    sql: "amount >= 0"
+    severity: warn
+  - name: valid_customer_id
+    type: not_null
+    column: customer_id
+    severity: error
+  - name: valid_order_date
+    type: not_null
+    column: order_date
+    severity: error
