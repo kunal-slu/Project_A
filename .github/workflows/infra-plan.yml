@@ -1,0 +1,75 @@
+name: Infrastructure Planning
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: "us-east-1"
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.5.0"
+    
+    - name: Terraform Format Check
+      run: |
+        cd infra/terraform
+        terraform fmt -check -recursive
+    
+    - name: Terraform Init
+      run: |
+        cd infra/terraform
+        terraform init
+    
+    - name: Terraform Validate
+      run: |
+        cd infra/terraform
+        terraform validate
+    
+    - name: Terraform Plan
+      run: |
+        cd infra/terraform
+        terraform plan -out=tfplan
+    
+    - name: Comment PR with Plan
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const plan = fs.readFileSync('infra/terraform/tfplan', 'base64');
+          
+          github.rest.pulls.createReview({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.issue.number,
+            event: 'COMMENT',
+            body: `## Terraform Plan
+          
+          <details>
+          <summary>Click to expand</summary>
+          
+          \`\`\`
+          ${Buffer.from(plan, 'base64').toString()}
+          \`\`\`
+          
+          </details>`
+          });

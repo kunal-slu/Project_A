@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,13 +6,17 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  PYTHON_VERSION: '3.10'
+  AWS_REGION: 'us-east-1'
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.10]
-
+        python-version: ['3.10']
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -33,53 +37,131 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Type check with mypy
+      run: |
+        pip install mypy
+        mypy src/ --ignore-missing-imports
+    
+    - name: Format check with black
+      run: |
+        pip install black
+        black --check src/
+    
+    - name: Import sort check with isort
+      run: |
+        pip install isort
+        isort --check-only src/
+    
+    - name: Security scan with detect-secrets
+      run: |
+        pip install detect-secrets
+        detect-secrets scan --baseline .secrets.baseline
     
     - name: Run tests
       run: |
-        pytest -q tests/
+        PYTHONPATH=src pytest tests/ -v --cov=src --cov-report=xml
     
-    - name: Run code quality checks
-      run: |
-        black --check src/ tests/ scripts/
-        isort --check-only src/ tests/ scripts/
-        flake8 src/ tests/ scripts/
-    
-    - name: Run type checking
-      run: |
-        mypy src/ --ignore-missing-imports
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
 
-  dry-run:
-    runs-on: ubuntu-latest
+  build-and-deploy:
     needs: test
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python 3.10
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
       uses: actions/setup-python@v4
       with:
-        python-version: 3.10
+        python-version: ${{ env.PYTHON_VERSION }}
     
-    - name: Install dependencies
+    - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install build wheel
     
-    - name: Create sample data
+    - name: Build wheel
       run: |
-        mkdir -p data/input_data
-        echo "customer_id,first_name,last_name,email,age" > data/input_data/customers.csv
-        echo "C001,John,Doe,john@example.com,25" >> data/input_data/customers.csv
-        echo "C002,Jane,Smith,jane@example.com,30" >> data/input_data/customers.csv
-        
-        echo '{"order_id":"O001","customer_id":"C001","product_id":"P001","quantity":2,"total_amount":21.00}' > data/input_data/orders.json
-        echo '{"order_id":"O002","customer_id":"C002","product_id":"P002","quantity":1,"total_amount":25.00}' >> data/input_data/orders.json
-        
-        echo "product_id,product_name,category,price" > data/input_data/products.csv
-        echo "P001,Widget A,Electronics,10.50" >> data/input_data/products.csv
-        echo "P002,Widget B,Electronics,25.00" >> data/input_data/products.csv
+        python -m build
     
-    - name: Run dry-run ETL pipeline
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Upload wheel to S3
       run: |
-        python scripts/run_local_etl.py --conf conf/application-local.yaml --limit 10
+        aws s3 cp dist/*.whl s3://${{ secrets.CODE_BUCKET }}/dist/
+        echo "Wheel uploaded to s3://${{ secrets.CODE_BUCKET }}/dist/"
+    
+    - name: Upload jobs to S3
+      run: |
+        aws s3 sync src/pyspark_interview_project/jobs/ s3://${{ secrets.CODE_BUCKET }}/jobs/
+        aws s3 sync aws/scripts/ s3://${{ secrets.CODE_BUCKET }}/scripts/
+        aws s3 sync conf/ s3://${{ secrets.CODE_BUCKET }}/config/
+        aws s3 sync dq/ s3://${{ secrets.CODE_BUCKET }}/dq/
+        echo "Jobs and scripts uploaded to S3"
+
+  infra-plan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: '1.5.0'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Terraform Init
+      run: |
+        cd infra/terraform
+        terraform init
+    
+    - name: Terraform Plan
+      run: |
+        cd infra/terraform
+        terraform plan -no-color
+      continue-on-error: true
+    
+    - name: Comment PR with Terraform Plan
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const output = `#### Terraform Plan 📖
+          \`\`\`
+          ${{ steps.plan.outputs.stdout }}
+          \`\`\`
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })

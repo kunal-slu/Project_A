@@ -44,19 +44,49 @@ def load_conf(env_path: str) -> Dict[str, Any]:
 
 
 def _overlay_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Overlay environment variables on configuration."""
-    def _resolve_env_vars(obj):
+    """Overlay environment variables on configuration and resolve template variables."""
+    def _resolve_vars(obj):
         if isinstance(obj, dict):
-            return {k: _resolve_env_vars(v) for k, v in obj.items()}
+            return {k: _resolve_vars(v) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [_resolve_env_vars(v) for v in obj]
-        elif isinstance(obj, str) and obj.startswith("${") and obj.endswith("}"):
-            env_var = obj[2:-1]  # Remove ${ and }
-            return os.environ.get(env_var, obj)
+            return [_resolve_vars(v) for v in obj]
+        elif isinstance(obj, str):
+            # First resolve template variables like ${project}-${environment}
+            obj = _resolve_template_variables(obj, config)
+            # Then resolve environment variables like ${ENV_VAR}
+            if obj.startswith("${") and obj.endswith("}") and "." not in obj[2:-1]:
+                env_var = obj[2:-1]  # Remove ${ and }
+                return os.environ.get(env_var, obj)
+            return obj
         else:
             return obj
     
-    return _resolve_env_vars(config)
+    return _resolve_vars(config)
+
+
+def _resolve_template_variables(value: str, config: Dict[str, Any]) -> str:
+    """Resolve template variables like ${project}-${environment} in string values."""
+    import re
+    
+    def replace_var(match):
+        var_path = match.group(1)
+        if '.' in var_path:
+            # Handle nested variables like s3.data_lake_bucket
+            parts = var_path.split('.')
+            current = config
+            for part in parts:
+                if isinstance(current, dict) and part in current:
+                    current = current[part]
+                else:
+                    return match.group(0)  # Return original if not found
+            return str(current)
+        else:
+            # Handle simple variables
+            if var_path in config:
+                return str(config[var_path])
+            return match.group(0)  # Return original if not found
+    
+    return re.sub(r'\$\{([^}]+)\}', replace_var, value)
 
 
 def _validate_config(config: Dict[str, Any]) -> None:

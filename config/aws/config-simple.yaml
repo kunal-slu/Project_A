@@ -1,0 +1,75 @@
+# AWS Configuration - Simple defaults for local dev and cloud deployment
+project: pyspark-interview
+environment: dev
+region: us-east-1
+
+# S3 Configuration
+s3:
+  data_lake_bucket: "${project}-${environment}-data-lake"
+  artifacts_bucket: "${project}-${environment}-artifacts"
+  logs_bucket: "${project}-${environment}-logs"
+  
+  # Data lake paths
+  bronze_path: "s3://${s3.data_lake_bucket}/bronze"
+  silver_path: "s3://${s3.data_lake_bucket}/silver"
+  gold_path: "s3://${s3.data_lake_bucket}/gold"
+  
+  # Ingestion paths
+  rest_api_path: "${s3.bronze_path}/rest_api"
+  salesforce_path: "${s3.bronze_path}/salesforce"
+  rds_cdc_path: "${s3.bronze_path}/rds_cdc"
+
+# Glue Data Catalog
+glue:
+  database_prefix: "${project}_${environment}"
+  databases:
+    bronze: "${glue.database_prefix}_bronze"
+    silver: "${glue.database_prefix}_silver"
+    gold: "${glue.database_prefix}_gold"
+
+# EMR Serverless
+emr:
+  application_name: "${project}-${environment}-spark-app"
+  execution_role: "${project}-${environment}-emr-execution-role"
+  job_role: "${project}-${environment}-emr-job-role"
+  
+  # Spark configuration
+  spark_config:
+    shuffle_partitions: 1  # Dev speed, override for prod
+    sql_extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+
+# MWAA
+mwaa:
+  environment_name: "${project}-${environment}-airflow"
+  dag_bucket: "${s3.artifacts_bucket}/dags"
+  plugins_bucket: "${s3.artifacts_bucket}/plugins"
+
+# Data Quality
+dq:
+  great_expectations_bucket: "${s3.logs_bucket}/great-expectations"
+  checkpoint_bucket: "${s3.artifacts_bucket}/ge-checkpoints"
+
+# Athena
+athena:
+  workgroup: "${project}-${environment}-workgroup"
+  output_location: "s3://${s3.logs_bucket}/athena-results/"
+
+# Security
+security:
+  kms_key_alias: "${project}-${environment}-s3-key"
+  encryption_type: "SSE-KMS"
+
+# Monitoring
+monitoring:
+  cloudwatch_log_group: "/aws/emr-serverless/${project}-${environment}"
+  budget_limit: 50  # USD per month
+  budget_email: "admin@example.com"
+
+# Feature toggles
+features:
+  enable_lake_formation: false
+  enable_dms: true
+  enable_appflow: true
+  enable_kafka: false
+  enable_streaming: false

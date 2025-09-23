@@ -1,0 +1,66 @@
+# AWS Connections and ARNs - Templated for different environments
+# These values are populated by Terraform and injected into runtime configs
+
+# IAM Roles
+iam:
+  emr_execution_role: "arn:aws:iam::${account_id}:role/${project}-${environment}-emr-execution-role"
+  emr_job_role: "arn:aws:iam::${account_id}:role/${project}-${environment}-emr-job-role"
+  mwaa_execution_role: "arn:aws:iam::${account_id}:role/${project}-${environment}-mwaa-execution-role"
+  lambda_execution_role: "arn:aws:iam::${account_id}:role/${project}-${environment}-lambda-execution-role"
+  dms_role: "arn:aws:iam::${account_id}:role/${project}-${environment}-dms-role"
+  appflow_role: "arn:aws:iam::${account_id}:role/${project}-${environment}-appflow-role"
+
+# SQS Queues
+sqs:
+  rest_api_queue: "https://sqs.${region}.amazonaws.com/${account_id}/${project}-${environment}-rest-api-queue"
+  rest_api_dlq: "https://sqs.${region}.amazonaws.com/${account_id}/${project}-${environment}-rest-api-dlq"
+
+# Lambda Functions
+lambda:
+  rest_producer: "${project}-${environment}-rest-producer"
+  rest_consumer: "${project}-${environment}-rest-consumer"
+  ge_checkpoint: "${project}-${environment}-ge-checkpoint"
+
+# RDS
+rds:
+  instance_id: "${project}-${environment}-postgres"
+  endpoint: "${rds_endpoint}"
+  port: 5432
+  database: "interview_db"
+  secret_name: "${project}-${environment}-rds-secret"
+
+# DMS
+dms:
+  replication_instance: "${project}-${environment}-dms-instance"
+  source_endpoint: "${project}-${environment}-rds-source"
+  target_endpoint: "${project}-${environment}-s3-target"
+
+# AppFlow
+appflow:
+  flow_name: "${project}-${environment}-salesforce-flow"
+  destination_connector: "S3"
+  source_connector: "Salesforce"
+
+# Secrets Manager
+secrets:
+  rds_credentials: "arn:aws:secretsmanager:${region}:${account_id}:secret:${project}-${environment}-rds-secret"
+  salesforce_credentials: "arn:aws:secretsmanager:${region}:${account_id}:secret:${project}-${environment}-salesforce-secret"
+  api_tokens: "arn:aws:secretsmanager:${region}:${account_id}:secret:${project}-${environment}-api-tokens"
+
+# KMS Keys
+kms:
+  s3_key: "arn:aws:kms:${region}:${account_id}:key/${s3_kms_key_id}"
+  logs_key: "arn:aws:kms:${region}:${account_id}:key/${logs_kms_key_id}"
+
+# CloudWatch
+cloudwatch:
+  log_groups:
+    emr_serverless: "/aws/emr-serverless/${project}-${environment}"
+    lambda: "/aws/lambda/${project}-${environment}"
+    mwaa: "/aws/mwaa/${project}-${environment}-airflow"
+    dms: "/aws/dms/${project}-${environment}-dms-instance"
+
+# Budget Alerts
+budget:
+  alarm_topic: "arn:aws:sns:${region}:${account_id}:${project}-${environment}-budget-alerts"
+  threshold_percentages: [50, 80, 100]
