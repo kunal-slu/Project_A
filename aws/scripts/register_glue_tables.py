@@ -78,14 +78,16 @@ def scan_and_register_tables(
     
     logger.info(f"Scanning for Delta tables in {s3_prefix}")
     
-    # List all directories in the layer
+    # List all directories in the layer using S3 client
     try:
-        # Use Spark to list directories
-        df = spark.sql(f"SHOW FILES FROM '{s3_prefix}'")
-        directories = [row[0] for row in df.collect() if row[0].endswith('/')]
+        s3_client = boto3.client('s3')
+        bucket_name = s3_prefix.replace('s3://', '').split('/')[0]
+        prefix = '/'.join(s3_prefix.replace('s3://', '').split('/')[1:])
         
-        for directory in directories:
-            table_name = directory.rstrip('/').split('/')[-1]
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix, Delimiter='/')
+        
+        for obj in response.get('CommonPrefixes', []):
+            table_name = obj['Prefix'].replace(prefix, '').rstrip('/')
             table_location = f"{s3_prefix}{table_name}"
             
             # Check if it's a Delta table by looking for _delta_log
