@@ -1,0 +1,66 @@
+# Great Expectations suite for silver.salesforce_leads and silver.salesforce_accounts
+suite_name: silver_salesforce
+expectations:
+  - expectation_type: expect_column_to_exist
+    kwargs:
+      column: Id
+    meta:
+      description: "Salesforce ID column must exist"
+      
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: Id
+    meta:
+      description: "Salesforce ID cannot be null"
+      severity: critical
+      
+  - expectation_type: expect_column_values_to_be_unique
+    kwargs:
+      column: Id
+    meta:
+      description: "Salesforce ID must be unique"
+      severity: critical
+      
+  - expectation_type: expect_column_to_exist
+    kwargs:
+      column: SystemModstamp
+    meta:
+      description: "SystemModstamp column must exist"
+      
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: SystemModstamp
+    meta:
+      description: "SystemModstamp cannot be null"
+      severity: critical
+      
+  - expectation_type: expect_column_values_to_be_of_type
+    kwargs:
+      column: SystemModstamp
+      type_: timestamp
+    meta:
+      description: "SystemModstamp must be timestamp type"
+      
+  - expectation_type: expect_column_values_to_match_regex
+    kwargs:
+      column: Id
+      regex: "^[0-9A-Za-z]{15,18}$"
+    meta:
+      description: "Salesforce ID must match valid format"
+      severity: warning
+      
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: LeadSource
+      value_set: ["Web", "Phone", "Email", "Partner", "Other", null]
+    meta:
+      description: "LeadSource must be from valid set"
+      severity: warning
+      
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: Type
+      value_set: ["Customer - Direct", "Customer - Channel", "Prospect", "Other", null]
+    meta:
+      description: "Account Type must be from valid set"
+      severity: warning

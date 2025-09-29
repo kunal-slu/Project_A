@@ -9,10 +9,10 @@ This project supports both **AWS** and **Azure** cloud platforms:
 - **AWS**: EMR Serverless + S3 + MWAA + Glue/Athena
 - **Azure**: Databricks + ADLS Gen2 + Data Factory + Key Vault
 
-Choose your cloud platform and follow the respective README:
+Choose your cloud platform and follow the respective runbook:
 
-- 📘 **[AWS Implementation](aws/README_AWS.md)** - EMR Serverless, S3, MWAA, Glue/Athena
-- 📗 **[Azure Implementation](azure/README_AZURE.md)** - Databricks, ADLS Gen2, Data Factory, Key Vault
+- 📘 **[AWS Production Runbook](aws/RUNBOOK_AWS_2025.md)** - Complete step-by-step AWS deployment guide
+- 📗 **[Azure Production Runbook](azure/RUNBOOK_AZURE_2025.md)** - Complete step-by-step Azure deployment guide
 
 ## 🏗️ Architecture
 

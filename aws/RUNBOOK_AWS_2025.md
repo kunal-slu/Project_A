@@ -25,6 +25,33 @@ export AWS_REGION="us-east-1"
 export PROJECT="pyspark-de-project"
 export ENVIRONMENT="dev"
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tsv)
+
+# Data Lake Configuration
+export LAKE_BUCKET="pyspark-de-project-dev-data-lake"
+export CODE_BUCKET="pyspark-de-project-dev-artifacts"
+
+# EMR Serverless Configuration
+export EMR_APP_ID="your-emr-app-id"
+export EMR_ROLE_ARN="arn:aws:iam::123456789012:role/your-role"
+
+# Salesforce Configuration
+export SF_SECRET_NAME="pyspark-de-project-dev-salesforce-credentials"
+
+# Kafka Configuration
+export KAFKA_BOOTSTRAP="your-confluent-bootstrap-servers"
+export KAFKA_API_KEY="your-confluent-api-key"
+export KAFKA_API_SECRET="your-confluent-api-secret"
+
+# Snowflake Configuration
+export SNOWFLAKE_URL="your-account.snowflakecomputing.com"
+export SNOWFLAKE_USER="your-username"
+export SNOWFLAKE_PASSWORD="your-password"
+export SNOWFLAKE_DATABASE="SNOWFLAKE_SAMPLE_DATA"
+export SNOWFLAKE_SCHEMA="TPCH_SF1"
+export SNOWFLAKE_WAREHOUSE="COMPUTE_WH"
+
+# Logging Configuration
+export LOG_LEVEL="INFO"
 ```
 
 ## 🏗️ Infrastructure Deployment

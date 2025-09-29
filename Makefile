@@ -32,13 +32,13 @@ run-local:
 	. .venv/bin/activate && python scripts/run_local_etl.py --conf conf/application-local.yaml
 
 run-bronze:
-	. .venv/bin/activate && PYTHONPATH=src python -m pyspark_interview_project.pipeline.bronze_to_silver --config conf/application-local.yaml
+	. .venv/bin/activate && PYTHONPATH=src python -m pyspark_interview_project.jobs.fx_to_bronze --config conf/application-local.yaml --lake-root file:///tmp/data-lake
 
 run-silver:
-	. .venv/bin/activate && PYTHONPATH=src python -m pyspark_interview_project.pipeline.silver_to_gold --config conf/application-local.yaml
+	. .venv/bin/activate && PYTHONPATH=src python -m pyspark_interview_project.jobs.fx_bronze_to_silver --config conf/application-local.yaml --lake-root file:///tmp/data-lake
 
 run-gold:
-	. .venv/bin/activate && PYTHONPATH=src python -m pyspark_interview_project.pipeline.silver_to_gold --config conf/application-local.yaml
+	. .venv/bin/activate && PYTHONPATH=src python -m pyspark_interview_project.pipeline.silver_to_gold --config conf/application-local.yaml --lake-root file:///tmp/data-lake
 
 test:
 	. .venv/bin/activate && pytest -q
@@ -87,17 +87,17 @@ dist:
 # Delta optimization target
 optimize-vacuum:
 	@echo "Optimizing and vacuuming Delta tables..."
-	@. .venv/bin/activate && python scripts/delta_optimize_vacuum.py --lake-root s3://pyspark-de-project-dev-data-lake --layers silver gold
+	@. .venv/bin/activate && PYTHONPATH=src python aws/scripts/delta_optimize_vacuum.py --lake-root s3://pyspark-de-project-dev-data-lake --layers silver gold
 
 # Lake Formation setup target
 lf-setup:
 	@echo "Setting up Lake Formation tags and policies..."
-	@. .venv/bin/activate && python aws/scripts/lf_tags_seed.py --database pyspark_de_project_silver
+	@. .venv/bin/activate && PYTHONPATH=src python aws/scripts/lf_tags_seed.py --database pyspark_de_project_silver
 
 # Kafka producer target
 kafka-produce:
 	@echo "Producing sample events to Kafka..."
-	@. .venv/bin/activate && python scripts/kafka_producer.py --bootstrap-servers ${KAFKA_BOOTSTRAP} --api-key ${KAFKA_API_KEY} --api-secret ${KAFKA_API_SECRET} --topic orders_events --num-orders 50
+	@. .venv/bin/activate && PYTHONPATH=src python scripts/kafka_producer.py --bootstrap-servers ${KAFKA_BOOTSTRAP} --api-key ${KAFKA_API_KEY} --api-secret ${KAFKA_API_SECRET} --topic orders_events --num-orders 50
 
 clean:
 	rm -rf data/lake .pytest_cache .venv __pycache__ .mypy_cache dist build
