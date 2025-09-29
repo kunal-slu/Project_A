@@ -1,6 +1,18 @@
 # PySpark Data Engineer Project
 
-A comprehensive data engineering project built with PySpark, Delta Lake, and AWS services. This project demonstrates modern data lakehouse architecture with automated ETL pipelines, data quality checks, and infrastructure as code.
+A comprehensive data engineering project built with PySpark, Delta Lake, and cloud services. This project demonstrates modern data lakehouse architecture with automated ETL pipelines, data quality checks, and infrastructure as code.
+
+## 🌐 Multi-Cloud Support
+
+This project supports both **AWS** and **Azure** cloud platforms:
+
+- **AWS**: EMR Serverless + S3 + MWAA + Glue/Athena
+- **Azure**: Databricks + ADLS Gen2 + Data Factory + Key Vault
+
+Choose your cloud platform and follow the respective README:
+
+- 📘 **[AWS Implementation](aws/README_AWS.md)** - EMR Serverless, S3, MWAA, Glue/Athena
+- 📗 **[Azure Implementation](azure/README_AZURE.md)** - Databricks, ADLS Gen2, Data Factory, Key Vault
 
 ## 🏗️ Architecture
 

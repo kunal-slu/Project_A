@@ -1,76 +1,91 @@
 """
-Spark session utilities with Delta Lake support.
+Spark session utilities with proper Delta Lake configuration.
 """
 
+import os
 import logging
-from typing import Dict, Optional
+from typing import Optional, Dict, Any
 from pyspark.sql import SparkSession
+from pyspark.conf import SparkConf
 
 logger = logging.getLogger(__name__)
 
 
-def get_spark_session(app_name: str, extra_conf: Optional[Dict] = None) -> SparkSession:
+def get_spark_session(
+    app_name: str = "pyspark-interview-project",
+    config: Optional[Dict[str, str]] = None,
+    is_local: bool = False
+) -> SparkSession:
     """
-    Create and configure SparkSession with Delta Lake support.
+    Create a Spark session with Delta Lake configuration.
     
     Args:
-        app_name: Application name for Spark
-        extra_conf: Additional Spark configuration
+        app_name: Name of the Spark application
+        config: Additional Spark configuration
+        is_local: Whether running in local mode
         
     Returns:
-        Configured SparkSession
+        Configured Spark session
     """
-    builder = SparkSession.builder.appName(app_name)
+    logger.info(f"Creating Spark session: {app_name}")
     
-    # Performance optimizations
-    builder = builder.config("spark.sql.adaptive.enabled", "true")
-    builder = builder.config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-    builder = builder.config("spark.sql.adaptive.skewJoin.enabled", "true")
+    # Base configuration
+    spark_conf = SparkConf()
+    spark_conf.setAppName(app_name)
     
-    # Default shuffle partitions
-    shuffle_partitions = 200
-    if extra_conf and "spark.sql.shuffle.partitions" in extra_conf:
-        shuffle_partitions = extra_conf["spark.sql.shuffle.partitions"]
+    # Delta Lake configuration (MANDATORY for all jobs)
+    spark_conf.set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+    spark_conf.set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
     
-    builder = builder.config("spark.sql.shuffle.partitions", str(shuffle_partitions))
+    if is_local:
+        # Local development configuration
+        spark_conf.set("spark.sql.adaptive.enabled", "true")
+        spark_conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+        spark_conf.set("spark.driver.memory", "2g")
+        spark_conf.set("spark.executor.memory", "2g")
+        spark_conf.set("spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore")
+    else:
+        # Cloud configuration
+        spark_conf.set("spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore")
+        spark_conf.set("spark.sql.adaptive.enabled", "true")
+        spark_conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+        spark_conf.set("spark.sql.adaptive.skewJoin.enabled", "true")
     
-    # Apply extra configuration
-    if extra_conf:
-        for key, value in extra_conf.items():
-            if key != "spark.sql.shuffle.partitions":  # Already set above
-                builder = builder.config(key, str(value))
+    # Apply additional configuration
+    if config:
+        for key, value in config.items():
+            spark_conf.set(key, value)
     
-    try:
-        spark = builder.getOrCreate()
-        
-        # Only configure Delta Lake if delta-spark is available
-        try:
-            import delta
-            spark.conf.set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            spark.conf.set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            logger.info("Delta Lake configured successfully")
-        except ImportError:
-            logger.info("Delta Lake not available, continuing without Delta Lake support")
-        except Exception as e:
-            logger.warning(f"Delta Lake configuration failed: {e}")
-            logger.info("Continuing without Delta Lake support")
-        
-        logger.info(f"Spark session created successfully: {app_name}")
-        return spark
-    except Exception as e:
-        logger.error(f"Failed to create Spark session: {e}")
-        raise
+    # Create session
+    spark = SparkSession.builder.config(conf=spark_conf).getOrCreate()
+    
+    # Set log level from environment
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    spark.sparkContext.setLogLevel(log_level)
+    
+    logger.info(f"Spark session created successfully. Log level: {log_level}")
+    return spark
 
 
-def is_local(conf: Dict) -> bool:
+def is_local() -> bool:
     """
-    Determine if running in local environment based on configuration.
+    Check if running in local mode.
     
-    Args:
-        conf: Configuration dictionary
-        
     Returns:
-        True if local environment, False otherwise
+        True if running locally, False otherwise
     """
-    env = conf.get("env", "local")
-    return env == "local"
+    return os.getenv("SPARK_ENV", "").lower() == "local"
+
+
+def get_delta_config() -> Dict[str, str]:
+    """
+    Get standard Delta Lake configuration.
+    
+    Returns:
+        Dictionary of Delta Lake configuration
+    """
+    return {
+        "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
+        "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        "spark.delta.logStore.class": "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"
+    }
