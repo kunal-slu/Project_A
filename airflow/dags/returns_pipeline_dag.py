@@ -29,7 +29,7 @@ with DAG(
 
     bronze_to_silver = BashOperator(
         task_id="bronze_to_silver",
-        bash_command=f'{env} python -m src.pipeline.bronze_to_silver --proc_date={proc_date}',
+        bash_command=f'{env} python -m pyspark_interview_project.pipeline.bronze_to_silver --proc_date={proc_date}',
         execution_timeout=timedelta(minutes=30),
         retries=2,
         retry_delay=timedelta(minutes=2),
@@ -37,7 +37,7 @@ with DAG(
 
     silver_to_gold = BashOperator(
         task_id="silver_to_gold",
-        bash_command=f'{env} python -m src.pipeline.silver_to_gold --proc_date={proc_date}',
+        bash_command=f'{env} python -m pyspark_interview_project.pipeline.silver_to_gold --proc_date={proc_date}',
         execution_timeout=timedelta(minutes=30),
         retries=2,
         retry_delay=timedelta(minutes=2),
@@ -45,7 +45,7 @@ with DAG(
 
     finalize = BashOperator(
         task_id="finalize",
-        bash_command=f'{env} python -m src.pipeline.run_pipeline --ingest-metrics-json --with-dr --proc_date={proc_date}',
+        bash_command=f'{env} python -m pyspark_interview_project.pipeline.run_pipeline --ingest-metrics-json --with-dr --proc_date={proc_date}',
         execution_timeout=timedelta(hours=1),
         retries=2,
         retry_delay=timedelta(minutes=5),

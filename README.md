@@ -11,8 +11,7 @@ This project supports both **AWS** and **Azure** cloud platforms:
 
 Choose your cloud platform and follow the respective runbook:
 
-- 📘 **[AWS Production Runbook](aws/RUNBOOK_AWS_2025.md)** - Complete step-by-step AWS deployment guide
-- 📗 **[Azure Production Runbook](azure/RUNBOOK_AZURE_2025.md)** - Complete step-by-step Azure deployment guide
+- 📘 **[AWS Production Runbook](RUNBOOK_AWS_2025.md)** - Complete step-by-step AWS deployment guide
 
 ## 🏗️ Architecture
 

@@ -36,6 +36,7 @@ run-bronze:
 
 run-silver:
 	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.jobs.fx_bronze_to_silver --config conf/application-local.yaml --lake-root file:///tmp/data-lake
+	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.jobs.salesforce_bronze_to_silver --config conf/application-local.yaml --lake-root file:///tmp/data-lake
 
 run-gold:
 	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.pipeline.silver_to_gold --config conf/application-local.yaml --lake-root file:///tmp/data-lake

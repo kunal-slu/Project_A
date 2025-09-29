@@ -140,14 +140,16 @@ def process_orders_stream(spark: SparkSession, config: dict) -> None:
     watermarked_df = processed_df.withWatermark("event_ts", "1 hour") \
         .withColumn("proc_date", to_date(col("event_ts")))
     
-    # Separate valid and invalid records
+    # Separate valid and invalid records with business rules validation
     valid_df = watermarked_df.filter(
         col("order_id").isNotNull() &
         col("customer_id").isNotNull() &
         col("event_ts").isNotNull() &
         col("currency").isNotNull() &
         col("amount").isNotNull() &
-        col("status").isNotNull()
+        col("status").isNotNull() &
+        col("amount") >= 0.0 &  # Amount must be non-negative
+        col("status").isin(["PLACED", "PAID", "SHIPPED", "CANCELLED"])  # Status must be valid
     )
     
     invalid_df = watermarked_df.filter(
@@ -156,7 +158,9 @@ def process_orders_stream(spark: SparkSession, config: dict) -> None:
         col("event_ts").isNull() |
         col("currency").isNull() |
         col("amount").isNull() |
-        col("status").isNull()
+        col("status").isNull() |
+        col("amount") < 0.0 |  # Amount must be non-negative
+        ~col("status").isin(["PLACED", "PAID", "SHIPPED", "CANCELLED"])  # Status must be valid
     )
     
     # Write valid records to Delta table
