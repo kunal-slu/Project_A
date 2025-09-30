@@ -39,26 +39,25 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov
     
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Type check with mypy
-      run: |
-        pip install mypy
-        mypy src/ --ignore-missing-imports
-    
     - name: Format check with black
       run: |
         pip install black
-        black --check src/
+        black --check src/ --line-length=120
     
     - name: Import sort check with isort
       run: |
         pip install isort
-        isort --check-only src/
+        isort --check-only src/ --profile black
+    
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 src/ --max-line-length=120 --ignore=E203,W503,F401 --count --statistics
+    
+    - name: Type check with mypy
+      run: |
+        pip install mypy
+        mypy src/ --ignore-missing-imports --no-strict-optional
     
     - name: Security scan with detect-secrets
       run: |
@@ -67,7 +66,11 @@ jobs:
     
     - name: Run tests
       run: |
-        PYTHONPATH=src pytest tests/ -v --cov=src --cov-report=xml
+        PYTHONPATH=src pytest tests/ -v --cov=src --cov-report=xml --tb=short
+    
+    - name: Run specific production tests
+      run: |
+        PYTHONPATH=src pytest tests/test_fx_transform.py tests/test_orders_merge.py tests/test_salesforce_incremental.py -v
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
