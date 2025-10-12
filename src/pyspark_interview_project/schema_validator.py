@@ -283,3 +283,9 @@ def validate_schema_evolution(df: DataFrame, table_name: str, layer: str,
 
 
 
+
+
+
+
+
+
