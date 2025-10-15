@@ -1,6 +1,6 @@
 # Core PySpark and Delta Lake
-pyspark==3.5.1
-delta-spark==3.2.0
+pyspark>=3.5.1,<5.0.0
+delta-spark>=3.2.0,<4.0.0
 
 # Configuration and utilities
 pyyaml==6.0.2
@@ -18,6 +18,13 @@ apache-airflow-providers-openlineage==1.0.0
 # External Data Sources
 requests==2.31.0
 snowflake-connector-python==3.0.0
+
+# Redshift Integration
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+
+# HubSpot Integration
+hubspot-api-client==9.0.0
 simple-salesforce==1.12.0
 
 # Kafka

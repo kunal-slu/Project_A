@@ -8,6 +8,73 @@ security:
   sse: "aws:kms"
   kms_key_arn: "arn:aws:kms:us-east-1:...:key/..."
 
+# Data Sources Configuration for AWS
+data_sources:
+  # Redshift Data Warehouse
+  redshift:
+    cluster_identifier: "${REDSHIFT_CLUSTER_ID}"
+    database: "${REDSHIFT_DATABASE}"
+    port: 5439
+    username: "${REDSHIFT_USERNAME}"
+    password: "${REDSHIFT_PASSWORD}"
+    schema: "public"
+    jdbc_url: "jdbc:redshift://${REDSHIFT_CLUSTER_ID}.${AWS_REGION}.redshift.amazonaws.com:5439/${REDSHIFT_DATABASE}"
+    tables:
+      - name: "marketing_campaigns"
+        source: "google_ads_api"
+        frequency: "hourly"
+        description: "Marketing campaign data from Google Ads API"
+      - name: "customer_behavior"
+        source: "amplitude_events"
+        frequency: "real-time"
+        description: "Customer behavior analytics from Amplitude"
+      - name: "web_analytics"
+        source: "google_analytics_4"
+        frequency: "daily"
+        description: "Web analytics data from GA4"
+  
+  # HubSpot CRM
+  hubspot:
+    base_url: "https://api.hubapi.com"
+    api_key: "${HUBSPOT_API_KEY}"
+    rate_limit: 100  # requests per 10 seconds
+    endpoints:
+      - name: "contacts"
+        path: "/crm/v3/objects/contacts"
+        frequency: "hourly"
+        description: "Customer contacts from HubSpot CRM"
+      - name: "deals"
+        path: "/crm/v3/objects/deals"
+        frequency: "hourly"
+        description: "Sales deals from HubSpot CRM"
+      - name: "companies"
+        path: "/crm/v3/objects/companies"
+        frequency: "daily"
+        description: "Company records from HubSpot CRM"
+      - name: "tickets"
+        path: "/crm/v3/objects/tickets"
+        frequency: "hourly"
+        description: "Support tickets from HubSpot Service Hub"
+
+# ETL Pipeline Configuration
+etl_pipeline:
+  ingestion:
+    redshift_ingestion:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 15000
+      timeout_minutes: 45
+      source_type: "redshift"
+      description: "Ingest marketing campaigns, customer behavior, and web analytics from Redshift"
+    
+    hubspot_ingestion:
+      enabled: true
+      frequency: "hourly"
+      batch_size: 2000
+      timeout_minutes: 30
+      source_type: "api"
+      description: "Ingest contacts, deals, companies, and tickets from HubSpot CRM"
+
 
 
 

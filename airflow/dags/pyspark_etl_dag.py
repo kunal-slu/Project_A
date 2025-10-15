@@ -9,6 +9,7 @@ from datetime import timedelta
 import pendulum
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # Parameterize paths for portability; can be set via environment variables
 PROJECT_HOME = os.getenv("PROJECT_HOME", "/opt/project")
@@ -36,6 +37,15 @@ with DAG(
 
     # Add --proc_date parameter for partitioned processing
     proc_date = "{{ ds }}"  # Airflow execution date in YYYY-MM-DD format
+
+    # Trigger external data ingestion first
+    trigger_external_ingestion = TriggerDagRunOperator(
+        task_id="trigger_external_ingestion",
+        trigger_dag_id="external_data_ingestion",
+        wait_for_completion=True,
+        poke_interval=60,
+        timeout=timedelta(minutes=30)
+    )
 
     use_spark_submit = os.getenv("USE_SPARK_SUBMIT", "false").lower() == "true"
 
@@ -136,4 +146,4 @@ with DAG(
     )
 
     # Define task dependencies
-    run_pyspark_etl >> validate_data_quality >> update_monitoring
+    trigger_external_ingestion >> run_pyspark_etl >> validate_data_quality >> update_monitoring

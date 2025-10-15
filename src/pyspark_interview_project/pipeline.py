@@ -7,6 +7,8 @@ from pyspark.sql import SparkSession
 
 from .extract import (extract_customers, extract_products, extract_orders_json,
                      extract_returns, extract_exchange_rates, extract_inventory_snapshots)
+from .jobs.redshift_to_bronze import extract_redshift_data
+from .jobs.hubspot_to_bronze import extract_hubspot_data
 from .transform import (enrich_customers, enrich_products, clean_orders,
                        build_fact_orders, sql_vs_dsl_demo, udf_examples, window_functions_demo)
 from .utils.spark_session import build_spark
@@ -15,7 +17,7 @@ from .performance_optimizer import create_performance_optimizer
 from .io_utils import write_delta
 from .logging_config import log_metric, log_pipeline_event
 from .metrics import create_metrics
-from .dq.runner import run_dq, DQResult
+from .dq.runner import run_yaml_policy
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,45 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     rates = extract_exchange_rates(spark, cfg.get("input", {}).get("exchange_rates_path", "data/input_data/exchange_rates.csv"))
     inventory = extract_inventory_snapshots(spark, cfg.get("input", {}).get("inventory_path", "data/input_data/inventory_snapshots.csv"))
     
+    # Extract data from external sources (Redshift and HubSpot)
+    external_datasets = {}
+    
+    # Redshift data extraction
+    if cfg.get("data_sources", {}).get("redshift", {}).get("cluster_identifier"):
+        try:
+            log_pipeline_event(logger, "redshift_extraction_started", "extract", run_id)
+            redshift_tables = ["marketing_campaigns", "customer_behavior", "web_analytics"]
+            
+            for table_name in redshift_tables:
+                try:
+                    df = extract_redshift_data(spark, cfg, table_name)
+                    external_datasets[f"redshift_{table_name}"] = df
+                    logger.info(f"Successfully extracted {table_name} from Redshift")
+                except Exception as e:
+                    logger.warning(f"Failed to extract {table_name} from Redshift: {e}")
+            
+            log_pipeline_event(logger, "redshift_extraction_completed", "extract", run_id)
+        except Exception as e:
+            logger.warning(f"Redshift extraction failed: {e}")
+    
+    # HubSpot data extraction
+    if cfg.get("data_sources", {}).get("hubspot", {}).get("api_key"):
+        try:
+            log_pipeline_event(logger, "hubspot_extraction_started", "extract", run_id)
+            hubspot_endpoints = ["contacts", "deals", "companies", "tickets"]
+            
+            for endpoint_name in hubspot_endpoints:
+                try:
+                    df = extract_hubspot_data(spark, cfg, endpoint_name)
+                    external_datasets[f"hubspot_{endpoint_name}"] = df
+                    logger.info(f"Successfully extracted {endpoint_name} from HubSpot")
+                except Exception as e:
+                    logger.warning(f"Failed to extract {endpoint_name} from HubSpot: {e}")
+            
+            log_pipeline_event(logger, "hubspot_extraction_completed", "extract", run_id)
+        except Exception as e:
+            logger.warning(f"HubSpot extraction failed: {e}")
+    
     # Log extraction metrics
     extract_duration = time.time() - extract_start
     log_metric(logger, "pipeline.extract.duration.seconds", extract_duration, run_id)
@@ -69,6 +110,9 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
         "rates": rates,
         "inventory": inventory
     }
+    
+    # Add external datasets
+    datasets.update(external_datasets)
     
     for name, df in datasets.items():
         try:
