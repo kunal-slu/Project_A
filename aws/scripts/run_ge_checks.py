@@ -36,6 +36,111 @@ def load_expectation_suite(suite_path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
+def run_yaml_policy(df, policy: dict, key_cols=None):
+    """
+    Run YAML-based data quality policy checks.
+    
+    Args:
+        df: Spark DataFrame to check
+        policy: YAML policy configuration
+        key_cols: Optional list of key columns (if not provided, uses policy.get("unique"))
+        
+    Returns:
+        Results dictionary with check outcomes
+    """
+    # Use key_cols if provided, else try policy.get("unique")
+    uniq = key_cols or policy.get("unique") or []
+    
+    results = {
+        "timestamp": datetime.now().isoformat(),
+        "checks": [],
+        "summary": {
+            "total_checks": 0,
+            "passed": 0,
+            "failed": 0,
+            "critical_failures": 0
+        }
+    }
+    
+    # Run uniqueness checks if specified
+    if uniq:
+        for col in uniq:
+            if col in df.columns:
+                total_count = df.count()
+                unique_count = df.select(col).distinct().count()
+                if total_count == unique_count:
+                    results["checks"].append({
+                        "check": f"uniqueness_{col}",
+                        "passed": True,
+                        "severity": "critical"
+                    })
+                    results["summary"]["passed"] += 1
+                else:
+                    results["checks"].append({
+                        "check": f"uniqueness_{col}",
+                        "passed": False,
+                        "severity": "critical",
+                        "error": f"Column '{col}' has {total_count - unique_count} duplicate values"
+                    })
+                    results["summary"]["failed"] += 1
+                    results["summary"]["critical_failures"] += 1
+                results["summary"]["total_checks"] += 1
+    
+    # Run null checks
+    for col in policy.get("not_null", []):
+        if col in df.columns:
+            null_count = df.filter(df[col].isNull()).count()
+            if null_count == 0:
+                results["checks"].append({
+                    "check": f"not_null_{col}",
+                    "passed": True,
+                    "severity": "critical"
+                })
+                results["summary"]["passed"] += 1
+            else:
+                results["checks"].append({
+                    "check": f"not_null_{col}",
+                    "passed": False,
+                    "severity": "critical",
+                    "error": f"Column '{col}' has {null_count} null values"
+                })
+                results["summary"]["failed"] += 1
+                results["summary"]["critical_failures"] += 1
+            results["summary"]["total_checks"] += 1
+    
+    # Run range checks
+    for col, range_config in policy.get("range", {}).items():
+        if col in df.columns:
+            min_val = range_config.get("min")
+            max_val = range_config.get("max")
+            
+            condition = df[col].isNotNull()
+            if min_val is not None:
+                condition = condition & (df[col] >= min_val)
+            if max_val is not None:
+                condition = condition & (df[col] <= max_val)
+                
+            invalid_count = df.filter(~condition).count()
+            if invalid_count == 0:
+                results["checks"].append({
+                    "check": f"range_{col}",
+                    "passed": True,
+                    "severity": "warning"
+                })
+                results["summary"]["passed"] += 1
+            else:
+                results["checks"].append({
+                    "check": f"range_{col}",
+                    "passed": False,
+                    "severity": "warning",
+                    "error": f"Column '{col}' has {invalid_count} values outside range [{min_val}, {max_val}]"
+                })
+                results["summary"]["failed"] += 1
+            results["summary"]["total_checks"] += 1
+    
+    return results
+
+
 def run_expectation_checks(
     spark,
     table_location: str,

@@ -1,3 +1,4 @@
+from pyspark_interview_project.pipeline import run_pipeline
 #!/usr/bin/env python3
 """
 Enterprise AWS ETL Pipeline with Real External Data Sources

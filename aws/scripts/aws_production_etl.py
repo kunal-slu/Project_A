@@ -1,3 +1,4 @@
+from pyspark_interview_project.pipeline import run_pipeline
 #!/usr/bin/env python3
 """
 Production AWS ETL Pipeline for Real-World Data Sources

@@ -5,10 +5,7 @@ from typing import Dict
 
 from pyspark.sql import SparkSession
 
-from .extract import (extract_customers, extract_products, extract_orders_json,
-                     extract_returns, extract_exchange_rates, extract_inventory_snapshots)
-from .jobs.redshift_to_bronze import extract_redshift_data
-from .jobs.hubspot_to_bronze import extract_hubspot_data
+from .extract import extract_all_data_sources
 from .transform import (enrich_customers, enrich_products, clean_orders,
                        build_fact_orders, sql_vs_dsl_demo, udf_examples, window_functions_demo)
 from .utils.spark_session import build_spark
@@ -50,69 +47,13 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     log_pipeline_event(logger, "extraction_started", "extract", run_id)
     extract_start = time.time()
     
-    customers = extract_customers(spark, cfg.get("input", {}).get("customer_path", "data/input_data/customers.csv"))
-    products = extract_products(spark, cfg.get("input", {}).get("product_path", "data/input_data/products.csv"))
-    orders = extract_orders_json(spark, cfg.get("input", {}).get("orders_path", "data/input_data/orders.json"))
-    returns = extract_returns(spark, cfg.get("input", {}).get("returns_path", "data/input_data/returns.json"))
-    rates = extract_exchange_rates(spark, cfg.get("input", {}).get("exchange_rates_path", "data/input_data/exchange_rates.csv"))
-    inventory = extract_inventory_snapshots(spark, cfg.get("input", {}).get("inventory_path", "data/input_data/inventory_snapshots.csv"))
-    
-    # Extract data from external sources (Redshift and HubSpot)
-    external_datasets = {}
-    
-    # Redshift data extraction
-    if cfg.get("data_sources", {}).get("redshift", {}).get("cluster_identifier"):
-        try:
-            log_pipeline_event(logger, "redshift_extraction_started", "extract", run_id)
-            redshift_tables = ["marketing_campaigns", "customer_behavior", "web_analytics"]
-            
-            for table_name in redshift_tables:
-                try:
-                    df = extract_redshift_data(spark, cfg, table_name)
-                    external_datasets[f"redshift_{table_name}"] = df
-                    logger.info(f"Successfully extracted {table_name} from Redshift")
-                except Exception as e:
-                    logger.warning(f"Failed to extract {table_name} from Redshift: {e}")
-            
-            log_pipeline_event(logger, "redshift_extraction_completed", "extract", run_id)
-        except Exception as e:
-            logger.warning(f"Redshift extraction failed: {e}")
-    
-    # HubSpot data extraction
-    if cfg.get("data_sources", {}).get("hubspot", {}).get("api_key"):
-        try:
-            log_pipeline_event(logger, "hubspot_extraction_started", "extract", run_id)
-            hubspot_endpoints = ["contacts", "deals", "companies", "tickets"]
-            
-            for endpoint_name in hubspot_endpoints:
-                try:
-                    df = extract_hubspot_data(spark, cfg, endpoint_name)
-                    external_datasets[f"hubspot_{endpoint_name}"] = df
-                    logger.info(f"Successfully extracted {endpoint_name} from HubSpot")
-                except Exception as e:
-                    logger.warning(f"Failed to extract {endpoint_name} from HubSpot: {e}")
-            
-            log_pipeline_event(logger, "hubspot_extraction_completed", "extract", run_id)
-        except Exception as e:
-            logger.warning(f"HubSpot extraction failed: {e}")
+    # Extract all data sources using the new unified extraction function
+    datasets = extract_all_data_sources(spark, cfg)
     
     # Log extraction metrics
     extract_duration = time.time() - extract_start
     log_metric(logger, "pipeline.extract.duration.seconds", extract_duration, run_id)
     metrics.timing("pipeline.extract.duration", extract_duration * 1000, {"stage": "extract"})
-    
-    # Log row counts for each dataset
-    datasets = {
-        "customers": customers,
-        "products": products, 
-        "orders": orders,
-        "returns": returns,
-        "rates": rates,
-        "inventory": inventory
-    }
-    
-    # Add external datasets
-    datasets.update(external_datasets)
     
     for name, df in datasets.items():
         try:
@@ -132,14 +73,8 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     performance_optimizer = create_performance_optimizer(spark, cfg)
 
     # Apply performance optimizations to datasets
-    datasets_to_optimize = {
-        "customers": customers,
-        "products": products,
-        "orders": orders,
-        "returns_raw": returns,
-        "rates": rates,
-        "inventory": inventory
-    }
+    # Use the datasets from the new extraction function
+    datasets_to_optimize = datasets
 
     # Run full optimization pipeline
     optimized_datasets = performance_optimizer.run_full_optimization_pipeline(datasets_to_optimize)
@@ -156,18 +91,19 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     bronze_start = time.time()
     
     bronze_tables = {
-        "customers_raw": optimized_datasets["customers"],
-        "products_raw": optimized_datasets["products"],
-        "orders_raw": optimized_datasets["orders"],
-        "returns_raw": optimized_datasets["returns_raw"],
-        "fx_rates": optimized_datasets["rates"],
-        "inventory_snapshots": optimized_datasets["inventory"]
+        "customers_raw": optimized_datasets.get("snowflake_customers", optimized_datasets.get("hubspot_contacts")),
+        "products_raw": optimized_datasets.get("snowflake_products"),
+        "orders_raw": optimized_datasets.get("snowflake_orders"),
+        "deals_raw": optimized_datasets.get("hubspot_deals"),
+        "behavior_raw": optimized_datasets.get("redshift_customer_behavior"),
+        "stream_raw": optimized_datasets.get("stream_kafka_events"),
+        "fx_rates": optimized_datasets.get("fx_rates_historical_rates")
     }
     
     for table_name, df in bronze_tables.items():
         # Run data quality checks
         try:
-            dq_result = run_dq(df, key_cols=["id"], required_cols=["id"])
+            dq_result = run_yaml_policy(df, key_cols=["id"], required_cols=["id"])
             log_metric(logger, f"pipeline.bronze.{table_name}.row_count", dq_result.stats.get("rows", 0), run_id)
             log_metric(logger, f"pipeline.bronze.{table_name}.null_keys", dq_result.issues.get("null_keys", 0), run_id)
             
@@ -196,9 +132,10 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     silver_start = time.time()
     
     try:
-        customers_enriched = enrich_customers(optimized_datasets["customers"])
-        products_enriched = enrich_products(optimized_datasets["products"])
-        orders_enriched = clean_orders(optimized_datasets["orders"])
+        # Use the new dataset names from the extraction function
+        customers_enriched = enrich_customers(optimized_datasets.get("snowflake_customers", optimized_datasets.get("hubspot_contacts")))
+        products_enriched = enrich_products(optimized_datasets.get("snowflake_products"))
+        orders_enriched = clean_orders(optimized_datasets.get("snowflake_orders"))
         
         # Log transformation success
         log_pipeline_event(logger, "transformations_successful", "silver", run_id)
@@ -206,9 +143,9 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     except Exception as e:
         logger.warning(f"Transformation failed (likely UDF issue with mock session): {e}")
         logger.info("Using original datasets for Silver layer")
-        customers_enriched = optimized_datasets["customers"]
-        products_enriched = optimized_datasets["products"]
-        orders_enriched = optimized_datasets["orders"]
+        customers_enriched = optimized_datasets.get("snowflake_customers", optimized_datasets.get("hubspot_contacts"))
+        products_enriched = optimized_datasets.get("snowflake_products")
+        orders_enriched = optimized_datasets.get("snowflake_orders")
         
         # Log transformation failure
         log_pipeline_event(logger, "transformations_failed", "silver", run_id, error=str(e))
@@ -224,7 +161,7 @@ def run_pipeline(spark: SparkSession, cfg: Dict, run_id: str):
     for table_name, df in silver_tables.items():
         # Run data quality checks
         try:
-            dq_result = run_dq(df, key_cols=["id"], required_cols=["id"])
+            dq_result = run_yaml_policy(df, key_cols=["id"], required_cols=["id"])
             log_metric(logger, f"pipeline.silver.{table_name}.row_count", dq_result.stats.get("rows", 0), run_id)
             log_metric(logger, f"pipeline.silver.{table_name}.null_keys", dq_result.issues.get("null_keys", 0), run_id)
             

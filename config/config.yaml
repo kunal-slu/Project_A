@@ -1,1 +1,44 @@
-config/config-dev.yaml
+# PySpark Data Engineer Project Configuration
+app_name: "pyspark_interview_project"
+cloud: "aws"
+
+# Spark Configuration
+spark:
+  app_name: "pyspark_interview_project"
+  shuffle_partitions: 400
+  enable_aqe: true
+
+# Data Lake Configuration
+lake:
+  root: "s3://lake"
+  bucket: "lake"
+  bronze: "s3://lake/bronze"
+  silver: "s3://lake/silver"
+  gold: "s3://lake/gold"
+
+# Data Sources Configuration
+data_sources:
+  hubspot:
+    enabled: true
+    api_key: "${HUBSPOT_API_KEY}"
+    
+  snowflake:
+    enabled: true
+    account: "${SNOWFLAKE_ACCOUNT}"
+    username: "${SNOWFLAKE_USERNAME}"
+    password: "${SNOWFLAKE_PASSWORD}"
+    
+  redshift:
+    enabled: true
+    host: "${REDSHIFT_HOST}"
+    database: "${REDSHIFT_DATABASE}"
+    username: "${REDSHIFT_USERNAME}"
+    password: "${REDSHIFT_PASSWORD}"
+
+# AWS Configuration
+aws:
+  region: "us-east-1"
+  s3_bucket: "lake"
+  emr_app_id: "${EMR_APP_ID}"
+  emr_job_role_arn: "${EMR_JOB_ROLE_ARN}"
+  glue_database: "${GLUE_DATABASE}"

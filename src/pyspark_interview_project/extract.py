@@ -1,124 +1,115 @@
 """
-extract.py
-Extracts data from customers.csv, products.csv, and orders.json with schema enforcement.
+Data extraction utilities for the PySpark pipeline.
 """
 
 import os
+import logging
+from typing import Dict, Any, List
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import lit, current_timestamp
 
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, to_date
-from pyspark.sql.types import (BooleanType, DoubleType, IntegerType,
-                               MapType, StringType, StructField, StructType)
+logger = logging.getLogger(__name__)
 
+def extract_csv_data(
+    spark: SparkSession,
+    file_path: str,
+    source_name: str,
+    table_name: str
+) -> DataFrame:
+    """
+    Extract data from CSV files.
+    
+    Args:
+        spark: SparkSession object
+        file_path: Path to the CSV file
+        source_name: Name of the data source
+        table_name: Name of the table
+        
+    Returns:
+        DataFrame with extracted data
+    """
+    logger.info(f"Extracting data from {source_name} - {table_name}")
+    
+    try:
+        df = spark.read             .option("header", "true")             .option("inferSchema", "true")             .csv(file_path)
+        
+        # Add metadata columns
+        df = df.withColumn("record_source", lit(source_name))                .withColumn("record_table", lit(table_name))                .withColumn("ingest_timestamp", current_timestamp())
+        
+        logger.info(f"Successfully extracted {df.count()} records from {source_name} - {table_name}")
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to extract data from {source_name} - {table_name}: {e}")
+        raise
 
-def extract_customers(spark: SparkSession, path: str) -> DataFrame:
-    schema = StructType(
-        [
-            StructField("customer_id", StringType(), False),
-            StructField("first_name", StringType(), True),
-            StructField("last_name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("address", StringType(), True),
-            StructField("city", StringType(), True),
-            StructField("state", StringType(), True),
-            StructField("country", StringType(), True),
-            StructField("zip", StringType(), True),
-            StructField("phone", StringType(), True),
-            StructField("registration_date", StringType(), True),
-            StructField("gender", StringType(), True),
-            StructField("age", IntegerType(), True),
-        ]
-    )
-    # Allow tests to pass when called from repo root or tests/
-    if not os.path.exists(path):
-        alt = os.path.join("tests", "data", os.path.basename(path))
-        path = alt if os.path.exists(alt) else path
-    # Enforce schema on read; fail fast on corrupt records in prod if desired
-    df = spark.read.option("header", True).schema(schema).csv(path)
-    return df.withColumn(
-        "registration_date", to_date(col("registration_date"), "MM/dd/yy")
-    )
-
-
-def extract_products(spark: SparkSession, path: str) -> DataFrame:
-    schema = StructType(
-        [
-            StructField("product_id", StringType(), False),
-            StructField("product_name", StringType(), True),
-            StructField("category", StringType(), True),
-            StructField("brand", StringType(), True),
-            StructField("price", DoubleType(), True),
-            StructField("in_stock", BooleanType(), True),
-            StructField("launch_date", StringType(), True),
-            StructField("rating", DoubleType(), True),
-            StructField(
-                "tags", StringType(), True
-            ),  # If list, can use ArrayType(StringType())
-        ]
-    )
-    if not os.path.exists(path):
-        alt = os.path.join("tests", "data", os.path.basename(path))
-        path = alt if os.path.exists(alt) else path
-    df = spark.read.option("header", True).schema(schema).csv(path)
-    df = df.withColumn("launch_date", to_date(col("launch_date"), "MM/dd/yy"))
-    # Optional: Parse tags to array if present as string list: ["new", "hot"]
-    return df
-
-
-def extract_orders_json(spark: SparkSession, path: str) -> DataFrame:
-    # Nested payment field support
-    order_schema = StructType(
-        [
-            StructField("order_id", StringType(), False),
-            StructField("customer_id", StringType(), True),
-            StructField("product_id", StringType(), True),
-            StructField("order_date", StringType(), True),
-            StructField("quantity", IntegerType(), True),
-            StructField("total_amount", DoubleType(), True),
-            StructField("currency", StringType(), True),
-            StructField("shipping_address", StringType(), True),
-            StructField("shipping_city", StringType(), True),
-            StructField("shipping_state", StringType(), True),
-            StructField("shipping_country", StringType(), True),
-            StructField(
-                "payment", MapType(StringType(), StringType()), True
-            ),  # payment.method, payment.status
-        ]
-    )
-    if not os.path.exists(path):
-        alt = os.path.join("tests", "data", os.path.basename(path))
-        path = alt if os.path.exists(alt) else path
-    df = spark.read.schema(order_schema).json(path, multiLine=True)
-    return df
-
-
-def extract_returns(spark: SparkSession, path: str) -> DataFrame:
-    schema = StructType(
-        [
-            StructField("order_id", StringType(), False),
-            StructField("return_date", StringType(), True),
-            StructField("reason", StringType(), True),
-        ]
-    )
-    return spark.read.schema(schema).json(path, multiLine=True)
-
-
-def extract_exchange_rates(spark: SparkSession, path: str) -> DataFrame:
-    schema = StructType(
-        [
-            StructField("currency", StringType(), False),
-            StructField("usd_rate", DoubleType(), True),
-        ]
-    )
-    return spark.read.option("header", True).schema(schema).csv(path)
-
-
-def extract_inventory_snapshots(spark: SparkSession, path: str) -> DataFrame:
-    schema = StructType(
-        [
-            StructField("product_id", StringType(), False),
-            StructField("on_hand", IntegerType(), True),
-            StructField("warehouse", StringType(), True),
-        ]
-    )
-    return spark.read.option("header", True).schema(schema).csv(path)
+def extract_all_data_sources(
+    spark: SparkSession,
+    config: Dict[str, Any]
+) -> Dict[str, DataFrame]:
+    """
+    Extract data from all configured data sources.
+    
+    Args:
+        spark: SparkSession object
+        config: Configuration dictionary
+        
+    Returns:
+        Dictionary of DataFrames keyed by source name
+    """
+    datasets = {}
+    
+    # Extract HubSpot data
+    hubspot_files = [
+        ("aws/data_fixed/01_hubspot_crm/hubspot_contacts_25000.csv", "contacts"),
+        ("aws/data_fixed/01_hubspot_crm/hubspot_deals_30000.csv", "deals")
+    ]
+    
+    for file_path, table_name in hubspot_files:
+        if os.path.exists(file_path):
+            df = extract_csv_data(spark, file_path, "hubspot", table_name)
+            datasets[f"hubspot_{table_name}"] = df
+    
+    # Extract Snowflake data
+    snowflake_files = [
+        ("aws/data_fixed/02_snowflake_warehouse/snowflake_customers_50000.csv", "customers"),
+        ("aws/data_fixed/02_snowflake_warehouse/snowflake_orders_100000.csv", "orders"),
+        ("aws/data_fixed/02_snowflake_warehouse/snowflake_products_10000.csv", "products")
+    ]
+    
+    for file_path, table_name in snowflake_files:
+        if os.path.exists(file_path):
+            df = extract_csv_data(spark, file_path, "snowflake", table_name)
+            datasets[f"snowflake_{table_name}"] = df
+    
+    # Extract Redshift data
+    redshift_files = [
+        ("aws/data_fixed/03_redshift_analytics/redshift_customer_behavior_50000.csv", "customer_behavior")
+    ]
+    
+    for file_path, table_name in redshift_files:
+        if os.path.exists(file_path):
+            df = extract_csv_data(spark, file_path, "redshift", table_name)
+            datasets[f"redshift_{table_name}"] = df
+    
+    # Extract Stream data
+    stream_files = [
+        ("aws/data_fixed/04_stream_data/stream_kafka_events_100000.csv", "kafka_events")
+    ]
+    
+    for file_path, table_name in stream_files:
+        if os.path.exists(file_path):
+            df = extract_csv_data(spark, file_path, "stream", table_name)
+            datasets[f"stream_{table_name}"] = df
+    
+    # Extract FX Rates data
+    fx_files = [
+        ("aws/data_fixed/05_fx_rates/fx_rates_historical_730_days.csv", "historical_rates")
+    ]
+    
+    for file_path, table_name in fx_files:
+        if os.path.exists(file_path):
+            df = extract_csv_data(spark, file_path, "fx_rates", table_name)
+            datasets[f"fx_rates_{table_name}"] = df
+    
+    return datasets
