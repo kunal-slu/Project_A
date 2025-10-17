@@ -1,106 +1,161 @@
-.PHONY: venv run-local run-bronze run-silver run-gold test up down aws clean help infra-init infra-plan infra-apply infra-destroy dq-run dq-docs dist optimize-vacuum lf-setup kafka-produce
+# AWS Production ETL Pipeline - Makefile
+# Provides convenient targets for development and operations
+
+.PHONY: help test lint sync-dags deploy clean format check-deps
 
 # Default target
 help:
-	@echo "Available targets:"
-	@echo "  venv         - Create virtual environment and install dependencies"
-	@echo "  run-local    - Run local ETL pipeline"
-	@echo "  run-bronze   - Run bronze layer processing"
-	@echo "  run-silver   - Run silver layer processing"
-	@echo "  run-gold     - Run gold layer processing"
-	@echo "  test         - Run tests"
-	@echo "  up           - Start Docker services (MinIO + Spark)"
-	@echo "  down         - Stop Docker services"
-	@echo "  aws          - Run AWS EMR Serverless job"
-	@echo "  infra-init   - Initialize Terraform"
-	@echo "  infra-plan   - Plan Terraform changes"
-	@echo "  infra-apply  - Apply Terraform changes"
-	@echo "  infra-destroy- Destroy Terraform infrastructure"
-	@echo "  dq-run       - Run data quality checks"
-	@echo "  dq-docs      - Generate data quality docs"
-	@echo "  dist         - Build Python wheel distribution"
-	@echo "  optimize-vacuum - Optimize and vacuum Delta tables"
-	@echo "  lf-setup     - Setup Lake Formation tags and policies"
-	@echo "  kafka-produce - Produce sample events to Kafka"
-	@echo "  clean        - Clean up generated files and directories"
+	@echo "🚀 AWS Production ETL Pipeline - Available Targets"
+	@echo "=================================================="
+	@echo ""
+	@echo "📋 Development:"
+	@echo "  test         - Run all tests"
+	@echo "  lint         - Run linting and formatting checks"
+	@echo "  format       - Format code with black and isort"
+	@echo "  check-deps   - Check Python dependencies"
+	@echo ""
+	@echo "🚀 Deployment:"
+	@echo "  deploy       - Deploy to AWS production"
+	@echo "  sync-dags    - Sync DAGs to MWAA"
+	@echo "  infra-plan   - Plan Terraform infrastructure"
+	@echo "  infra-apply  - Apply Terraform infrastructure"
+	@echo ""
+	@echo "🧹 Maintenance:"
+	@echo "  clean        - Clean build artifacts and caches"
+	@echo "  optimize     - Optimize Delta tables"
+	@echo "  dq-check     - Run data quality checks"
+	@echo ""
+	@echo "📊 Monitoring:"
+	@echo "  status       - Check pipeline status"
+	@echo "  logs         - View recent logs"
+	@echo "  metrics      - Show performance metrics"
 
-venv:
-	python -m venv .venv
-	. .venv/bin/activate && pip install -r requirements.txt
-
-run-local:
-	. .venv/bin/activate && python scripts/run_local_etl.py --conf conf/application-local.yaml
-
-run-bronze:
-	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.jobs.fx_to_bronze --config conf/application-local.yaml --lake-root file:///tmp/data-lake
-
-run-silver:
-	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.jobs.fx_bronze_to_silver --config conf/application-local.yaml --lake-root file:///tmp/data-lake
-	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.jobs.salesforce_bronze_to_silver --config conf/application-local.yaml --lake-root file:///tmp/data-lake
-
-run-gold:
-	. .venv/bin/activate && export PYTHONPATH=src && python -m pyspark_interview_project.pipeline.silver_to_gold --config conf/application-local.yaml --lake-root file:///tmp/data-lake
-
+# Development targets
 test:
-	. .venv/bin/activate && pytest -q
+	@echo "🧪 Running tests..."
+	pytest tests/ -v --cov=src --cov-report=html --cov-report=term
 
-up:
-	cd docker && docker compose up -d --build
+lint:
+	@echo "🔍 Running linting checks..."
+	black --check src/ tests/ --line-length=120
+	isort --check-only src/ tests/ --profile black
+	flake8 src/ tests/ --max-line-length=120 --ignore=E203,W503,F401
+	mypy src/ --ignore-missing-imports --no-strict-optional
 
-down:
-	cd docker && docker compose down -v
+format:
+	@echo "✨ Formatting code..."
+	black src/ tests/ --line-length=120
+	isort src/ tests/ --profile black
 
-aws:
-	python scripts/run_aws_emr_serverless.py --conf conf/application-aws.yaml
+check-deps:
+	@echo "📦 Checking dependencies..."
+	pip check
+	pip-audit
 
-# Infrastructure targets
-infra-init:
-	@echo "Initializing Terraform..."
-	@cd infra/terraform && terraform init
+# Deployment targets
+deploy:
+	@echo "🚀 Deploying to AWS production..."
+	./aws/scripts/aws_production_deploy.sh
+
+sync-dags:
+	@echo "🔄 Syncing DAGs to MWAA..."
+	aws s3 sync aws/dags/ s3://$${MWAA_DAGS_BUCKET}/ --delete
 
 infra-plan:
-	@echo "Planning Terraform changes..."
-	@cd infra/terraform && terraform plan
+	@echo "📋 Planning Terraform infrastructure..."
+	cd infra/terraform && terraform plan -var-file="variables.tfvars"
 
 infra-apply:
-	@echo "Applying Terraform changes..."
-	@cd infra/terraform && terraform apply
+	@echo "🏗️ Applying Terraform infrastructure..."
+	cd infra/terraform && terraform apply -var-file="variables.tfvars"
 
-infra-destroy:
-	@echo "Destroying Terraform infrastructure..."
-	@cd infra/terraform && terraform destroy
-
-# Data quality targets
-dq-run:
-	@echo "Running data quality checks..."
-	@. .venv/bin/activate && python aws/scripts/run_ge_checks.py --lake-root s3://pyspark-de-project-dev-data-lake --lake-bucket pyspark-de-project-dev-data-lake --suite dq/suites/silver_orders.yml --table orders --layer silver
-
-dq-docs:
-	@echo "Generating data quality docs..."
-	@. .venv/bin/activate && python aws/scripts/run_ge_checks.py --lake-root s3://pyspark-de-project-dev-data-lake --lake-bucket pyspark-de-project-dev-data-lake --suite dq/suites/silver_orders.yml --table orders --layer silver
-
-# Distribution target
-dist:
-	@echo "Building Python wheel distribution..."
-	@. .venv/bin/activate && python -m build
-	@echo "Wheel built in dist/ directory"
-
-# Delta optimization target
-optimize-vacuum:
-	@echo "Optimizing and vacuuming Delta tables..."
-	@. .venv/bin/activate && export PYTHONPATH=src && python aws/scripts/delta_optimize_vacuum.py --lake-root s3://pyspark-de-project-dev-data-lake --layers silver gold
-
-# Lake Formation setup target
-lf-setup:
-	@echo "Setting up Lake Formation tags and policies..."
-	@. .venv/bin/activate && export PYTHONPATH=src && python aws/scripts/lf_tags_seed.py --database pyspark_de_project_silver
-
-# Kafka producer target
-kafka-produce:
-	@echo "Producing sample events to Kafka..."
-	@. .venv/bin/activate && export PYTHONPATH=src && python scripts/kafka_producer.py --bootstrap-servers ${KAFKA_BOOTSTRAP} --api-key ${KAFKA_API_KEY} --api-secret ${KAFKA_API_SECRET} --topic orders_events --num-orders 50
-
+# Maintenance targets
 clean:
-	rm -rf data/lake .pytest_cache .venv __pycache__ .mypy_cache dist build
+	@echo "🧹 Cleaning build artifacts..."
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	find . -type f -name "*.pyo" -delete 2>/dev/null || true
+	find . -type f -name ".coverage" -delete 2>/dev/null || true
+	rm -rf htmlcov/ 2>/dev/null || true
+	rm -rf .pytest_cache/ 2>/dev/null || true
+	rm -rf dist/ 2>/dev/null || true
+	rm -rf build/ 2>/dev/null || true
+
+optimize:
+	@echo "⚡ Optimizing Delta tables..."
+	python aws/scripts/optimize_delta_tables.py
+
+dq-check:
+	@echo "🔍 Running data quality checks..."
+	python aws/scripts/run_ge_checks.py
+
+# Monitoring targets
+status:
+	@echo "📊 Checking pipeline status..."
+	@echo "EMR Application ID: $${EMR_APP_ID:-Not set}"
+	@echo "S3 Lake Bucket: $${S3_LAKE_BUCKET:-Not set}"
+	@echo "Glue Silver DB: $${GLUE_DB_SILVER:-Not set}"
+	@echo "Glue Gold DB: $${GLUE_DB_GOLD:-Not set}"
+	@echo ""
+	@echo "Recent EMR jobs:"
+	aws emr-serverless list-job-runs --application-id $${EMR_APP_ID} --max-items 5 2>/dev/null || echo "EMR_APP_ID not set"
+
+logs:
+	@echo "📋 Recent logs:"
+	aws logs describe-log-groups --log-group-name-prefix /aws/emr-serverless --max-items 5
+
+metrics:
+	@echo "📈 Performance metrics:"
+	@echo "Data volumes:"
+	aws s3 ls s3://$${S3_LAKE_BUCKET}/bronze/ --recursive --summarize | tail -1
+	aws s3 ls s3://$${S3_LAKE_BUCKET}/silver/ --recursive --summarize | tail -1
+	aws s3 ls s3://$${S3_LAKE_BUCKET}/gold/ --recursive --summarize | tail -1
+
+# Setup targets
+setup-local:
+	@echo "🛠️ Setting up local development environment..."
+	pip install -r requirements.txt
+	cp .env.example .env
+	@echo "✅ Setup complete. Edit .env with your configuration."
+
+setup-aws:
+	@echo "☁️ Setting up AWS environment..."
+	source aws/scripts/source_terraform_outputs.sh
+	@echo "✅ AWS environment configured."
+
+# Validation targets
+validate-dags:
+	@echo "🌪️ Validating Airflow DAGs..."
+	pytest tests/test_dag_import.py -v
+
+validate-config:
+	@echo "⚙️ Validating configuration files..."
+	python -c "import yaml; [yaml.safe_load(open(f)) for f in ['config/aws.yaml', 'config/default.yaml', 'config/local.yaml']]"
+	@echo "✅ All configuration files are valid YAML"
+
+validate-data:
+	@echo "📊 Validating data files..."
+	python -c "import pandas as pd; [pd.read_csv(f, nrows=5) for f in ['aws/data_fixed/hubspot_contacts_25000.csv', 'aws/data_fixed/snowflake_customers_50000.csv']]"
+	@echo "✅ Data files are valid"
+
+# Smoke test
+smoke-test: validate-config validate-data validate-dags test
+	@echo "🚀 Smoke test completed successfully!"
+	@echo "✅ Configuration files valid"
+	@echo "✅ Data files accessible"
+	@echo "✅ DAGs import correctly"
+	@echo "✅ Tests pass"
+	@echo ""
+	@echo "🎯 Pipeline is ready for deployment!"
+
+# Golden path (complete deployment)
+golden-path: clean format lint test deploy sync-dags dq-check
+	@echo "🏆 Golden path completed successfully!"
+	@echo "✅ Code formatted and linted"
+	@echo "✅ Tests passed"
+	@echo "✅ Deployed to AWS"
+	@echo "✅ DAGs synchronized"
+	@echo "✅ Data quality checks passed"
+	@echo ""
+	@echo "🎉 Production pipeline is live!"

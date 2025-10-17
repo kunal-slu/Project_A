@@ -14,26 +14,30 @@ from .rules import create_rule_from_config
 logger = logging.getLogger(__name__)
 
 
-def run_yaml_policy(spark: SparkSession, policy_path: str, df: DataFrame) -> Dict[str, Any]:
+def run_yaml_policy(df: DataFrame, policy: Dict[str, Any], key_cols: List[str] = None) -> Dict[str, Any]:
     """
-    Run data quality policy from YAML file.
+    Run data quality policy with flexible arguments.
     
     Args:
-        spark: Spark session
-        policy_path: Path to YAML policy file
         df: DataFrame to check
+        policy: Policy configuration dictionary
+        key_cols: Optional list of key columns for uniqueness checks
         
     Returns:
         JSON summary of data quality results
     """
-    logger.info(f"Running data quality policy: {policy_path}")
+    logger.info(f"Running data quality policy")
     
-    # Load policy
-    with open(policy_path, 'r') as f:
-        policy = yaml.safe_load(f)
+    # Handle both dict and file path inputs
+    if isinstance(policy, str):
+        with open(policy, 'r') as f:
+            policy = yaml.safe_load(f)
     
-    table_name = policy["table"]
-    rules_config = policy["rules"]
+    table_name = policy.get("table", "unknown_table")
+    rules_config = policy.get("rules", [])
+    
+    # Use key_cols if provided, else try policy.get("unique")
+    unique_cols = key_cols or policy.get("unique", [])
     
     logger.info(f"Running DQ checks for table: {table_name}")
     

@@ -11,6 +11,15 @@ from airflow.providers.amazon.aws.operators.emr import EmrServerlessStartJobOper
 from airflow.providers.amazon.aws.operators.s3 import S3ListOperator
 from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 from airflow.models import Variable
+
+# Standardized Airflow Variables
+EMR_APP_ID = Variable.get("EMR_APP_ID")
+EMR_JOB_ROLE_ARN = Variable.get("EMR_JOB_ROLE_ARN")
+GLUE_DB_SILVER = Variable.get("GLUE_DB_SILVER", "silver_db")
+GLUE_DB_GOLD = Variable.get("GLUE_DB_GOLD", "gold_db")
+S3_LAKE_BUCKET = Variable.get("S3_LAKE_BUCKET")
+S3_CHECKPOINT_PATH = Variable.get("S3_CHECKPOINT_PREFIX", "checkpoints")
+
 from plugins.helpers.emr import start_emr_job_run, wait_for_emr_job_completion
 
 # Default arguments

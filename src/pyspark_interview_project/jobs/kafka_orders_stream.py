@@ -26,6 +26,9 @@ from pyspark_interview_project.utils.spark import get_spark_session
 from pyspark_interview_project.utils.config import load_conf
 from pyspark_interview_project.utils.logging import setup_json_logging
 
+# Standardized checkpoint configuration
+S3_CHECKPOINT_PATH = os.getenv("S3_CHECKPOINT_PREFIX", "checkpoints")
+
 logger = logging.getLogger(__name__)
 
 
@@ -163,30 +166,30 @@ def process_orders_stream(spark: SparkSession, config: dict) -> None:
         ~col("status").isin(["PLACED", "PAID", "SHIPPED", "CANCELLED"])  # Status must be valid
     )
     
-    # Write valid records to Delta table
+    # Write valid records to Delta table with standardized checkpointing
     valid_query = valid_df.writeStream \
         .format("delta") \
         .outputMode("append") \
-        .option("checkpointLocation", f"{checkpoint_location}/valid") \
+        .option("checkpointLocation", f"s3a://{S3_LAKE_BUCKET}/{S3_CHECKPOINT_PATH}/orders_stream/valid") \
         .option("path", f"{lake_root}/silver/orders_events") \
         .trigger(processingTime="30 seconds") \
         .start()
     
-    # Write invalid records to DLQ
+    # Write invalid records to DLQ with standardized checkpointing
     dlq_query = invalid_df.writeStream \
         .format("delta") \
         .outputMode("append") \
-        .option("checkpointLocation", f"{checkpoint_location}/dlq") \
+        .option("checkpointLocation", f"s3a://{S3_LAKE_BUCKET}/{S3_CHECKPOINT_PATH}/orders_stream/dlq") \
         .option("path", f"{dlq_location}") \
         .trigger(processingTime="30 seconds") \
         .start()
     
-    # Also write raw invalid records to S3 for debugging
+    # Also write raw invalid records to S3 for debugging with standardized checkpointing
     raw_invalid_df = parsed_df.filter(col("parsed_data").isNull())
     raw_dlq_query = raw_invalid_df.writeStream \
         .format("delta") \
         .outputMode("append") \
-        .option("checkpointLocation", f"{checkpoint_location}/raw_dlq") \
+        .option("checkpointLocation", f"s3a://{S3_LAKE_BUCKET}/{S3_CHECKPOINT_PATH}/orders_stream/raw_dlq") \
         .option("path", f"{dlq_location}/raw") \
         .trigger(processingTime="30 seconds") \
         .start()

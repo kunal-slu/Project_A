@@ -22,6 +22,11 @@ def build_spark(config: Dict) -> SparkSession:
                    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
                    .config("spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"))
         
+        # Add Delta jar packages for local runs
+        cloud = config.get("cloud", "local")
+        if cloud == "local":
+            builder = builder.config("spark.jars.packages", "io.delta:delta-spark_2.12:3.2.0")
+        
         # Add extra Spark configs from config dict
         for k, v in config.get("spark", {}).items():
             builder = builder.config(k, v)

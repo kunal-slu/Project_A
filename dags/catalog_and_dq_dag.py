@@ -10,6 +10,14 @@ from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 import os
 
+# Standardized Airflow Variables
+EMR_APP_ID = Variable.get("EMR_APP_ID")
+EMR_JOB_ROLE_ARN = Variable.get("EMR_JOB_ROLE_ARN")
+GLUE_DB_SILVER = Variable.get("GLUE_DB_SILVER", "silver_db")
+GLUE_DB_GOLD = Variable.get("GLUE_DB_GOLD", "gold_db")
+S3_LAKE_BUCKET = Variable.get("S3_LAKE_BUCKET")
+S3_CHECKPOINT_PATH = Variable.get("S3_CHECKPOINT_PREFIX", "checkpoints")
+
 # Default arguments
 default_args = {
     'owner': 'data-engineering',

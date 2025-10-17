@@ -9,8 +9,9 @@ import sys
 from typing import Dict, Any
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, row_number, max as spark_max, when, lit
+from pyspark.sql.functions import col, row_number, max as spark_max, when, lit, F
 from pyspark.sql.window import Window
+from datetime import date, timedelta
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -34,6 +35,11 @@ def deduplicate_fx_rates(spark: SparkSession, bronze_df) -> SparkSession.DataFra
         Deduplicated DataFrame
     """
     logger.info("Deduplicating FX rates by (as_of_date, ccy)")
+    
+    # FX rates freshness guard - check if rates are stale
+    latest = bronze_df.agg(F.max("as_of_date")).first()[0]
+    if latest < (date.today() - timedelta(days=2)):
+        raise RuntimeError(f"FX rates stale: {latest}")
     
     # Define window for deduplication
     window_spec = Window.partitionBy("as_of_date", "ccy").orderBy(col("ingestion_timestamp").desc())

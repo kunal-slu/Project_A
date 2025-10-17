@@ -43,7 +43,7 @@ def load_config(env: str = "local") -> dict:
 
 @click.command()
 @click.option("--proc-date", default=None, help="Processing date (YYYY-MM-DD)")
-@click.option("--env", default="local", help="Environment (local/aws/azure)")
+@click.option("--env", default="local", help="Environment (local/aws)")
 @click.option("--config-file", default=None, help="Custom config file path")
 def main(proc_date: str, env: str, config_file: str):
     """PySpark Data Engineering Pipeline"""

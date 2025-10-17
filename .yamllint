@@ -1,0 +1,52 @@
+# YAML linting configuration
+extends: default
+
+rules:
+  # Allow long lines for URLs and long strings
+  line-length:
+    max: 120
+    level: warning
+
+  # Allow comments
+  comments:
+    min-spaces-from-content: 1
+
+  # Allow document start
+  document-start:
+    present: true
+    level: warning
+
+  # Allow trailing spaces in certain contexts
+  trailing-spaces:
+    level: warning
+
+  # Allow indentation variations for readability
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Allow flow style for short sequences
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Allow braces for short mappings
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Allow anchors and aliases
+  anchors:
+    max-length: 128
+
+  # Allow key ordering
+  key-ordering: disable
+
+  # Allow duplicate keys (useful for configs)
+  key-duplicates: disable
+
+  # Allow truthy values
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false

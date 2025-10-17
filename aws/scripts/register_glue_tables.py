@@ -11,6 +11,11 @@ import boto3
 from typing import List, Dict, Any
 from pathlib import Path
 
+# Standardized environment variables for Glue/Athena alignment
+SILVER_DB = os.getenv("GLUE_DB_SILVER", "silver_db")
+GOLD_DB = os.getenv("GLUE_DB_GOLD", "gold_db")
+S3_LAKE_BUCKET = os.getenv("S3_LAKE_BUCKET", "data-lake-bucket")
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 

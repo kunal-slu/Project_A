@@ -120,6 +120,12 @@ jobs:
         aws s3 sync conf/ s3://${{ secrets.CODE_BUCKET }}/config/
         aws s3 sync dq/ s3://${{ secrets.CODE_BUCKET }}/dq/
         echo "Jobs and scripts uploaded to S3"
+    
+    - name: Update MWAA DAGs
+      if: ${{ secrets.MWAA_DAGS_BUCKET != '' }}
+      run: |
+        aws s3 sync aws/dags/ s3://${{ secrets.MWAA_DAGS_BUCKET }}/ --delete
+        echo "MWAA DAGs synchronized"
 
   infra-plan:
     runs-on: ubuntu-latest

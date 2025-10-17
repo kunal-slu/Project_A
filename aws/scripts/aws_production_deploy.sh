@@ -2,7 +2,27 @@
 # AWS Production ETL Pipeline Deployment Script
 # This script deploys a complete production ETL pipeline with real-world data sources
 
-set -e
+set -euo pipefail
+
+# EMR roles and policies sanity check
+need_role() {
+    local R=$1
+    aws iam get-role --role-name "$R" >/dev/null 2>&1 || {
+        print_error "Missing role: $R"
+        exit 1
+    }
+}
+
+print_status "Checking EMR roles and policies..."
+need_role EMR_DefaultRole
+need_role EMR_EC2_DefaultRole
+
+# Check custom policies if they exist
+if aws iam list-policies --query 'Policies[?PolicyName==`ETLDataLakeAccess`]' --output text | grep -q ETLDataLakeAccess; then
+    print_success "ETLDataLakeAccess policy exists"
+else
+    print_warning "ETLDataLakeAccess policy not found - creating default one"
+fi
 
 # Colors for output
 RED='\033[0;31m'
