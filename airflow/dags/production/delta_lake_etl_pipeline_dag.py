@@ -10,21 +10,30 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.utils.dates import days_ago
+from airflow.models import Variable
 
-# Configuration
+# Configuration with safe defaults
 PROJECT_HOME = os.getenv("PROJECT_HOME", "/opt/project")
 VENV_ACTIVATE = os.getenv("VENV_ACTIVATE", ".venv/bin/activate")
 DELTA_LAKE_SCRIPT = "src/pyspark_interview_project/production_pipeline.py"
 
-# Default arguments
+# Safe variable retrieval with defaults
+EMR_APP_ID = Variable.get("EMR_APP_ID", default_var="")
+EMR_JOB_ROLE_ARN = Variable.get("EMR_JOB_ROLE_ARN", default_var="")
+AWS_REGION = Variable.get("AWS_REGION", default_var="us-east-1")
+S3_DATA_BUCKET = Variable.get("S3_DATA_BUCKET", default_var="")
+
+# Default arguments with improved retry logic
 default_args = {
-    'owner': 'data-engineering',
+    'owner': 'data-team',
     'depends_on_past': False,
     'start_date': days_ago(1),
     'email_on_failure': False,
     'email_on_retry': False,
-    'retries': 1,
+    'retries': 2,
     'retry_delay': timedelta(minutes=5),
+    'retry_exponential_backoff': True,
+    'max_retry_delay': timedelta(minutes=30),
 }
 
 # Create DAG

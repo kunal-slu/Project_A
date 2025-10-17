@@ -1,4 +1,5 @@
 import logging
+import os
 from unittest.mock import MagicMock
 from pyspark.sql import SparkSession
 from typing import Dict
@@ -15,12 +16,18 @@ def build_spark(config: Dict) -> SparkSession:
     try:
         app_name = config.get("app_name", "pyspark_interview_project")
         
-        # Build SparkSession with Delta configs BEFORE getOrCreate()
-        builder = (SparkSession.builder
-                   .appName(app_name)
-                   .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-                   .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-                   .config("spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"))
+        # Build SparkSession - environment-aware Delta config
+        builder = SparkSession.builder.appName(app_name)
+        
+        # Only enable Delta extensions in production environments
+        spark_env = os.getenv("SPARK_ENV", "local")
+        if spark_env in {"emr", "prod", "aws", "azure"}:
+            builder = (builder
+                      .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+                      .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"))
+            logger.info(f"Delta Lake extensions enabled for environment: {spark_env}")
+        else:
+            logger.info(f"Delta Lake extensions disabled for local environment: {spark_env}")
         
         # Add Delta jar packages for local runs
         cloud = config.get("cloud", "local")

@@ -21,7 +21,6 @@ class ProductionETLPipeline:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.base_path = config.get("base_path", "data/lakehouse")
         self.delta_path = config.get("delta_path", "data/lakehouse_delta")
         
     def create_delta_lake_structure(self, table_name: str, data: pd.DataFrame, layer: str):
@@ -145,7 +144,7 @@ class ProductionETLPipeline:
         """Process a specific layer."""
         logger.info(f"📊 Processing {layer} layer...")
         
-        layer_path = f"{self.base_path}/{layer}"
+        layer_path = f"data/lakehouse/{layer}"
         if not os.path.exists(layer_path):
             logger.warning(f"⚠️ Layer path not found: {layer_path}")
             return

@@ -1,13 +1,31 @@
-cloud: "local"
+app_name: pyspark_interview_project
+cloud: local
+
+io:
+  format: csv
+  compression: null
+
 paths:
-  lake_root: "/tmp/lakehouse"
-  checkpoints_root: "/tmp/lakehouse/_checkpoints"
-observability:
-  sink: "stdout"
+  bronze:
+    customers: data/input_data/customers.csv
+    orders: data/input_data/orders.json
+    products: data/input_data/products.csv
+  silver:
+    customers: data/lakehouse_delta/silver/customers
+    orders: data/lakehouse_delta/silver/orders
+    products: data/lakehouse_delta/silver/products
+  gold:
+    customers: data/lakehouse_delta/gold/customers
+    orders: data/lakehouse_delta/gold/orders
+    products: data/lakehouse_delta/gold/products
 
+spark:
+  shuffle_partitions: 400
+  enable_aqe: true
+  driver_memory: "2g"
+  executor_memory: "4g"
 
-
-
-
-
-
+dq:
+  enabled: true
+  null_threshold: 0.1
+  duplicate_threshold: 0.05
