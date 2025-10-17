@@ -1,17 +1,18 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyspark-interview-project"
+name = "project_a"
 version = "0.1.0"
-description = "PySpark Data Engineering Project with Delta Lake, AWS EMR Serverless, and MWAA"
+description = "PySpark + Delta + Airflow data platform"
 authors = [
-    {name = "Data Engineering Team", email = "data-eng@company.com"}
+    {name = "Kunal Kumar Singh", email = "kunal@example.com"}
 ]
 readme = "README.md"
-license = {text = "MIT"}
 requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["pyspark", "delta-lake", "airflow", "data-engineering", "etl"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -23,65 +24,46 @@ classifiers = [
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
+
 dependencies = [
-    "pyspark>=3.5.1",
-    "delta-spark>=3.2.0",
+    "pyspark==3.5.1",
+    "delta-spark==3.2.0",
+    "apache-airflow==2.9.3",
+    "apache-airflow-providers-amazon==8.24.0",
+    "apache-airflow-providers-cncf-kubernetes==10.1.0",
+    "great-expectations==1.0.1",
+    "pyarrow==17.0.0",
+    "boto3==1.35.15",
+    "pandas>=2.0.0",
+    "pydantic>=2.0.0",
     "pyyaml>=6.0",
-    "boto3>=1.34.0",
-    "pytest>=7.4.0",
-    "pytest-mock>=3.11.0",
-    "python-dotenv>=1.0.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "flake8>=6.0.0",
-    "mypy>=1.5.0",
-    "detect-secrets>=1.4.0",
-    "great-expectations>=0.18.0",
-    "apache-airflow-providers-openlineage>=1.0.0",
-    "requests>=2.31.0",
-    "snowflake-connector-python>=3.0.0",
-    "simple-salesforce>=1.12.0",
+    "requests>=2.28.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.11.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.0.0",
+    "yamllint>=1.35.0",
+    "sqlfluff>=3.1.0",
+    "detect-secrets>=1.5.0",
+    "pre-commit>=3.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
-    "flake8>=6.0.0",
-    "mypy>=1.5.0",
-    "detect-secrets>=1.4.0",
-    "pre-commit>=3.4.0",
 ]
-aws = [
-    "boto3>=1.34.0",
-    "botocore>=1.34.0",
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-xdist>=3.0.0",
 ]
-kafka = [
-    "confluent-kafka>=2.3.0",
-]
-salesforce = [
-    "simple-salesforce>=1.12.0",
-]
-snowflake = [
-    "snowflake-connector-python>=3.0.0",
-    "snowflake-sqlalchemy>=1.4.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/company/pyspark-data-engineer-project"
-Repository = "https://github.com/company/pyspark-data-engineer-project"
-Issues = "https://github.com/company/pyspark-data-engineer-project/issues"
 
 [project.scripts]
-bronze-to-silver = "pyspark_interview_project.pipeline.bronze_to_silver:main"
-silver-to-gold = "pyspark_interview_project.pipeline.silver_to_gold:main"
-kafka-orders-stream = "pyspark_interview_project.jobs.kafka_orders_stream:main"
-salesforce-to-bronze = "pyspark_interview_project.jobs.salesforce_to_bronze:main"
-snowflake-to-bronze = "pyspark_interview_project.jobs.snowflake_to_bronze:main"
-snowflake-merge = "pyspark_interview_project.jobs.snowflake_bronze_to_silver_merge:main"
+projecta = "project_a.cli:main"
+etl-pipeline = "project_a.cli:etl_main"
+data-quality = "project_a.cli:dq_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -89,32 +71,35 @@ where = ["src"]
 [tool.setuptools.package-dir]
 "" = "src"
 
-[tool.black]
+[tool.ruff]
+target-version = "py310"
 line-length = 100
-target-version = ['py310']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
 
-[tool.isort]
-profile = "black"
-line_length = 100
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*" = ["B011"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.10"
@@ -131,21 +116,21 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 
+[[tool.mypy.overrides]]
+module = [
+    "delta.*",
+    "great_expectations.*",
+    "airflow.*",
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--verbose",
-    "--tb=short",
-    "--cov=src",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-report=xml",
-]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
@@ -158,7 +143,6 @@ omit = [
     "*/tests/*",
     "*/test_*",
     "*/__pycache__/*",
-    "*/.*",
 ]
 
 [tool.coverage.report]

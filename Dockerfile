@@ -3,42 +3,47 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+    PYTHONPATH=/app/src \
+    AIRFLOW_HOME=/app/airflow \
+    SPARK_HOME=/opt/spark \
+    JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    openjdk-11-jdk \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN adduser --disabled-password --gecos "" app
+
+# Set up Spark
+RUN wget https://archive.apache.org/dist/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz && \
+    tar -xzf spark-3.5.1-bin-hadoop3.tgz -C /opt && \
+    ln -s /opt/spark-3.5.1-bin-hadoop3 /opt/spark && \
+    rm spark-3.5.1-bin-hadoop3.tgz
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies and clean up in one layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openjdk-17-jre-headless \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
+# Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Create non-root user
-RUN useradd -ms /bin/bash appuser
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Change ownership to appuser
-RUN chown -R appuser:appuser /app
+# Change ownership to app user
+RUN chown -R app:app /app
 
 # Switch to non-root user
-USER appuser
-
-# Expose port for metrics
-EXPOSE 8000
+USER app
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -fsS http://localhost:8000/metrics || exit 1
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
 
 # Default command
-ENTRYPOINT ["python", "-m", "src.pyspark_interview_project.pipeline"]
+CMD ["python", "-m", "project_a.cli", "--config", "config/prod.yaml", "--cmd", "pipeline"]

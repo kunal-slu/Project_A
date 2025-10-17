@@ -1,6 +1,12 @@
-# Main Terraform configuration for PySpark Data Engineering Platform
 terraform {
-  required_version = ">= 1.0"
+  backend "s3" {
+    bucket         = "projecta-tfstate"
+    key            = "aws/infra/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "projecta-tf-locks"
+    encrypt        = true
+  }
+  required_version = ">= 1.6.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -9,231 +15,174 @@ terraform {
   }
 }
 
-# Configure AWS Provider
-provider "aws" {
-  region = var.aws_region
-  
-  default_tags {
-    tags = {
-      Project     = var.project_name
-      Environment = var.environment
-      ManagedBy   = "terraform"
-    }
-  }
+# Variables
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "prod"
+}
+
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "project_name" {
+  description = "Project name"
+  type        = string
+  default     = "project-a"
 }
 
 # Data sources
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Local values
-locals {
-  common_tags = {
-    Project     = var.project_name
+# S3 Buckets
+resource "aws_s3_bucket" "data_lake" {
+  bucket = "${var.project_name}-data-lake-${var.environment}"
+
+  tags = {
+    Name        = "${var.project_name}-data-lake-${var.environment}"
     Environment = var.environment
-    ManagedBy   = "terraform"
+    Project     = var.project_name
   }
-  
-  # S3 bucket names
-  data_lake_bucket = "${var.project_name}-${var.environment}-data-lake"
-  artifacts_bucket = "${var.project_name}-${var.environment}-artifacts"
-  logs_bucket      = "${var.project_name}-${var.environment}-logs"
-  
-  # Glue database names
-  bronze_db = "${var.project_name}_${var.environment}_bronze"
-  silver_db = "${var.project_name}_${var.environment}_silver"
-  gold_db   = "${var.project_name}_${var.environment}_gold"
 }
 
-# KMS Keys
-module "kms" {
-  source = "./modules/kms"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  tags         = local.common_tags
+resource "aws_s3_bucket" "tfstate" {
+  bucket = "${var.project_name}-tfstate-${var.environment}"
+
+  tags = {
+    Name        = "${var.project_name}-tfstate-${var.environment}"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
-# S3 Data Lake
-module "s3" {
-  source = "./modules/s3"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  data_lake_bucket = local.data_lake_bucket
-  artifacts_bucket = local.artifacts_bucket
-  logs_bucket      = local.logs_bucket
-  
-  s3_kms_key_id = module.kms.s3_key_id
-  logs_kms_key_id = module.kms.logs_key_id
-  
-  tags = local.common_tags
+# S3 Bucket configurations
+resource "aws_s3_bucket_versioning" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
-# IAM Roles and Policies
-module "iam" {
-  source = "./modules/iam"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  data_lake_bucket = local.data_lake_bucket
-  artifacts_bucket = local.artifacts_bucket
-  logs_bucket      = local.logs_bucket
-  
-  bronze_db = local.bronze_db
-  silver_db = local.silver_db
-  gold_db   = local.gold_db
-  
-  tags = local.common_tags
+resource "aws_s3_bucket_versioning" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
-# Glue Data Catalog
-module "glue" {
-  source = "./modules/glue"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  bronze_db = local.bronze_db
-  silver_db = local.silver_db
-  gold_db   = local.gold_db
-  
-  tags = local.common_tags
+resource "aws_s3_bucket_server_side_encryption_configuration" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
 }
 
-# EMR Serverless
-module "emrserverless" {
-  source = "./modules/emrserverless"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  execution_role_arn = module.iam.emr_execution_role_arn
-  job_role_arn       = module.iam.emr_job_role_arn
-  
-  artifacts_bucket = local.artifacts_bucket
-  logs_bucket      = local.logs_bucket
-  
-  tags = local.common_tags
+resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
 }
 
-# SQS Queues
-module "sqs" {
-  source = "./modules/sqs"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  tags = local.common_tags
+resource "aws_s3_bucket_public_access_block" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-# Lambda Functions
-module "lambda" {
-  source = "./modules/lambda"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  execution_role_arn = module.iam.lambda_execution_role_arn
-  
-  rest_queue_url = module.sqs.rest_queue_url
-  rest_dlq_url   = module.sqs.rest_dlq_url
-  
-  data_lake_bucket = local.data_lake_bucket
-  artifacts_bucket = local.artifacts_bucket
-  
-  tags = local.common_tags
+resource "aws_s3_bucket_public_access_block" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-# RDS (optional, for CDC demo)
-module "rds" {
-  count  = var.enable_rds ? 1 : 0
-  source = "./modules/rds"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  vpc_id             = var.vpc_id
-  private_subnet_ids = var.private_subnet_ids
-  
-  tags = local.common_tags
+# DynamoDB for Terraform locks
+resource "aws_dynamodb_table" "tf_locks" {
+  name           = "${var.project_name}-tf-locks"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-tf-locks"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
-# DMS (optional, for CDC)
-module "dms" {
-  count  = var.enable_dms ? 1 : 0
-  source = "./modules/dms"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  replication_role_arn = module.iam.dms_role_arn
-  
-  rds_endpoint = var.enable_rds ? module.rds[0].endpoint : var.rds_endpoint
-  rds_port     = var.enable_rds ? module.rds[0].port : var.rds_port
-  
-  target_bucket = local.data_lake_bucket
-  
-  tags = local.common_tags
+# IAM Roles
+resource "aws_iam_role" "emr_serverless_role" {
+  name = "${var.project_name}-emr-serverless-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "emr-serverless.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.project_name}-emr-serverless-role"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
-# AppFlow (optional, for Salesforce)
-module "appflow" {
-  count  = var.enable_appflow ? 1 : 0
-  source = "./modules/appflow"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  appflow_role_arn = module.iam.appflow_role_arn
-  
-  target_bucket = local.data_lake_bucket
-  
-  tags = local.common_tags
+resource "aws_iam_role_policy_attachment" "emr_serverless_s3" {
+  role       = aws_iam_role.emr_serverless_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
-# MWAA (Airflow)
-module "mwaa" {
-  source = "./modules/mwaa"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  execution_role_arn = module.iam.mwaa_execution_role_arn
-  
-  artifacts_bucket = local.artifacts_bucket
-  logs_bucket      = local.logs_bucket
-  
-  vpc_id             = var.vpc_id
-  private_subnet_ids = var.private_subnet_ids
-  
-  tags = local.common_tags
+# Outputs
+output "data_lake_bucket" {
+  description = "S3 bucket for data lake"
+  value       = aws_s3_bucket.data_lake.bucket
 }
 
-# Athena
-module "athena" {
-  source = "./modules/athena"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  workgroup_name = "${var.project_name}-${var.environment}-workgroup"
-  output_location = "s3://${local.logs_bucket}/athena-results/"
-  
-  tags = local.common_tags
+output "tfstate_bucket" {
+  description = "S3 bucket for Terraform state"
+  value       = aws_s3_bucket.tfstate.bucket
 }
 
-# Budget and Monitoring
-module "budgets" {
-  source = "./modules/budgets"
-  
-  project_name = var.project_name
-  environment  = var.environment
-  
-  budget_limit = var.budget_limit
-  budget_email = var.budget_email
-  
-  tags = local.common_tags
+output "emr_serverless_role_arn" {
+  description = "EMR Serverless role ARN"
+  value       = aws_iam_role.emr_serverless_role.arn
+}
+
+output "region" {
+  description = "AWS region"
+  value       = data.aws_region.current.name
+}
+
+output "account_id" {
+  description = "AWS account ID"
+  value       = data.aws_caller_identity.current.account_id
 }

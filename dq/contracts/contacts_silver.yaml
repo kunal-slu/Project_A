@@ -1,0 +1,97 @@
+dataset: contacts_silver
+description: "Contacts silver layer data quality contract"
+severity_levels:
+  critical: [contact_id]
+  high: [email, name]
+  medium: [phone, company]
+  low: [created_at, updated_at]
+
+columns:
+  - name: contact_id
+    type: string
+    required: true
+    expectations:
+      - expect_column_values_to_not_be_null: {}
+      - expect_column_values_to_be_unique: {}
+      - expect_column_values_to_match_regex:
+          regex: '^[A-Za-z0-9_-]+$'
+  
+  - name: email
+    type: string
+    required: true
+    expectations:
+      - expect_column_values_to_not_be_null: {}
+      - expect_column_values_to_match_regex:
+          regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'
+      - expect_column_values_to_be_unique: {}
+  
+  - name: name
+    type: string
+    required: true
+    expectations:
+      - expect_column_values_to_not_be_null: {}
+      - expect_column_values_to_match_regex:
+          regex: '^[A-Za-z\\s\\.-]+$'
+  
+  - name: phone
+    type: string
+    required: false
+    expectations:
+      - expect_column_values_to_match_regex:
+          regex: '^\\d{10}$'
+  
+  - name: company
+    type: string
+    required: false
+    expectations:
+      - expect_column_values_to_be_of_type:
+          type_: string
+  
+  - name: created_at
+    type: timestamp
+    required: false
+    expectations:
+      - expect_column_values_to_be_of_type:
+          type_: timestamp
+      - expect_column_values_to_be_between:
+          min_value: '2020-01-01'
+          max_value: '2025-12-31'
+  
+  - name: updated_at
+    type: timestamp
+    required: false
+    expectations:
+      - expect_column_values_to_be_of_type:
+          type_: timestamp
+      - expect_column_values_to_be_between:
+          min_value: '2020-01-01'
+          max_value: '2025-12-31'
+
+business_rules:
+  - name: email_domain_validation
+    description: "Email should be from valid business domains"
+    expectation: expect_column_values_to_match_regex
+    parameters:
+      regex: '^[^@]+@(company|business|org)\\.com$'
+    severity: medium
+  
+  - name: phone_format_validation
+    description: "Phone numbers should be 10 digits"
+    expectation: expect_column_values_to_match_regex
+    parameters:
+      regex: '^\\d{10}$'
+    severity: medium
+
+volume_checks:
+  - name: minimum_record_count
+    expectation: expect_table_row_count_to_be_between
+    parameters:
+      min_value: 100
+      max_value: 1000000
+    severity: critical
+  
+  - name: record_count_consistency
+    expectation: expect_table_row_count_to_equal
+    parameters:
+      value: "previous_run_count"
+    severity: high

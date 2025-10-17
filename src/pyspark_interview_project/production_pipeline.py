@@ -144,7 +144,7 @@ class ProductionETLPipeline:
         """Process a specific layer."""
         logger.info(f"📊 Processing {layer} layer...")
         
-        layer_path = f"data/lakehouse/{layer}"
+        layer_path = f"data/lakehouse_delta/{layer}"
         if not os.path.exists(layer_path):
             logger.warning(f"⚠️ Layer path not found: {layer_path}")
             return
@@ -173,63 +173,243 @@ class ProductionETLPipeline:
         """Demonstrate Delta Lake time travel capabilities."""
         logger.info("🕐 Demonstrating Delta Lake time travel...")
         
-        # Create a second version of a table
+        # Create multiple versions for bronze customers table
         customers_path = f"{self.delta_path}/bronze/customers"
         if os.path.exists(customers_path):
             self._create_table_version(customers_path, "customers", "bronze")
             
             # Show version history
             self._show_version_history(customers_path)
+        
+        # Create multiple versions for silver layer tables
+        silver_path = f"{self.delta_path}/silver"
+        if os.path.exists(silver_path):
+            for table_dir in os.listdir(silver_path):
+                table_path = f"{silver_path}/{table_dir}"
+                if os.path.isdir(table_path) and table_dir != "_delta_log":
+                    logger.info(f"🔄 Creating additional versions for silver table: {table_dir}")
+                    self._create_silver_table_version(table_path, table_dir)
+                    self._show_version_history(table_path)
+        
+        # Create multiple versions for gold layer tables
+        gold_path = f"{self.delta_path}/gold"
+        if os.path.exists(gold_path):
+            for table_dir in os.listdir(gold_path):
+                table_path = f"{gold_path}/{table_dir}"
+                if os.path.isdir(table_path) and table_dir != "_delta_log":
+                    logger.info(f"🔄 Creating additional versions for gold table: {table_dir}")
+                    self._create_gold_table_version(table_path, table_dir)
+                    self._show_version_history(table_path)
     
     def _create_table_version(self, table_path: str, table_name: str, layer: str):
-        """Create a second version of a table."""
-        logger.info(f"📝 Creating second version of {table_name}...")
+        """Create multiple versions of a table."""
+        logger.info(f"📝 Creating multiple versions of {table_name}...")
         
         # Read existing data
         data_file = f"{table_path}/part-00000-{table_name}.parquet"
         if os.path.exists(data_file):
             data = pd.read_parquet(data_file)
             
-            # Modify data (add new records)
-            new_data = data.copy()
-            new_records = data.head(50).copy()  # Add 50 more records
-            new_records['customer_id'] = range(len(data) + 1, len(data) + 51)
-            new_records['name'] = [f'Customer_{i}' for i in range(len(data) + 1, len(data) + 51)]
-            
-            updated_data = pd.concat([data, new_records], ignore_index=True)
-            
-            # Write new version
-            new_parquet_file = f"{table_path}/part-00001-{table_name}-v2.parquet"
-            updated_data.to_parquet(new_parquet_file, index=False)
-            
-            # Create second transaction log
-            delta_log_dir = f"{table_path}/_delta_log"
-            transaction_log_v2 = {
-                "protocol": {
-                    "minReaderVersion": 1,
-                    "minWriterVersion": 2
-                },
-                "add": {
-                    "path": f"part-00001-{table_name}-v2.parquet",
-                    "partitionValues": {},
-                    "size": os.path.getsize(new_parquet_file),
-                    "modificationTime": int(datetime.now().timestamp() * 1000),
-                    "dataChange": True,
-                    "stats": self._generate_stats(updated_data)
+            # Create 3 versions
+            for version in range(1, 4):
+                # Modify data (add new records)
+                new_data = data.copy()
+                new_records = data.head(25 * version).copy()  # Add more records each version
+                new_records = new_records.reset_index(drop=True)  # Reset index to avoid length mismatch
+                
+                # Create new customer IDs as a list with correct length
+                num_new_records = len(new_records)
+                new_customer_ids = list(range(len(data) + (version-1)*25 + 1, len(data) + (version-1)*25 + 1 + num_new_records))
+                new_names = [f'Customer_v{version}_{i}' for i in new_customer_ids]
+                
+                # Assign new values with correct length
+                new_records = new_records.copy()
+                new_records['customer_id'] = new_customer_ids
+                new_records['name'] = new_names
+                
+                updated_data = pd.concat([data, new_records], ignore_index=True)
+                
+                # Write new version
+                new_parquet_file = f"{table_path}/part-0000{version}-{table_name}-v{version+1}.parquet"
+                updated_data.to_parquet(new_parquet_file, index=False)
+                
+                # Create transaction log
+                delta_log_dir = f"{table_path}/_delta_log"
+                transaction_log = {
+                    "protocol": {
+                        "minReaderVersion": 1,
+                        "minWriterVersion": 2
+                    },
+                    "add": {
+                        "path": f"part-0000{version}-{table_name}-v{version+1}.parquet",
+                        "partitionValues": {},
+                        "size": os.path.getsize(new_parquet_file),
+                        "modificationTime": int(datetime.now().timestamp() * 1000) + version,
+                        "dataChange": True,
+                        "stats": self._generate_stats(updated_data)
+                    }
                 }
-            }
+                
+                # Write transaction log
+                log_file = f"{delta_log_dir}/0000000000000000000{version}.json"
+                with open(log_file, 'w') as f:
+                    json.dump(transaction_log, f, indent=2)
+                
+                # Create checksum
+                checksum_file = f"{delta_log_dir}/0000000000000000000{version}.crc"
+                with open(checksum_file, 'w') as f:
+                    f.write(f"8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3{version}")
+                
+                logger.info(f"✅ Created version {version} of {table_name} ({len(updated_data)} records)")
+    
+    def _create_silver_table_version(self, table_path: str, table_name: str):
+        """Create multiple versions for silver layer tables."""
+        logger.info(f"📝 Creating multiple versions for silver table: {table_name}...")
+        
+        # Read existing data
+        data_file = f"{table_path}/part-00000-{table_name}.parquet"
+        if os.path.exists(data_file):
+            data = pd.read_parquet(data_file)
             
-            # Write second transaction log
-            log_file_v2 = f"{delta_log_dir}/00000000000000000001.json"
-            with open(log_file_v2, 'w') as f:
-                json.dump(transaction_log_v2, f, indent=2)
+            # Create 2 versions
+            for version in range(1, 3):
+                # Modify data based on table type and actual columns
+                new_data = data.copy()
+                
+                if "customers" in table_name.lower():
+                    # For customers, update segment and add new customers
+                    segment_map = {
+                        'Basic': 'Premium', 
+                        'Premium': 'Enterprise', 
+                        'Enterprise': 'Basic'
+                    }
+                    new_data['segment'] = new_data['segment'].map(segment_map).fillna('Premium')
+                    # Add new customers
+                    new_customers = data.head(15 * version).copy()
+                    new_customers = new_customers.reset_index(drop=True)  # Reset index to avoid length mismatch
+                    
+                    # Create new customer IDs as a list with correct length
+                    num_new_customers = len(new_customers)
+                    new_customer_ids = list(range(len(data) + (version-1)*15 + 1, len(data) + (version-1)*15 + 1 + num_new_customers))
+                    new_names = [f'Silver_v{version}_{i}' for i in new_customer_ids]
+                    
+                    # Assign new values with correct length
+                    new_customers = new_customers.copy()
+                    new_customers['customer_id'] = new_customer_ids
+                    new_customers['name'] = new_names
+                    new_data = pd.concat([data, new_customers], ignore_index=True)
+                elif "orders" in table_name.lower():
+                    # For orders, update amounts and status
+                    if 'total_amount' in new_data.columns:
+                        new_data['total_amount'] = new_data['total_amount'] * (1.08 ** version)  # Increasing multiplier
+                    elif 'amount' in new_data.columns:
+                        new_data['amount'] = new_data['amount'] * (1.08 ** version)  # Increasing multiplier
+                    new_data['status'] = new_data['status'].map({
+                        'Completed': 'Processing',
+                        'Processing': 'Completed',
+                        'Cancelled': 'Completed',
+                        'COMPLETED': 'PROCESSING',
+                        'PROCESSING': 'COMPLETED',
+                        'PENDING': 'COMPLETED'
+                    }).fillna('Completed')
+                
+                # Write new version
+                new_parquet_file = f"{table_path}/part-0000{version}-{table_name}-v{version+1}.parquet"
+                new_data.to_parquet(new_parquet_file, index=False)
+                
+                # Create transaction log
+                delta_log_dir = f"{table_path}/_delta_log"
+                transaction_log = {
+                    "protocol": {
+                        "minReaderVersion": 1,
+                        "minWriterVersion": 2
+                    },
+                    "add": {
+                        "path": f"part-0000{version}-{table_name}-v{version+1}.parquet",
+                        "partitionValues": {},
+                        "size": os.path.getsize(new_parquet_file),
+                        "modificationTime": int(datetime.now().timestamp() * 1000) + version,
+                        "dataChange": True,
+                        "stats": self._generate_stats(new_data)
+                    }
+                }
+                
+                # Write transaction log
+                log_file = f"{delta_log_dir}/0000000000000000000{version}.json"
+                with open(log_file, 'w') as f:
+                    json.dump(transaction_log, f, indent=2)
+                
+                # Create checksum
+                checksum_file = f"{delta_log_dir}/0000000000000000000{version}.crc"
+                with open(checksum_file, 'w') as f:
+                    f.write(f"8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3{version}")
+                
+                logger.info(f"✅ Created version {version} of silver {table_name} ({len(new_data)} records)")
+    
+    def _create_gold_table_version(self, table_path: str, table_name: str):
+        """Create multiple versions for gold layer tables."""
+        logger.info(f"📝 Creating multiple versions for gold table: {table_name}...")
+        
+        # Read existing data
+        data_file = f"{table_path}/part-00000-{table_name}.parquet"
+        if os.path.exists(data_file):
+            data = pd.read_parquet(data_file)
             
-            # Create second checksum
-            checksum_file_v2 = f"{delta_log_dir}/00000000000000000001.crc"
-            with open(checksum_file_v2, 'w') as f:
-                f.write("8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f")
-            
-            logger.info(f"✅ Created version 1 of {table_name} ({len(updated_data)} records)")
+            # Create 2 versions
+            for version in range(1, 3):
+                # Modify data based on table type and actual columns
+                new_data = data.copy()
+                
+                if "customer_analytics" in table_name.lower():
+                    # For customer analytics, increase customer counts
+                    new_data['customer_count'] = new_data['customer_count'] + (10 * version)
+                    new_data['avg_lifetime_days'] = new_data['avg_lifetime_days'] + (5 * version)
+                elif "monthly_revenue" in table_name.lower():
+                    # For monthly revenue, increase revenue and add new months
+                    new_data['total_revenue'] = new_data['total_revenue'] * (1.15 ** version)  # Increasing multiplier
+                    new_data['month'] = new_data['month'] + version  # Next months
+                elif "order_analytics" in table_name.lower():
+                    # For order analytics, increase counts and amounts
+                    new_data['order_count'] = new_data['order_count'] + (5 * version)
+                    new_data['total_amount'] = new_data['total_amount'] * (1.1 ** version)  # Increasing multiplier
+                    new_data['avg_amount'] = new_data['avg_amount'] * (1.05 ** version)  # Increasing multiplier
+                else:
+                    # For other tables, just duplicate with modified IDs
+                    if 'id' in new_data.columns:
+                        new_data['id'] = new_data['id'] + (1000 * version)
+                
+                # Write new version
+                new_parquet_file = f"{table_path}/part-0000{version}-{table_name}-v{version+1}.parquet"
+                new_data.to_parquet(new_parquet_file, index=False)
+                
+                # Create transaction log
+                delta_log_dir = f"{table_path}/_delta_log"
+                transaction_log = {
+                    "protocol": {
+                        "minReaderVersion": 1,
+                        "minWriterVersion": 2
+                    },
+                    "add": {
+                        "path": f"part-0000{version}-{table_name}-v{version+1}.parquet",
+                        "partitionValues": {},
+                        "size": os.path.getsize(new_parquet_file),
+                        "modificationTime": int(datetime.now().timestamp() * 1000) + version,
+                        "dataChange": True,
+                        "stats": self._generate_stats(new_data)
+                    }
+                }
+                
+                # Write transaction log
+                log_file = f"{delta_log_dir}/0000000000000000000{version}.json"
+                with open(log_file, 'w') as f:
+                    json.dump(transaction_log, f, indent=2)
+                
+                # Create checksum
+                checksum_file = f"{delta_log_dir}/0000000000000000000{version}.crc"
+                with open(checksum_file, 'w') as f:
+                    f.write(f"8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3{version}")
+                
+                logger.info(f"✅ Created version {version} of gold {table_name} ({len(new_data)} records)")
     
     def _show_version_history(self, table_path: str):
         """Show version history of a Delta Lake table."""
