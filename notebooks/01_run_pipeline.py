@@ -1,5 +1,5 @@
-"""Databricks thin orchestration notebook (Python script style).
-Calls packaged code with resolved config; keep all logic in the package.
+"""Production ETL Pipeline Runner.
+Runs the production ETL pipeline with Delta Lake support.
 """
 
 import os
@@ -8,17 +8,35 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from pyspark_interview_project.config_loader import load_config_resolved
-from pyspark_interview_project.pipeline import main as run_main
+from pyspark_interview_project.production_pipeline import ProductionETLPipeline
 
 
 def run(env: str | None = None) -> None:
-    # Resolve once to validate secrets; pipeline loads its config path
-    _ = load_config_resolved(env=env)
-    # Choose a config path resolved by loader for transparency if needed
-    # Here we pass the selected explicit path to keep logs clear in jobs
-    run_main(config_path=os.environ.get("CONFIG_PATH", "config/config-azure-dev.yaml"))
+    """Run the production ETL pipeline."""
+    print("🚀 Starting Production ETL Pipeline...")
+    
+    # Configuration
+    config = {
+        "base_path": "data/lakehouse",
+        "delta_path": "data/lakehouse_delta"
+    }
+    
+    try:
+        # Initialize and run pipeline
+        pipeline = ProductionETLPipeline(config)
+        success = pipeline.run_pipeline()
+        
+        if success:
+            print("✅ Production ETL Pipeline completed successfully!")
+            print("🏆 Delta Lake tables created with time travel capabilities!")
+        else:
+            print("❌ Production ETL Pipeline failed!")
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"❌ Pipeline execution failed: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    run(os.environ.get("APP_ENV"))
+    run()

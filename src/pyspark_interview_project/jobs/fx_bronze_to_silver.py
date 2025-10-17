@@ -9,7 +9,7 @@ import sys
 from typing import Dict, Any
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, row_number, max as spark_max, when, lit, F
+from pyspark.sql.functions import col, row_number, max as spark_max, when, lit, functions as F
 from pyspark.sql.window import Window
 from datetime import date, timedelta
 
