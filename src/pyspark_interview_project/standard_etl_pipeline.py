@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 from .delta_lake_standard import StandardDeltaLake, create_standard_delta_tables
+from .gold_writer import GoldWriter
 
 class StandardETLPipeline:
     """

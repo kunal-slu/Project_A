@@ -1,0 +1,66 @@
+  ____________       _____________
+ ____    |__( )_________  __/__  /________      __
+____  /| |_  /__  ___/_  /_ __  /_  __ \_ | /| / /
+___  ___ |  / _  /   _  __/ _  / / /_/ /_ |/ |/ /
+ _/_/  |_/_/  /_/    /_/    /_/  \____/____/|__/
+[[34m2025-10-17T20:52:47.804-0500[0m] {[34mtask_context_logger.py:[0m63} INFO[0m - Task context logging is enabled[0m
+[[34m2025-10-17T20:52:47.805-0500[0m] {[34mexecutor_loader.py:[0m235} INFO[0m - Loaded executor: SequentialExecutor[0m
+[[34m2025-10-17T20:52:47.864-0500[0m] {[34mscheduler_job_runner.py:[0m799} INFO[0m - Starting the scheduler[0m
+[[34m2025-10-17T20:52:47.865-0500[0m] {[34mscheduler_job_runner.py:[0m806} INFO[0m - Processing each file at most -1 times[0m
+[[34m2025-10-17T20:52:47.868-0500[0m] {[34mmanager.py:[0m170} INFO[0m - Launched DagFileProcessorManager with pid: 20657[0m
+[[34m2025-10-17T20:52:47.871-0500[0m] {[34mscheduler_job_runner.py:[0m1598} INFO[0m - Adopting or resetting orphaned tasks for active dag runs[0m
+[[34m2025-10-17T20:52:47.886-0500[0m] {[34mscheduler_job_runner.py:[0m1657} INFO[0m - Reset the following 1 orphaned TaskInstances:
+	<TaskInstance: working_etl_dag.run_etl_pipeline scheduled__2025-10-18T01:45:00+00:00 [running]>[0m
+[[34m2025-10-17T20:52:48.427-0500[0m] {[34msettings.py:[0m60} INFO[0m - Configured default timezone UTC[0m
+[2025-10-17T20:52:48.435-0500] {manager.py:393} WARNING - Because we cannot use more than 1 thread (parsing_processes = 2) when using sqlite. So we set parallelism to 1.
+[[34m2025-10-17T20:52:49.146-0500[0m] {[34mscheduler_job_runner.py:[0m1331} INFO[0m - DAG delta_lake_maintenance is at (or above) max_active_runs (2 of 1), not creating any more runs[0m
+[[34m2025-10-17T20:52:49.148-0500[0m] {[34mscheduler_job_runner.py:[0m1331} INFO[0m - DAG standard_etl_dag is at (or above) max_active_runs (2 of 1), not creating any more runs[0m
+[[34m2025-10-17T20:52:49.150-0500[0m] {[34mscheduler_job_runner.py:[0m1331} INFO[0m - DAG external_data_ingestion is at (or above) max_active_runs (2 of 1), not creating any more runs[0m
+[[34m2025-10-17T20:52:49.202-0500[0m] {[34mscheduler_job_runner.py:[0m417} INFO[0m - 4 tasks up for execution:
+	<TaskInstance: standard_etl_dag.start_pipeline scheduled__2025-10-18T01:40:00+00:00 [scheduled]>
+	<TaskInstance: working_etl_dag.run_etl_pipeline scheduled__2025-10-18T01:45:00+00:00 [scheduled]>
+	<TaskInstance: delta_lake_etl_pipeline_dag.start_pipeline manual__2025-10-18T01:50:24.023527+00:00 [scheduled]>
+	<TaskInstance: delta_lake_maintenance.perform_delta_lake_maintenance scheduled__2025-10-17T00:00:00+00:00 [scheduled]>[0m
+[[34m2025-10-17T20:52:49.202-0500[0m] {[34mscheduler_job_runner.py:[0m480} INFO[0m - DAG standard_etl_dag has 0/4 running and queued tasks[0m
+[[34m2025-10-17T20:52:49.203-0500[0m] {[34mscheduler_job_runner.py:[0m480} INFO[0m - DAG working_etl_dag has 0/4 running and queued tasks[0m
+[[34m2025-10-17T20:52:49.203-0500[0m] {[34mscheduler_job_runner.py:[0m480} INFO[0m - DAG delta_lake_etl_pipeline_dag has 0/4 running and queued tasks[0m
+[[34m2025-10-17T20:52:49.203-0500[0m] {[34mscheduler_job_runner.py:[0m480} INFO[0m - DAG delta_lake_maintenance has 0/4 running and queued tasks[0m
+[[34m2025-10-17T20:52:49.203-0500[0m] {[34mscheduler_job_runner.py:[0m596} INFO[0m - Setting the following tasks to queued state:
+	<TaskInstance: standard_etl_dag.start_pipeline scheduled__2025-10-18T01:40:00+00:00 [scheduled]>
+	<TaskInstance: working_etl_dag.run_etl_pipeline scheduled__2025-10-18T01:45:00+00:00 [scheduled]>
+	<TaskInstance: delta_lake_etl_pipeline_dag.start_pipeline manual__2025-10-18T01:50:24.023527+00:00 [scheduled]>
+	<TaskInstance: delta_lake_maintenance.perform_delta_lake_maintenance scheduled__2025-10-17T00:00:00+00:00 [scheduled]>[0m
+[[34m2025-10-17T20:52:49.205-0500[0m] {[34mscheduler_job_runner.py:[0m639} INFO[0m - Sending TaskInstanceKey(dag_id='standard_etl_dag', task_id='start_pipeline', run_id='scheduled__2025-10-18T01:40:00+00:00', try_number=1, map_index=-1) to executor with priority 4 and queue default[0m
+[[34m2025-10-17T20:52:49.205-0500[0m] {[34mbase_executor.py:[0m149} INFO[0m - Adding to queue: ['airflow', 'tasks', 'run', 'standard_etl_dag', 'start_pipeline', 'scheduled__2025-10-18T01:40:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/standard_etl_dag.py'][0m
+[[34m2025-10-17T20:52:49.205-0500[0m] {[34mscheduler_job_runner.py:[0m639} INFO[0m - Sending TaskInstanceKey(dag_id='working_etl_dag', task_id='run_etl_pipeline', run_id='scheduled__2025-10-18T01:45:00+00:00', try_number=2, map_index=-1) to executor with priority 4 and queue default[0m
+[[34m2025-10-17T20:52:49.205-0500[0m] {[34mbase_executor.py:[0m149} INFO[0m - Adding to queue: ['airflow', 'tasks', 'run', 'working_etl_dag', 'run_etl_pipeline', 'scheduled__2025-10-18T01:45:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/working_etl_dag.py'][0m
+[[34m2025-10-17T20:52:49.206-0500[0m] {[34mscheduler_job_runner.py:[0m639} INFO[0m - Sending TaskInstanceKey(dag_id='delta_lake_etl_pipeline_dag', task_id='start_pipeline', run_id='manual__2025-10-18T01:50:24.023527+00:00', try_number=1, map_index=-1) to executor with priority 4 and queue default[0m
+[[34m2025-10-17T20:52:49.206-0500[0m] {[34mbase_executor.py:[0m149} INFO[0m - Adding to queue: ['airflow', 'tasks', 'run', 'delta_lake_etl_pipeline_dag', 'start_pipeline', 'manual__2025-10-18T01:50:24.023527+00:00', '--local', '--subdir', 'DAGS_FOLDER/delta_lake_etl_pipeline_dag.py'][0m
+[[34m2025-10-17T20:52:49.206-0500[0m] {[34mscheduler_job_runner.py:[0m639} INFO[0m - Sending TaskInstanceKey(dag_id='delta_lake_maintenance', task_id='perform_delta_lake_maintenance', run_id='scheduled__2025-10-17T00:00:00+00:00', try_number=1, map_index=-1) to executor with priority 3 and queue default[0m
+[[34m2025-10-17T20:52:49.206-0500[0m] {[34mbase_executor.py:[0m149} INFO[0m - Adding to queue: ['airflow', 'tasks', 'run', 'delta_lake_maintenance', 'perform_delta_lake_maintenance', 'scheduled__2025-10-17T00:00:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/production/delta_lake_maintenance_dag.py'][0m
+[[34m2025-10-17T20:52:49.207-0500[0m] {[34msequential_executor.py:[0m74} INFO[0m - Executing command: ['airflow', 'tasks', 'run', 'standard_etl_dag', 'start_pipeline', 'scheduled__2025-10-18T01:40:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/standard_etl_dag.py'][0m
+[[34m2025-10-17T20:52:49.704-0500[0m] {[34mdagbag.py:[0m545} INFO[0m - Filling up the DagBag from /Users/kunal/IdeaProjects/pyspark_data_engineer_project/airflow/dags/standard_etl_dag.py[0m
+[[34m2025-10-17T20:52:49.752-0500[0m] {[34mtask_command.py:[0m426} INFO[0m - Running <TaskInstance: standard_etl_dag.start_pipeline scheduled__2025-10-18T01:40:00+00:00 [queued]> on host kunals-macbook-air.local[0m
+[[34m2025-10-17T20:52:50.042-0500[0m] {[34msequential_executor.py:[0m74} INFO[0m - Executing command: ['airflow', 'tasks', 'run', 'working_etl_dag', 'run_etl_pipeline', 'scheduled__2025-10-18T01:45:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/working_etl_dag.py'][0m
+[[34m2025-10-17T20:52:50.527-0500[0m] {[34mdagbag.py:[0m545} INFO[0m - Filling up the DagBag from /Users/kunal/IdeaProjects/pyspark_data_engineer_project/airflow/dags/working_etl_dag.py[0m
+[[34m2025-10-17T20:52:50.570-0500[0m] {[34mtask_command.py:[0m426} INFO[0m - Running <TaskInstance: working_etl_dag.run_etl_pipeline scheduled__2025-10-18T01:45:00+00:00 [queued]> on host kunals-macbook-air.local[0m
+[[34m2025-10-17T20:54:00.262-0500[0m] {[34mscheduler_job_runner.py:[0m256} INFO[0m - Exiting gracefully upon receiving signal 15[0m
+[[34m2025-10-17T20:54:00.465-0500[0m] {[34mprocess_utils.py:[0m132} INFO[0m - Sending 15 to group 20657. PIDs of all processes in the group: [][0m
+[[34m2025-10-17T20:54:00.465-0500[0m] {[34mprocess_utils.py:[0m87} INFO[0m - Sending the signal 15 to group 20657[0m
+[[34m2025-10-17T20:54:00.466-0500[0m] {[34mprocess_utils.py:[0m101} INFO[0m - Sending the signal 15 to process 20657 as process group is missing.[0m
+[[34m2025-10-17T20:54:00.468-0500[0m] {[34msequential_executor.py:[0m74} INFO[0m - Executing command: ['airflow', 'tasks', 'run', 'standard_etl_dag', 'start_pipeline', 'scheduled__2025-10-18T01:40:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/standard_etl_dag.py'][0m
+[[34m2025-10-17T20:54:01.219-0500[0m] {[34mdagbag.py:[0m545} INFO[0m - Filling up the DagBag from /Users/kunal/IdeaProjects/pyspark_data_engineer_project/airflow/dags/standard_etl_dag.py[0m
+[[34m2025-10-17T20:54:01.283-0500[0m] {[34mtask_command.py:[0m426} INFO[0m - Running <TaskInstance: standard_etl_dag.start_pipeline scheduled__2025-10-18T01:40:00+00:00 [success]> on host kunals-macbook-air.local[0m
+[[34m2025-10-17T20:54:01.541-0500[0m] {[34msequential_executor.py:[0m74} INFO[0m - Executing command: ['airflow', 'tasks', 'run', 'working_etl_dag', 'run_etl_pipeline', 'scheduled__2025-10-18T01:45:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/working_etl_dag.py'][0m
+[[34m2025-10-17T20:54:02.273-0500[0m] {[34mdagbag.py:[0m545} INFO[0m - Filling up the DagBag from /Users/kunal/IdeaProjects/pyspark_data_engineer_project/airflow/dags/working_etl_dag.py[0m
+[[34m2025-10-17T20:54:02.339-0500[0m] {[34mtask_command.py:[0m426} INFO[0m - Running <TaskInstance: working_etl_dag.run_etl_pipeline scheduled__2025-10-18T01:45:00+00:00 [running]> on host kunals-macbook-air.local[0m
+[[34m2025-10-17T20:54:02.613-0500[0m] {[34msequential_executor.py:[0m74} INFO[0m - Executing command: ['airflow', 'tasks', 'run', 'delta_lake_etl_pipeline_dag', 'start_pipeline', 'manual__2025-10-18T01:50:24.023527+00:00', '--local', '--subdir', 'DAGS_FOLDER/delta_lake_etl_pipeline_dag.py'][0m
+[[34m2025-10-17T20:54:03.374-0500[0m] {[34mdagbag.py:[0m545} INFO[0m - Filling up the DagBag from /Users/kunal/IdeaProjects/pyspark_data_engineer_project/airflow/dags/delta_lake_etl_pipeline_dag.py[0m
+[[34m2025-10-17T20:54:03.443-0500[0m] {[34mtask_command.py:[0m426} INFO[0m - Running <TaskInstance: delta_lake_etl_pipeline_dag.start_pipeline manual__2025-10-18T01:50:24.023527+00:00 [queued]> on host kunals-macbook-air.local[0m
+[[34m2025-10-17T20:54:03.878-0500[0m] {[34msequential_executor.py:[0m74} INFO[0m - Executing command: ['airflow', 'tasks', 'run', 'delta_lake_maintenance', 'perform_delta_lake_maintenance', 'scheduled__2025-10-17T00:00:00+00:00', '--local', '--subdir', 'DAGS_FOLDER/production/delta_lake_maintenance_dag.py'][0m
+[[34m2025-10-17T20:54:04.856-0500[0m] {[34mdagbag.py:[0m545} INFO[0m - Filling up the DagBag from /Users/kunal/IdeaProjects/pyspark_data_engineer_project/airflow/dags/production/delta_lake_maintenance_dag.py[0m
+[[34m2025-10-17T20:54:04.932-0500[0m] {[34mtask_command.py:[0m426} INFO[0m - Running <TaskInstance: delta_lake_maintenance.perform_delta_lake_maintenance scheduled__2025-10-17T00:00:00+00:00 [queued]> on host kunals-macbook-air.local[0m
+[[34m2025-10-17T20:54:05.926-0500[0m] {[34mprocess_utils.py:[0m132} INFO[0m - Sending 15 to group 20657. PIDs of all processes in the group: [][0m
+[[34m2025-10-17T20:54:05.927-0500[0m] {[34mprocess_utils.py:[0m87} INFO[0m - Sending the signal 15 to group 20657[0m
+[[34m2025-10-17T20:54:05.927-0500[0m] {[34mprocess_utils.py:[0m101} INFO[0m - Sending the signal 15 to process 20657 as process group is missing.[0m
+[[34m2025-10-17T20:54:05.927-0500[0m] {[34mscheduler_job_runner.py:[0m875} INFO[0m - Exited execute loop[0m

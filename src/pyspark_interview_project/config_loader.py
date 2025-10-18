@@ -132,14 +132,14 @@ def load_config_resolved(
     if config_path is None:
         env = env or os.environ.get("APP_ENV", "dev")
         candidates = {
-            "dev": "config/config-dev.yaml",
+            "dev": "config/local.yaml",
             "staging": "config/config-staging.yaml",
             "prod": "config/config-prod.yaml",
             "azure-dev": "config/config-azure-dev.yaml",
             "azure-staging": "config/config-azure-staging.yaml",
             "azure-prod": "config/config-azure-prod.yaml",
         }
-        config_path = candidates.get(env, "config/config-dev.yaml")
+        config_path = candidates.get(env, "config/local.yaml")
 
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)

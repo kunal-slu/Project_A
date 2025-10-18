@@ -5,6 +5,17 @@ io:
   format: csv
   compression: null
 
+# Lakehouse configuration
+lakehouse:
+  base_path: "data/lakehouse_delta"
+  bronze: "data/lakehouse_delta/bronze"
+  silver: "data/lakehouse_delta/silver"
+  gold: "data/lakehouse_delta/gold"
+
+# Delta Lake path for CLI
+delta_path: "data/lakehouse_delta_standard"
+
+# Legacy paths (for compatibility)
 paths:
   bronze:
     customers: data/input_data/customers.csv
@@ -20,10 +31,13 @@ paths:
     products: data/lakehouse_delta/gold/products
 
 spark:
+  master: "local[*]"
   shuffle_partitions: 400
   enable_aqe: true
   driver_memory: "2g"
   executor_memory: "4g"
+  delta:
+    enable_optimizations: true
 
 dq:
   enabled: true
