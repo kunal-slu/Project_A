@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pyspark-etl-config
+  namespace: pyspark-etl
+  labels:
+    app: pyspark-etl
+data:
+  # Airflow Configuration
+  AIRFLOW__CORE__EXECUTOR: "LocalExecutor"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  AIRFLOW__CORE__DAGS_FOLDER: "/opt/project/airflow/dags"
+  
+  # Application Configuration
+  PROJECT_ROOT: "/opt/project"
+  PYTHONPATH: "/opt/project/src"
+  CONFIG_PATH: "config/local.yaml"
+  ENV: "production"
+  
+  # Delta Lake Configuration
+  DELTA_LAKE_PATH: "data/lakehouse_delta_standard"
+  DELTA_RETENTION_HOURS: "168"
+  ENABLE_DELTA_VACUUM: "true"
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  ENABLE_METRICS: "true"
+  
+  # Data Quality
+  ENABLE_DQ_CHECKS: "true"
+  DQ_FAIL_ON_ERROR: "false"
+  DQ_THRESHOLD: "0.95"
+

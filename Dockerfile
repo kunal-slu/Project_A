@@ -46,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
 
 # Default command
-CMD ["python", "-m", "project_a.cli", "--config", "config/prod.yaml", "--cmd", "pipeline"]
+CMD ["python", "-m", "pyspark_interview_project.cli", "--config", "config/local.yaml", "--env", "local", "--cmd", "full"]

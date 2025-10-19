@@ -1,0 +1,72 @@
+# Prometheus configuration for ETL monitoring
+
+global:
+  scrape_interval: 15s # Set the scrape interval to every 15 seconds
+  evaluation_interval: 15s # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'pyspark-etl'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ETL Pipeline Pushgateway
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+
+  # Airflow metrics (if Statsd exporter is enabled)
+  - job_name: 'airflow'
+    static_configs:
+      - targets: ['airflow-statsd-exporter:9102']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'airflow'
+
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Node exporter for system metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Custom ETL application metrics endpoint (if you add a metrics HTTP endpoint)
+  - job_name: 'etl-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['etl-app:8000']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+# Remote write (optional - for long-term storage)
+# remote_write:
+#   - url: "http://cortex:9009/api/prom/push"
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 5
+#       min_shards: 1
+#       max_samples_per_send: 5000
+#       batch_send_deadline: 5s
+#       min_backoff: 30ms
+#       max_backoff: 100ms
+

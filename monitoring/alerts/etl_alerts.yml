@@ -1,0 +1,175 @@
+# Alerting rules for ETL pipeline
+
+groups:
+  - name: etl_job_alerts
+    interval: 30s
+    rules:
+      # Alert when a job fails
+      - alert: ETLJobFailed
+        expr: increase(etl_job_executions_total{status="failure"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: etl
+        annotations:
+          summary: "ETL job {{ $labels.job_name }} failed"
+          description: "Job {{ $labels.job_name }} in {{ $labels.environment }} has failed. Check logs for details."
+
+      # Alert when job duration exceeds threshold
+      - alert: ETLJobSlowExecution
+        expr: etl_job_duration_seconds{stage="full"} > 1800
+        for: 5m
+        labels:
+          severity: warning
+          component: etl
+        annotations:
+          summary: "ETL job {{ $labels.job_name }} is running slowly"
+          description: "Job {{ $labels.job_name }} took {{ $value }}s to complete (threshold: 1800s)"
+
+      # Alert when no successful job in the last hour
+      - alert: ETLJobNotRunning
+        expr: time() - etl_job_last_success_timestamp > 3600
+        for: 5m
+        labels:
+          severity: warning
+          component: etl
+        annotations:
+          summary: "No successful ETL job execution"
+          description: "Job {{ $labels.job_name }} hasn't completed successfully in the last hour"
+
+  - name: data_quality_alerts
+    interval: 30s
+    rules:
+      # Alert on data quality check failures
+      - alert: DataQualityCheckFailed
+        expr: increase(etl_dq_checks_total{status="failed"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: data_quality
+        annotations:
+          summary: "Data quality check failed for {{ $labels.table }}"
+          description: "DQ check {{ $labels.check_type }} failed for table {{ $labels.table }}"
+
+      # Alert on high number of DQ violations
+      - alert: HighDataQualityViolations
+        expr: increase(etl_dq_violations_total[15m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: data_quality
+        annotations:
+          summary: "High number of DQ violations"
+          description: "Table {{ $labels.table }} has {{ $value }} violations in the last 15 minutes"
+
+      # Alert on critical severity violations
+      - alert: CriticalDataQualityViolation
+        expr: increase(etl_dq_violations_total{severity="critical"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: data_quality
+        annotations:
+          summary: "Critical data quality violation"
+          description: "Critical violation in {{ $labels.table }}: {{ $labels.check_type }}"
+
+  - name: schema_alerts
+    interval: 30s
+    rules:
+      # Alert on schema drift
+      - alert: SchemaDriftDetected
+        expr: increase(etl_schema_drift_detected_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: schema
+        annotations:
+          summary: "Schema drift detected"
+          description: "Schema drift ({{ $labels.drift_type }}) detected in table {{ $labels.table }}"
+
+  - name: delta_lake_alerts
+    interval: 30s
+    rules:
+      # Alert when Delta table size grows too large
+      - alert: DeltaTableSizeExceeded
+        expr: delta_table_size_bytes > 10737418240 # 10GB
+        for: 10m
+        labels:
+          severity: warning
+          component: delta_lake
+        annotations:
+          summary: "Delta table {{ $labels.table }} is too large"
+          description: "Table {{ $labels.layer }}.{{ $labels.table }} size: {{ $value | humanize }}B (threshold: 10GB)"
+
+      # Alert when too many versions exist
+      - alert: DeltaTableTooManyVersions
+        expr: delta_table_versions > 100
+        for: 30m
+        labels:
+          severity: warning
+          component: delta_lake
+        annotations:
+          summary: "Too many versions for Delta table"
+          description: "Table {{ $labels.layer }}.{{ $labels.table }} has {{ $value }} versions. Consider running VACUUM."
+
+      # Alert on slow Delta writes
+      - alert: SlowDeltaWrite
+        expr: histogram_quantile(0.95, rate(delta_write_duration_seconds_bucket[5m])) > 60
+        for: 10m
+        labels:
+          severity: warning
+          component: delta_lake
+        annotations:
+          summary: "Slow Delta write operations"
+          description: "95th percentile write time for {{ $labels.layer }}.{{ $labels.table }}: {{ $value }}s"
+
+  - name: resource_alerts
+    interval: 30s
+    rules:
+      # Alert on high memory usage
+      - alert: HighMemoryUsage
+        expr: etl_memory_usage_bytes > 4294967296 # 4GB
+        for: 5m
+        labels:
+          severity: warning
+          component: resources
+        annotations:
+          summary: "High memory usage"
+          description: "Job {{ $labels.job_name }} stage {{ $labels.stage }} using {{ $value | humanize }}B memory"
+
+      # Alert on high error rate
+      - alert: HighErrorRate
+        expr: rate(etl_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: errors
+        annotations:
+          summary: "High error rate detected"
+          description: "Job {{ $labels.job_name }} experiencing {{ $value }} errors/sec in stage {{ $labels.stage }}"
+
+  - name: processing_alerts
+    interval: 30s
+    rules:
+      # Alert on high failed record rate
+      - alert: HighRecordFailureRate
+        expr: rate(etl_records_failed_total[10m]) / rate(etl_records_processed_total[10m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: processing
+        annotations:
+          summary: "High record failure rate"
+          description: "Table {{ $labels.table }} has >5% record failure rate"
+
+      # Alert when no records processed
+      - alert: NoRecordsProcessed
+        expr: increase(etl_records_processed_total[30m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: processing
+        annotations:
+          summary: "No records processed"
+          description: "No records processed for {{ $labels.table }} in the last 30 minutes"
+
