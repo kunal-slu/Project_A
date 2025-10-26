@@ -113,3 +113,117 @@ def extract_all_data_sources(
             datasets[f"fx_rates_{table_name}"] = df
     
     return datasets
+
+
+def extract_customers(spark: SparkSession, path: str) -> DataFrame:
+    """
+    Extract customer data from CSV file.
+    
+    Args:
+        spark: SparkSession object
+        path: Path to the CSV file
+        
+    Returns:
+        DataFrame with customer data
+    """
+    return extract_csv_data(spark, path, "customers", "customers")
+
+
+def extract_products(spark: SparkSession, path: str) -> DataFrame:
+    """
+    Extract product data from CSV file.
+    
+    Args:
+        spark: SparkSession object
+        path: Path to the CSV file
+        
+    Returns:
+        DataFrame with product data
+    """
+    return extract_csv_data(spark, path, "products", "products")
+
+
+def extract_orders_json(spark: SparkSession, path: str) -> DataFrame:
+    """
+    Extract orders data from JSON file.
+    
+    Args:
+        spark: SparkSession object
+        path: Path to the JSON file
+        
+    Returns:
+        DataFrame with orders data
+    """
+    logger.info(f"Extracting orders data from {path}")
+    
+    try:
+        df = spark.read.option("multiline", "true").json(path)
+        
+        # Add metadata columns
+        df = df.withColumn("record_source", lit("orders")) \
+               .withColumn("record_table", lit("orders")) \
+               .withColumn("ingest_timestamp", current_timestamp())
+        
+        logger.info(f"Successfully extracted {df.count()} orders")
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to extract orders data from {path}: {e}")
+        raise
+
+
+def extract_returns(spark: SparkSession, path: str) -> DataFrame:
+    """
+    Extract returns data from JSON file.
+    
+    Args:
+        spark: SparkSession object
+        path: Path to the JSON file
+        
+    Returns:
+        DataFrame with returns data
+    """
+    logger.info(f"Extracting returns data from {path}")
+    
+    try:
+        df = spark.read.option("multiline", "true").json(path)
+        
+        # Add metadata columns
+        df = df.withColumn("record_source", lit("returns")) \
+               .withColumn("record_table", lit("returns")) \
+               .withColumn("ingest_timestamp", current_timestamp())
+        
+        logger.info(f"Successfully extracted {df.count()} returns")
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to extract returns data from {path}: {e}")
+        raise
+
+
+def extract_exchange_rates(spark: SparkSession, path: str) -> DataFrame:
+    """
+    Extract exchange rates data from CSV file.
+    
+    Args:
+        spark: SparkSession object
+        path: Path to the CSV file
+        
+    Returns:
+        DataFrame with exchange rates data
+    """
+    return extract_csv_data(spark, path, "exchange_rates", "exchange_rates")
+
+
+def extract_inventory_snapshots(spark: SparkSession, path: str) -> DataFrame:
+    """
+    Extract inventory snapshots data from CSV file.
+    
+    Args:
+        spark: SparkSession object
+        path: Path to the CSV file
+        
+    Returns:
+        DataFrame with inventory snapshots data
+    """
+    return extract_csv_data(spark, path, "inventory", "inventory_snapshots")

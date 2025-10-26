@@ -377,3 +377,60 @@ def validate_dataframe_schema(
     
     return result
 
+
+def validate_schema_drift(df: Any, expected_schema: StructType, table_name: str = "unknown") -> Dict[str, Any]:
+    """
+    Validate schema drift for a DataFrame against expected schema.
+    
+    Args:
+        df: DataFrame to validate
+        expected_schema: Expected schema structure
+        table_name: Name of the table for logging
+        
+    Returns:
+        Dictionary with validation results
+    """
+    try:
+        actual_schema = df.schema
+        issues = []
+        
+        # Check for missing columns
+        expected_fields = {field.name for field in expected_schema.fields}
+        actual_fields = {field.name for field in actual_schema.fields}
+        
+        missing_fields = expected_fields - actual_fields
+        extra_fields = actual_fields - expected_fields
+        
+        if missing_fields:
+            issues.append(f"Missing columns: {missing_fields}")
+        if extra_fields:
+            issues.append(f"Extra columns: {extra_fields}")
+            
+        # Check field types for common fields
+        common_fields = expected_fields & actual_fields
+        for field_name in common_fields:
+            expected_field = next(f for f in expected_schema.fields if f.name == field_name)
+            actual_field = next(f for f in actual_schema.fields if f.name == field_name)
+            
+            if expected_field.dataType != actual_field.dataType:
+                issues.append(
+                    f"Column '{field_name}' type mismatch: "
+                    f"expected {expected_field.dataType}, got {actual_field.dataType}"
+                )
+        
+        return {
+            "valid": len(issues) == 0,
+            "issues": issues,
+            "issue_count": len(issues),
+            "table_name": table_name
+        }
+        
+    except Exception as e:
+        logger.error(f"Schema drift validation failed for {table_name}: {e}")
+        return {
+            "valid": False,
+            "issues": [f"Validation error: {str(e)}"],
+            "issue_count": 1,
+            "table_name": table_name
+        }
+

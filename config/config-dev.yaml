@@ -1,0 +1,82 @@
+# PySpark Data Engineer Project Configuration - Development
+app_name: "pyspark_interview_project_dev"
+cloud: "local"
+
+# Spark Configuration
+spark:
+  app_name: "pyspark_interview_project_dev"
+  shuffle_partitions: 4
+  enable_aqe: true
+  master: "local[*]"
+  driver_memory: "2g"
+  executor_memory: "2g"
+  max_result_size: "1g"
+
+# Data Lake Configuration
+lake:
+  root: "data/lakehouse_delta"
+  bucket: "local"
+  bronze: "data/lakehouse_delta/bronze"
+  silver: "data/lakehouse_delta/silver"
+  gold: "data/lakehouse_delta/gold"
+
+# Input Data Configuration
+input:
+  customer_path: "data/input_data/customers.csv"
+  product_path: "data/input_data/products.csv"
+  orders_path: "data/input_data/orders.json"
+  returns_path: "data/input_data/returns.json"
+  exchange_rates_path: "data/input_data/exchange_rates.csv"
+  inventory_path: "data/input_data/inventory_snapshots.csv"
+
+# Data Sources Configuration
+data_sources:
+  hubspot:
+    enabled: false
+    api_key: "dev_key"
+    
+  snowflake:
+    enabled: false
+    account: "dev_account"
+    username: "dev_user"
+    password: "dev_password"
+    
+  redshift:
+    enabled: false
+    host: "dev_host"
+    database: "dev_db"
+    username: "dev_user"
+    password: "dev_password"
+
+# AWS Configuration (for local development)
+aws:
+  region: "us-east-1"
+  s3_bucket: "local-bucket"
+  emr_app_id: "dev_emr_app"
+  emr_job_role_arn: "dev_role_arn"
+  glue_database: "dev_glue_db"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "json"
+  file: "logs/application.log"
+
+# Data Quality Configuration
+data_quality:
+  enabled: true
+  strict_mode: false
+  validation_rules:
+    - name: "not_null"
+      enabled: true
+    - name: "unique"
+      enabled: true
+    - name: "range"
+      enabled: true
+
+# Delta Lake Configuration
+delta:
+  auto_optimize: true
+  optimize_write: true
+  auto_compact: true
+  retention_hours: 168  # 7 days

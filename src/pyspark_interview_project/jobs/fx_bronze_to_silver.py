@@ -8,8 +8,9 @@ import os
 import sys
 from typing import Dict, Any
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, row_number, max as spark_max, when, lit, functions as F
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
+from pyspark.sql.functions import col, row_number, max as spark_max, when, lit
 from pyspark.sql.window import Window
 from datetime import date, timedelta
 
@@ -23,7 +24,7 @@ from pyspark_interview_project.utils.logging import setup_json_logging
 logger = logging.getLogger(__name__)
 
 
-def deduplicate_fx_rates(spark: SparkSession, bronze_df) -> SparkSession.DataFrame:
+def deduplicate_fx_rates(spark: SparkSession, bronze_df) -> DataFrame:
     """
     Deduplicate FX rates by (as_of_date, ccy) keeping the latest record.
     
@@ -54,7 +55,7 @@ def deduplicate_fx_rates(spark: SparkSession, bronze_df) -> SparkSession.DataFra
     return deduplicated_df
 
 
-def add_rate_categories(spark: SparkSession, df) -> SparkSession.DataFrame:
+def add_rate_categories(spark: SparkSession, df) -> DataFrame:
     """
     Add rate categories based on currency type.
     
