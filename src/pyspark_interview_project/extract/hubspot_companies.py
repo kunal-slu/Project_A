@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import lit, current_timestamp
-from pyspark_interview_project.utils.io import read_source
+from pyspark_interview_project.utils.io import read_delta
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,8 @@ def extract_hubspot_companies(
             df = spark.createDataFrame([], "struct<id:string,name:string>")
         else:
             # In AWS, use actual HubSpot API or database connection
-            df = read_source(spark, source_config.get('type'), source_config.get('config'))
+            # For now, create empty DataFrame with expected schema
+            df = spark.createDataFrame([], "struct<id:string,name:string>")
         
         # Add metadata columns
         df = df.withColumn("record_source", lit("hubspot")) \
