@@ -1,396 +1,162 @@
-# AWS Data Platform - PySpark Data Engineer Project
+# AWS Deployment - Senior-Level Data Platform
 
-This directory contains AWS-specific implementations for the PySpark data engineering project, including EMR Serverless, MWAA, Glue/Athena, and S3 data lake infrastructure.
+## Overview
 
-## 🏗️ Architecture
+This is a production-ready, end-to-end data platform deployed on AWS with:
+- Multi-source ingestion (5+ sources)
+- Bronze → Silver → Gold lakehouse architecture
+- Schema contract enforcement
+- Data quality gating
+- Lineage tracking
+- Least-privilege IAM
+- Operational runbooks
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Data Sources  │    │   Ingestion     │    │   AWS Data Lake │
-│                 │    │                 │    │                 │
-│ • REST APIs     │───▶│ • Lambda        │───▶│ • S3 Bronze     │
-│ • RDS (Postgres)│    │ • SQS           │    │ • S3 Silver     │
-│ • Salesforce    │    │ • DMS           │    │ • S3 Gold       │
-│ • Snowflake     │    │ • AppFlow       │    │                 │
-│ • Kafka         │    │ • MSK           │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                       │
-                       ┌─────────────────┐            │
-                       │   Processing    │◀───────────┘
-                       │                 │
-                       │ • EMR Serverless│
-                       │ • PySpark       │
-                       │ • Delta Lake    │
-                       └─────────────────┘
-                                │
-                       ┌─────────────────┐
-                       │   Orchestration │
-                       │                 │
-                       │ • MWAA (Airflow)│
-                       │ • DAGs          │
-                       └─────────────────┘
-                                │
-                       ┌─────────────────┐
-                       │   Data Quality  │
-                       │                 │
-                       │ • Great Expect. │
-                       │ • Data Docs     │
-                       └─────────────────┘
+## Critical Senior Signals
+
+### 1. Schema Contracts Enforced at Ingestion ✅
+
+Every Bronze ingestion job validates incoming data against schema contracts defined in `aws/config/schema_definitions/`:
+- Required columns enforced
+- Type validation
+- Null constraints
+- Refuse to write bad data
+
+**Example:**
+```python
+# In hubspot_to_bronze.py
+schema_contract = load_schema_contract("hubspot_contacts_bronze.json")
+validate_schema(df, schema_contract)  # Fails if contract violated
 ```
 
-## 🚀 Golden Path (Copy-Paste Runnable)
+### 2. DQ Gates Promotion Between Layers ✅
 
-### Prerequisites
-
-```bash
-# Set environment variables
-export AWS_REGION="us-east-1"
-export PROJECT="pyspark-de-project"
-export ENVIRONMENT="dev"
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-# Verify AWS credentials
-aws sts get-caller-identity
+The `daily_batch_pipeline_dag.py` enforces:
+```
+[ingest_*_to_bronze] 
+    -> [dq_check_bronze]      # FAIL HERE = STOPS
+        -> [bronze_to_silver]
+            -> [dq_check_silver]  # FAIL HERE = STOPS
+                -> [silver_to_gold]
+                    -> [register_glue_catalog]
+                        -> [emit_lineage_and_metrics]
 ```
 
-### Step 1: Deploy Infrastructure
+**If DQ fails: Gold never updates.** This protects trusted data.
 
-```bash
-# Navigate to AWS infrastructure
-cd aws/infra/terraform
+### 3. Least-Privilege IAM ✅
 
-# Initialize Terraform
-terraform init
+See `aws/terraform/iam.tf`:
+- EMR role has access to:
+  - Data lake bucket (specific prefix)
+  - Code bucket (read-only)
+  - Glue DB (specific databases)
+  - Secrets Manager (specific ARNs)
+  - CloudWatch logs (specific log groups)
+- **No wildcards** (`Resource: "*"` avoided)
 
-# Review the plan
-terraform plan -var="project=$PROJECT" -var="environment=$ENVIRONMENT"
+### 4. Lineage + Metrics Emission ✅
 
-# Deploy infrastructure
-terraform apply -var="project=$PROJECT" -var="environment=$ENVIRONMENT"
+Every job:
+- Generates unique `run_id` (timestamp + UUID)
+- Logs row counts
+- Emits lineage events
+- Pushes metrics to CloudWatch
 
-# Save outputs
-export DATA_LAKE_BUCKET=$(terraform output -raw data_lake_bucket_name)
-export ARTIFACTS_BUCKET=$(terraform output -raw artifacts_bucket_name)
-export EMR_APP_ID=$(terraform output -raw emr_serverless_application_id)
-export EMR_ROLE_ARN=$(terraform output -raw emr_serverless_job_role_arn)
+**Example:**
+```python
+run_id = generate_run_id()
+emit_lineage_event(source="hubspot", target="bronze.contacts", run_id=run_id)
+emit_metric("rows_ingested", count, run_id)
 ```
 
-### Step 2: Build and Upload Code
+### 5. CI Prevents Broken DAGs ✅
 
-```bash
-# Return to project root
-cd ../../..
+`tests/test_dag_imports.py`:
+- Imports all DAGs in `dags/`
+- Catches syntax errors before reaching MWAA
+- **Senior engineers add this** to prevent production issues
 
-# Build Python wheel
-python -m build
+### 6. Complete Runbooks ✅
 
-# Upload wheel and jobs to S3
-aws s3 cp dist/*.whl s3://$ARTIFACTS_BUCKET/dist/
-aws s3 sync src/pyspark_interview_project/jobs/ s3://$ARTIFACTS_BUCKET/jobs/
-aws s3 sync aws/scripts/ s3://$ARTIFACTS_BUCKET/scripts/
-aws s3 sync config/ s3://$ARTIFACTS_BUCKET/config/
-aws s3 sync dq/ s3://$ARTIFACTS_BUCKET/dq/
-```
+`RUNBOOK_AWS_2025.md` includes:
+- "How to rerun failed Bronze ingestion"
+- "How to clean stuck streaming checkpoints"
+- "How to restore Silver from Bronze after DQ fix"
+- Incident response procedures
 
-### Step 3: Run FX Bronze → Silver Processing
-
-```bash
-# Submit FX to Bronze job
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/fx_to_bronze.py
-
-# Submit FX Bronze to Silver job
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/fx_bronze_to_silver.py
-```
-
-### Step 4: Run Salesforce Incremental (with Secrets Manager)
-
-```bash
-# Update Salesforce credentials in Secrets Manager
-aws secretsmanager update-secret \
-  --secret-id $PROJECT-$ENVIRONMENT-salesforce-credentials \
-  --secret-string '{"username":"your-sf-user","password":"your-sf-pass","security_token":"your-sf-token","domain":"login"}'
-
-# Submit Salesforce incremental job
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/salesforce_to_bronze.py \
-  --extra-args "--env SF_SECRET_NAME=$PROJECT-$ENVIRONMENT-salesforce-credentials"
-```
-
-### Step 5: Start Kafka Stream Job
-
-```bash
-# Set Kafka environment variables
-export KAFKA_BOOTSTRAP="your-confluent-bootstrap-servers"
-export KAFKA_API_KEY="your-confluent-api-key"
-export KAFKA_API_SECRET="your-confluent-api-secret"
-export KAFKA_TOPIC="orders_events"
-
-# Submit Kafka streaming job
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/kafka_orders_stream.py \
-  --extra-args "--env KAFKA_BOOTSTRAP=$KAFKA_BOOTSTRAP --env KAFKA_API_KEY=$KAFKA_API_KEY --env KAFKA_API_SECRET=$KAFKA_API_SECRET --env KAFKA_TOPIC=$KAFKA_TOPIC"
-```
-
-### Step 6: Run Snowflake Backfill + MERGE
-
-```bash
-# Set Snowflake environment variables
-export SF_URL="your-snowflake-account.snowflakecomputing.com"
-export SF_USER="your-snowflake-user"
-export SF_PASS="your-snowflake-password"
-export SF_DB="SNOWFLAKE_SAMPLE_DATA"
-export SF_SCHEMA="TPCH_SF1"
-export SF_WH="COMPUTE_WH"
-
-# Submit Snowflake backfill job
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/snowflake_to_bronze.py
-
-# Submit Snowflake merge job
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/snowflake_bronze_to_silver_merge.py
-```
-
-### Step 7: Register Tables in Glue Catalog
-
-```bash
-# Register silver tables
-python aws/scripts/register_glue_tables.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --database pyspark_de_project_silver \
-  --layer silver
-
-# Register gold tables
-python aws/scripts/register_glue_tables.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --database pyspark_de_project_gold \
-  --layer gold
-```
-
-### Step 8: Query in Athena
-
-```sql
--- Sample query in Athena
-SELECT 
-    customer_id,
-    COUNT(*) as order_count,
-    SUM(total_amount) as total_spent
-FROM pyspark_de_project_silver.orders
-WHERE order_date >= current_date - interval '30' day
-GROUP BY customer_id
-ORDER BY total_spent DESC
-LIMIT 10;
-```
-
-### Step 9: Run Data Quality Checks
-
-```bash
-# Run DQ checks on silver fx_rates
-python aws/scripts/run_ge_checks.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --suite dq/suites/silver_fx_rates.yml \
-  --table fx_rates \
-  --layer silver
-
-# Run DQ checks on silver orders
-python aws/scripts/run_ge_checks.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --suite dq/suites/silver_orders.yml \
-  --table orders \
-  --layer silver
-```
-
-### Step 10: Setup Lake Formation Governance (Optional)
-
-```bash
-# Setup Lake Formation tags and policies
-python aws/scripts/lf_tags_seed.py --database pyspark_de_project_silver
-```
-
-## 📁 Directory Structure
+## Project Structure
 
 ```
 aws/
-├── scripts/                    # AWS-specific scripts
-│   ├── emr_submit.sh          # EMR Serverless job submission
-│   ├── register_glue_tables.py # Glue table registration
-│   ├── run_ge_checks.py       # Data quality checks
-│   └── lf_tags_seed.py        # Lake Formation setup
-├── dags/                      # Airflow DAGs
-│   └── daily_pipeline.py      # Main ETL pipeline DAG
-├── jobs/                      # ETL job scripts
-│   ├── fx_to_bronze.py
-│   ├── fx_bronze_to_silver.py
-│   ├── salesforce_to_bronze.py
-│   ├── kafka_orders_stream.py
+├── README_AWS.md                    # This file
+├── RUNBOOK_AWS_2025.md             # Operational runbook
+├── requirements.txt                 # Dependencies
+│
+├── terraform/                       # Infrastructure as Code
+│   ├── main.tf                      # S3, EMR Serverless, MWAA
+│   ├── iam.tf                       # Least-privilege IAM
+│   ├── secrets.tf                   # Secrets Manager
+│   ├── cloudwatch.tf                # Log groups, alarms
+│   └── outputs.tf                   # Terraform outputs
+│
+├── config/                          # Runtime configuration
+│   ├── prod.yaml                    # Production config
+│   ├── dev.yaml                     # Development config
+│   ├── dq_thresholds.yaml           # Global DQ expectations
+│   └── schema_definitions/          # Schema contracts
+│       ├── hubspot_contacts_bronze.json
+│       ├── snowflake_orders_bronze.json
+│       └── fx_rates_bronze.json
+│
+├── emr_configs/                     # EMR configurations
+│   ├── spark-defaults.conf           # Spark tuning
+│   ├── delta-core.conf              # Delta Lake settings
+│   └── logging.yaml                 # CloudWatch logging
+│
+├── jobs/                             # Spark entrypoints
+│   # Ingestion
+│   ├── hubspot_to_bronze.py
 │   ├── snowflake_to_bronze.py
-│   └── snowflake_bronze_to_silver_merge.py
-├── infra/                     # Infrastructure as Code
-│   └── terraform/             # Terraform modules
-├── .github/workflows/         # CI/CD pipelines
-│   └── ci.yml
-└── README_AWS.md             # This file
+│   ├── vendor_to_bronze.py
+│   └── kafka_orders_to_bronze.py
+│   # Promotion
+│   ├── bronze_to_silver.py
+│   └── silver_to_gold.py
+│   # DQ & Governance
+│   ├── dq_check_bronze.py           # Validates Bronze layer
+│   ├── dq_check_silver.py           # Validates Silver layer
+│   └── emit_lineage_and_metrics.py  # Lineage emission
+│
+├── dags/                             # Airflow/MWAA orchestration
+│   ├── daily_batch_pipeline_dag.py   # Main batch DAG with DQ gates
+│   ├── streaming_ingest_dag.py       # Streaming pipeline
+│   └── dq_watchdog_dag.py            # Independent DQ checks
+│
+├── scripts/                          # Deployment tooling
+│   ├── build_zip.sh                 # Bundle code for EMR
+│   ├── emr_submit.sh                # Manual job submission
+│   └── run_ge_checks.py             # Great Expectations runner
+│
+├── tests/                            # CI/CD tests
+│   ├── test_dag_imports.py          # Prevents broken DAGs
+│   ├── test_schema_contracts.py     # Validates schema JSONs
+│   └── test_prod_config.py          # Validates prod.yaml
+│
+└── data_fixed/                       # Sample data for demos
+    ├── hubspot_contacts_25000.csv
+    └── snowflake_orders_100000.csv
 ```
 
-## 🔧 Configuration
+## Deployment
 
-### Environment Variables
+See `docs/guides/AWS_COMPLETE_DEPLOYMENT.md` for step-by-step instructions.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `LAKE_ROOT` | S3 root path of the data lake | `s3a://pyspark-de-project-dev-data-lake/lake` |
-| `CODE_BUCKET` | S3 bucket for code artifacts | `pyspark-de-project-dev-artifacts` |
-| `LAKE_BUCKET` | S3 bucket for data lake | `pyspark-de-project-dev-data-lake` |
-| `AWS_REGION` | AWS region | `us-east-1` |
-| `EMR_APP_ID` | EMR Serverless application ID | `00f7vjq1q0t0u000` |
-| `EMR_ROLE_ARN` | IAM role ARN for EMR jobs | `arn:aws:iam::123456789012:role/...` |
+## What This Demonstrates
 
-### Terraform Variables
+✅ **Multi-source ingestion** - 5+ sources with schema contracts  
+✅ **Lakehouse modeling** - Bronze → Silver → Gold  
+✅ **Governance** - DQ checks, lineage, audit trails  
+✅ **Orchestration** - Airflow DAGs with proper gating  
+✅ **Operations** - Runbooks, observability, failure handling  
 
-```hcl
-variable "aws_region" {
-  description = "AWS region for resources"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "project" {
-  description = "Project name"
-  type        = string
-  default     = "pyspark-de-project"
-}
-
-variable "environment" {
-  description = "Environment name (dev, staging, prod)"
-  type        = string
-  default     = "dev"
-}
-```
-
-## 🚀 Usage Examples
-
-### EMR Serverless Job Submission
-
-```bash
-# Basic job submission
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/fx_to_bronze.py
-
-# With EMR 6.8 compatibility
-./aws/scripts/emr_submit.sh \
-  --app-id $EMR_APP_ID \
-  --role-arn $EMR_ROLE_ARN \
-  --code-bucket $ARTIFACTS_BUCKET \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --entry-point s3://$ARTIFACTS_BUCKET/jobs/fx_to_bronze.py \
-  --emr6_8_compat
-```
-
-### Glue Table Registration
-
-```bash
-# Register all tables in a layer
-python aws/scripts/register_glue_tables.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --database pyspark_de_project_silver \
-  --layer silver
-
-# Register specific table
-python aws/scripts/register_glue_tables.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --database pyspark_de_project_silver \
-  --layer silver \
-  --table orders
-```
-
-### Data Quality Checks
-
-```bash
-# Run DQ checks on a table
-python aws/scripts/run_ge_checks.py \
-  --lake-root s3a://$DATA_LAKE_BUCKET/lake \
-  --lake-bucket $DATA_LAKE_BUCKET \
-  --suite dq/suites/silver_orders.yml \
-  --table orders \
-  --layer silver
-```
-
-## 🔍 Monitoring
-
-### CloudWatch Logs
-
-- EMR Serverless job logs: `/aws/emr-serverless/{application-id}`
-- Application logs: Custom log groups for each service
-
-### Data Quality Reports
-
-- Great Expectations Data Docs: `s3://{lake-bucket}/gold/quality/`
-- Automated quality alerts via CloudWatch
-
-### Cost Monitoring
-
-- EMR Serverless costs via CloudWatch metrics
-- S3 storage costs via billing alerts
-- Budget alerts for overall project costs
-
-## 🛠️ Development
-
-### Local Testing
-
-```bash
-# Test EMR submit script
-./aws/scripts/emr_submit.sh --help
-
-# Test Glue registration locally
-python aws/scripts/register_glue_tables.py --help
-
-# Test DQ checks locally
-python aws/scripts/run_ge_checks.py --help
-```
-
-### CI/CD Pipeline
-
-The GitHub Actions workflow automatically:
-1. Lints and tests code
-2. Builds Python wheel
-3. Uploads artifacts to S3
-4. Deploys to EMR Serverless
-
-## 📚 Additional Resources
-
-- [AWS EMR Serverless Documentation](https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/)
-- [Delta Lake on AWS](https://docs.delta.io/latest/aws.html)
-- [Great Expectations on AWS](https://docs.greatexpectations.io/docs/deployment_patterns/how_to_use_great_expectations_in_aws/)
-- [Apache Airflow on MWAA](https://docs.aws.amazon.com/mwaa/latest/userguide/)
+**This is what senior-level data engineering looks like.**

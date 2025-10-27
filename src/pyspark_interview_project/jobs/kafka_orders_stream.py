@@ -22,7 +22,7 @@ from pyspark.sql.functions import (
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
 from pyspark.sql.utils import AnalysisException
 
-from pyspark_interview_project.utils.spark import get_spark_session
+from pyspark_interview_project.utils.spark_session import build_spark
 from pyspark_interview_project.utils.config import load_conf
 from pyspark_interview_project.utils.logging import setup_json_logging
 

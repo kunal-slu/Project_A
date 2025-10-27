@@ -1,0 +1,43 @@
+# Data Quality Suite for Silver FX Rates Table
+
+dataset_name: silver.fx_rates
+ge_cloud_mode: false
+
+expectations:
+  - expect_column_to_exist: date
+  - expect_column_to_exist: base_currency
+  - expect_column_to_exist: target_currency
+  - expect_column_to_exist: exchange_rate
+  
+  - expect_column_values_to_not_be_null:
+      column: date
+      mostly: 1.0
+      
+  - expect_column_values_to_not_be_null:
+      column: exchange_rate
+      mostly: 1.0
+      
+  - expect_column_min_to_be_between:
+      column: exchange_rate
+      min_value: 0.0001
+      max_value: 10000
+      
+  - expect_column_max_to_be_between:
+      column: exchange_rate
+      min_value: 0.0001
+      max_value: 10000
+      
+  - expect_column_values_to_match_regex:
+      column: base_currency
+      regex: ^[A-Z]{3}$
+      
+  - expect_column_values_to_match_regex:
+      column: target_currency
+      regex: ^[A-Z]{3}$
+
+# Metadata
+meta:
+  notes: "Silver FX rates table DQ checks"
+  version: 1.0.0
+  owner: data-engineering-team
+

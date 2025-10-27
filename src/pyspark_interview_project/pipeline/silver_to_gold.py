@@ -15,7 +15,7 @@ from pyspark.sql.functions import col, current_timestamp, lit, when, coalesce, t
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pyspark_interview_project.utils.spark import get_spark_session, get_delta_config
+from pyspark_interview_project.utils.spark_session import build_spark
 from pyspark_interview_project.utils.config import load_conf
 from pyspark_interview_project.utils.logging import setup_json_logging
 

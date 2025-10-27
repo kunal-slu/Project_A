@@ -1,82 +1,114 @@
 # PySpark Data Engineering Project
 
+Comprehensive AWS Production ETL Pipeline with Delta Lake
+
 ## 🎯 Project Overview
 
-This project provides a comprehensive PySpark data engineering pipeline with 5 essential data sources for learning and practice.
-
-## 📊 Data Sources
-
-### 1️⃣ HubSpot CRM
-- **Contacts**: Customer contact information (25K records)
-- **Deals**: Sales opportunities and pipeline (30K records)
-
-### 2️⃣ Snowflake Warehouse
-- **Customers**: Customer master data (50K records)
-- **Orders**: Order transactions (100K records)
-- **Products**: Product catalog (10K records)
-
-### 3️⃣ Redshift Analytics
-- **Customer Behavior**: User behavior analytics (50K records)
-
-### 4️⃣ Stream Data
-- **Kafka Events**: Real-time event streaming (100K records)
-
-### 5️⃣ FX Rates
-- **Historical Rates**: Exchange rates (20K records)
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.8+
-- PySpark 3.5+
-- Delta Lake
-
-### Installation
-```bash
-pip install -r requirements.txt
-```
-
-### Running the Pipeline
-```bash
-python src/pyspark_interview_project/pipeline.py config/config-dev.yaml
-```
+This is a production-ready data engineering project that demonstrates best practices for:
+- Multi-source data ingestion (HubSpot, Snowflake, Redshift, Kafka, FX Rates)
+- Bronze → Silver → Gold data lakehouse architecture
+- Incremental loading with SCD2 support
+- Data quality validation
+- AWS EMR Serverless deployment
+- Delta Lake for ACID transactions
 
 ## 📁 Project Structure
 
 ```
-├── aws/data_fixed/           # Data sources
-│   ├── 01_hubspot_crm/       # HubSpot CRM data
-│   ├── 02_snowflake_warehouse/ # Snowflake warehouse data
-│   ├── 03_redshift_analytics/ # Redshift analytics data
-│   ├── 04_stream_data/       # Streaming data
-│   └── 05_fx_rates/          # FX rates data
-├── config/                   # Configuration files
-├── src/pyspark_interview_project/ # Main pipeline code
-├── airflow/dags/             # Airflow DAGs
-└── docs/                     # Documentation
+pyspark_data_engineer_project/
+├── config/                      # Configuration files
+│   ├── local.yaml              # Local development
+│   ├── config-dev.yaml         # Dev environment
+│   ├── aws.yaml                # AWS production
+│   └── dq.yaml                 # Data quality config
+│
+├── src/pyspark_interview_project/
+│   ├── utils/                   # Core utilities
+│   ├── extract.py               # Data extraction
+│   ├── transform.py             # Data transformation
+│   ├── load.py                  # Data loading
+│   ├── incremental_loading.py   # SCD2 & CDC
+│   ├── jobs/                    # EMR job implementations
+│   ├── dq/                      # Data quality
+│   └── monitoring/              # Monitoring
+│
+├── jobs/                        # EMR job wrappers
+├── aws/
+│   ├── infra/terraform/        # Infrastructure as code
+│   ├── scripts/                 # Deployment scripts
+│   └── emr_configs/            # EMR configuration
+│
+├── tests/                       # Test suite
+├── notebooks/                   # Jupyter notebooks
+└── docs/                        # Documentation
 ```
 
-## 🎯 Learning Objectives
+## 🚀 Quick Start
 
-- **Data Engineering**: ETL pipelines, data quality, transformations
-- **Analytics**: Aggregations, window functions, statistical analysis
-- **Performance**: Optimization, partitioning, caching strategies
-- **Integration**: Multi-source data integration
-- **Real-time Processing**: Streaming data and event processing
+### Local Development
 
-## 📚 Documentation
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-- [Simplified Data Sources](docs/SIMPLIFIED_DATA_SOURCES.md)
-- [Data Quality Report](docs/DATA_QUALITY_REPORT.md)
+# Run tests
+pytest tests/
 
-## 🔧 Configuration
+# Run pipeline locally
+python src/pyspark_interview_project/pipeline_core.py config/config-dev.yaml
+```
 
-All configurations are managed in the `config/` directory:
-- `default.yaml` - Base configuration
-- `aws.yaml` - AWS-specific settings
-- `azure.yaml` - Azure-specific settings
-- `local.yaml` - Local development settings
+### AWS Deployment
 
-## 🚀 Ready for PySpark Practice!
+See [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) for complete deployment instructions.
 
-This project provides realistic, high-quality data for comprehensive PySpark learning and practice.
+## 📊 Data Sources
+
+1. **HubSpot CRM** - Contacts and deals
+2. **Snowflake** - Orders and customers
+3. **Redshift** - Customer behavior analytics
+4. **Kafka** - Real-time event streaming
+5. **FX Rates** - Exchange rates from vendors
+
+## 🏗️ Architecture
+
+- **Bronze Layer**: Raw data ingestion with schema validation
+- **Silver Layer**: Cleaned, conformed data with SCD2 support
+- **Gold Layer**: Business-ready dimensional models
+
+## 🔧 Key Features
+
+- ✅ Incremental loading strategies
+- ✅ SCD2 support for slowly changing dimensions
+- ✅ Data quality checks with Great Expectations
+- ✅ Delta Lake for ACID transactions
+- ✅ AWS EMR Serverless deployment
+- ✅ Monitoring and alerting
+
+## 📖 Documentation
+
+- [AWS Deployment Guide](AWS_DEPLOYMENT_GUIDE.md)
+- [Project Structure](PROJECT_FINAL_STRUCTURE.md)
+- [AWS Runbook](RUNBOOK_AWS_2025.md)
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test suite
+pytest tests/test_contracts.py
+```
+
+## 📝 Requirements
+
+- Python 3.10+
+- PySpark 3.5+
+- Delta Lake
+- AWS CLI configured
+- Terraform 1.0+
+
+## 📄 License
+
+MIT License

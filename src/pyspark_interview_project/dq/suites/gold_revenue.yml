@@ -1,0 +1,50 @@
+# Data Quality Suite for Gold Revenue Table
+
+dataset_name: gold.revenue
+ge_cloud_mode: false
+
+expectations:
+  - expect_column_to_exist: customer_id
+  - expect_column_to_exist: total_revenue
+  - expect_column_to_exist: order_count
+  - expect_column_to_exist: avg_order_value
+  
+  - expect_column_values_to_not_be_null:
+      column: customer_id
+      mostly: 1.0
+      
+  - expect_column_values_to_not_be_null:
+      column: total_revenue
+      mostly: 1.0
+      
+  - expect_column_values_to_be_unique: customer_id
+  
+  - expect_column_min_to_be_between:
+      column: total_revenue
+      min_value: 0
+      max_value: 10000000
+      
+  - expect_column_min_to_be_between:
+      column: order_count
+      min_value: 1
+      max_value: 100000
+      
+  - expect_column_values_to_be_of_type:
+      column: total_revenue
+      type_: numeric
+      
+  - expect_column_values_to_be_of_type:
+      column: order_count
+      type_: integer
+      
+  - expect_column_max_to_be_between:
+      column: avg_order_value
+      min_value: 0
+      max_value: 100000
+
+# Metadata
+meta:
+  notes: "Gold revenue table DQ checks"
+  version: 1.0.0
+  owner: data-engineering-team
+

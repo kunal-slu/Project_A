@@ -17,7 +17,7 @@ from datetime import date, timedelta
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from pyspark_interview_project.utils.spark import get_spark_session, get_delta_config
+from pyspark_interview_project.utils.spark_session import build_spark
 from pyspark_interview_project.utils.config import load_conf
 from pyspark_interview_project.utils.logging import setup_json_logging
 

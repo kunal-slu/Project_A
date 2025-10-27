@@ -1,0 +1,78 @@
+# Data Quality Configuration - Global Thresholds
+
+# Global DQ settings
+dq:
+  enabled: true
+  strict_mode: false
+  on_failure:
+    action: "log"  # log, alert, fail
+    
+# Validation rules configuration
+validation_rules:
+  - name: "not_null"
+    enabled: true
+    severity: "warning"
+    
+  - name: "unique"
+    enabled: true
+    severity: "error"
+    
+  - name: "range"
+    enabled: true
+    severity: "warning"
+    
+  - name: "regex"
+    enabled: false
+    severity: "info"
+
+# Data quality expectations
+expectations:
+  silver:
+    orders:
+      - expectation_type: "expect_column_to_exist"
+        kwargs:
+          column: "order_id"
+      - expectation_type: "expect_column_values_to_not_be_null"
+        kwargs:
+          column: "order_id"
+      
+  fx_rates:
+    - expectation_type: "expect_column_to_exist"
+      kwargs:
+        column: "ccy"
+    - expectation_type: "expect_column_values_to_be_in_set"
+      kwargs:
+        column: "ccy"
+        value_set: ["USD", "EUR", "GBP", "JPY"]
+        
+  gold:
+    revenue:
+      - expectation_type: "expect_column_to_exist"
+        kwargs:
+          column: "revenue_amount"
+      - expectation_type: "expect_column_values_to_be_of_type"
+        kwargs:
+          column: "revenue_amount"
+          type: "float"
+
+# Alerting configuration
+alerts:
+  enabled: true
+  channels:
+    - type: "slack"
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+    - type: "email"
+      recipients: ["data-team@company.com"]
+      
+  conditions:
+    - metric: "dq_failure_rate"
+      threshold: 0.10
+      action: "alert"
+      
+# Reporting configuration
+reporting:
+  enabled: true
+  output_format: "json"
+  output_path: "s3://lake/gold/quality/"
+  frequency: "daily"
+

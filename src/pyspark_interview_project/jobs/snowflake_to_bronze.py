@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit, current_timestamp, to_date
 
-from pyspark_interview_project.utils.spark import get_spark_session
+from pyspark_interview_project.utils.spark_session import build_spark
 from pyspark_interview_project.utils.config import load_conf
 from pyspark_interview_project.utils.logging import setup_json_logging
 

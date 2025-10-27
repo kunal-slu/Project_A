@@ -9,14 +9,15 @@ __author__ = "Data Engineering Team"
 from .pipeline_core import main as run_pipeline
 from .utils.spark_session import build_spark
 from .config_loader import load_config_resolved
-from .extract import (
-    extract_customers,
-    extract_products,
-    extract_orders_json,
-    extract_returns,
-    extract_exchange_rates,
-    extract_inventory_snapshots
-)
+# Extract functions are in extract.py, not extract module yet
+# from .extract import (
+#     extract_customers,
+#     extract_products,
+#     extract_orders_json,
+#     extract_returns,
+#     extract_exchange_rates,
+#     extract_inventory_snapshots
+# )
 from .load import write_delta, write_parquet
 
 # Available functions
@@ -24,12 +25,12 @@ __all__ = [
     "run_pipeline",
     "build_spark",
     "load_config_resolved",
-    "extract_customers",
-    "extract_products",
-    "extract_orders_json",
-    "extract_returns",
-    "extract_exchange_rates",
-    "extract_inventory_snapshots",
+    # "extract_customers",
+    # "extract_products",
+    # "extract_orders_json",
+    # "extract_returns",
+    # "extract_exchange_rates",
+    # "extract_inventory_snapshots",
     "write_delta",
     "write_parquet",
 ]

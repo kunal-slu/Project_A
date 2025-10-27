@@ -1,5 +1,72 @@
-[2025-10-18 22:19:24 -0500] [82587] [INFO] Starting gunicorn 22.0.0
-[2025-10-18 22:19:24 -0500] [82587] [INFO] Listening at: http://[::]:8793 (82587)
-[2025-10-18 22:19:24 -0500] [82587] [INFO] Using worker: sync
-[2025-10-18 22:19:24 -0500] [82594] [INFO] Booting worker with pid: 82594
-[2025-10-18 22:19:24 -0500] [82600] [INFO] Booting worker with pid: 82600
+[2025-10-19 22:03:50 -0500] [9013] [INFO] Starting gunicorn 22.0.0
+[2025-10-19 22:03:50 -0500] [9013] [INFO] Listening at: http://[::]:8793 (9013)
+[2025-10-19 22:03:50 -0500] [9013] [INFO] Using worker: sync
+[2025-10-19 22:03:50 -0500] [9016] [INFO] Booting worker with pid: 9016
+[2025-10-19 22:03:50 -0500] [9031] [INFO] Booting worker with pid: 9031
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/email.py:154 RemovedInAirflow3Warning: Fetching SMTP credentials from configuration variables will be deprecated in a future release. Please set credentials using a connection instead.
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.11/bin/airflow", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/__main__.py", line 58, in main
+    args.func(args)
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/cli/cli_config.py", line 49, in command
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/cli.py", line 114, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/providers_configuration_loader.py", line 55, in wrapped_function
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/cli/commands/scheduler_command.py", line 58, in scheduler
+    run_command_with_daemon_option(
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/cli/commands/daemon_utils.py", line 80, in run_command_with_daemon_option
+    callback()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/cli/commands/scheduler_command.py", line 61, in <lambda>
+    callback=lambda: _run_scheduler_job(args),
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/cli/commands/scheduler_command.py", line 49, in _run_scheduler_job
+    run_job(job=job_runner.job, execute_callable=job_runner._execute)
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/utils/session.py", line 79, in wrapper
+    return func(*args, session=session, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/jobs/job.py", line 402, in run_job
+    return execute_job(job, execute_callable=execute_callable)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/jobs/job.py", line 431, in execute_job
+    ret = execute_callable()
+          ^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/jobs/scheduler_job_runner.py", line 846, in _execute
+    self._run_scheduler_loop()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/jobs/scheduler_job_runner.py", line 980, in _run_scheduler_loop
+    self.job.executor.heartbeat()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/executors/base_executor.py", line 244, in heartbeat
+    self.sync()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/executors/local_executor.py", line 395, in sync
+    self.impl.sync()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/airflow/executors/local_executor.py", line 338, in sync
+    results = self.executor.result_queue.get_nowait()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in get_nowait
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/managers.py", line 821, in _callmethod
+    conn.send((self._id, methodname, args, kwds))
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 206, in send
+    self._send_bytes(_ForkingPickler.dumps(obj))
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 427, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 384, in _send
+    n = write(self._handle, buf)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+[2025-10-19 23:13:20 -0500] [9016] [INFO] Parent changed, shutting down: <Worker 9016>
+[2025-10-19 23:13:20 -0500] [9016] [INFO] Worker exiting (pid: 9016)
+[2025-10-19 23:13:20 -0500] [9031] [INFO] Parent changed, shutting down: <Worker 9031>
+[2025-10-19 23:13:20 -0500] [9031] [INFO] Worker exiting (pid: 9031)
