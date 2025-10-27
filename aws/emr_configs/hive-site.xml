@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!--
+Hive Configuration for Glue Catalog Integration
+This enables Spark to use AWS Glue as the metastore, allowing Athena to see Delta tables
+-->
+<configuration>
+  <property>
+    <name>hive.metastore.client.factory.class</name>
+    <value>com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory</value>
+  </property>
+  
+  <property>
+    <name>javax.jdo.option.ConnectionURL</name>
+    <value>jdbc:derby:;databaseName=metastore_db;create=true</value>
+  </property>
+  
+  <property>
+    <name>javax.jdo.option.ConnectionDriverName</name>
+    <value>org.apache.derby.jdbc.EmbeddedDriver</value>
+  </property>
+  
+  <property>
+    <name>hive.metastore.schema.verification</name>
+    <value>false</value>
+  </property>
+  
+  <property>
+    <name>hive.metastore.uris</name>
+    <value>thrift://localhost:9083</value>
+  </property>
+</configuration>
+

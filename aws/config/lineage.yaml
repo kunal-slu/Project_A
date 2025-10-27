@@ -1,0 +1,61 @@
+# Lineage Configuration
+# Defines where to emit data lineage and metrics
+
+lineage:
+  # Backend configuration
+  backend:
+    type: "openlineage"  # or "marquez", "databricks", "custom"
+    endpoint: "${LINEAGE_ENDPOINT}"
+    namespace: "${PROJECT}-${ENVIRONMENT}"
+    
+  # Emit settings
+  emit:
+    on_ingestion: true
+    on_transformation: true
+    on_quality_check: true
+    
+  # Metadata to include
+  metadata:
+    include_row_counts: true
+    include_partition_info: true
+    include_schema_version: true
+    include_run_id: true
+
+# Metrics configuration
+metrics:
+  # Destination
+  destination:
+    type: "cloudwatch"  # or "prometheus", "datadog", "custom"
+    
+  # Metrics to emit
+  emit:
+    row_count: true
+    processing_time: true
+    data_freshness: true
+    quality_scores: true
+    
+  # CloudWatch settings
+  cloudwatch:
+    namespace: "${PROJECT}/${ENVIRONMENT}"
+    dimensions:
+      - project
+      - environment
+      - table_name
+      - layer
+
+# Alerting
+alerting:
+  # Channels
+  channels:
+    slack:
+      enabled: true
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+    pagerduty:
+      enabled: false
+      integration_key: "${PAGERDUTY_KEY}"
+      
+  # Alert thresholds
+  thresholds:
+    max_freshness_lag_hours: 6
+    min_quality_score: 0.95
+
