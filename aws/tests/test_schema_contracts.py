@@ -10,13 +10,11 @@ def test_schema_contracts_exist():
     """Verify schema_definitions directory exists."""
     schemas_dir = Path(__file__).parent.parent / "config" / "schema_definitions"
     assert schemas_dir.exists(), "schema_definitions/ directory not found"
-    
-    return schemas_dir
 
 
 def test_all_schemas_valid():
     """Test that all schema JSON files are valid."""
-    schemas_dir = test_schema_contracts_exist()
+    schemas_dir = Path(__file__).parent.parent / "config" / "schema_definitions"
     
     schema_files = list(schemas_dir.glob("*.json"))
     assert len(schema_files) > 0, "No schema files found"

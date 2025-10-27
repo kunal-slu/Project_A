@@ -10,13 +10,11 @@ def test_prod_config_exists():
     """Verify prod.yaml exists."""
     config_path = Path(__file__).parent.parent / "config" / "config-prod.yaml"
     assert config_path.exists(), "config-prod.yaml not found"
-    
-    return config_path
 
 
 def test_prod_config_has_required_fields():
     """Test that prod.yaml has all required fields."""
-    config_path = test_prod_config_exists()
+    config_path = Path(__file__).parent.parent / "config" / "config-prod.yaml"
     
     with open(config_path) as f:
         config = yaml.safe_load(f)

@@ -130,13 +130,14 @@ data_sources:
       schema: "auto"
 
 # Data lake paths
-data_lake:
-  bronze_path: "s3://company-data-lake-ACCOUNT_ID/bronze"
-  silver_path: "s3://company-data-lake-ACCOUNT_ID/silver"
-  gold_path: "s3://company-data-lake-ACCOUNT_ID/gold"
-  metrics_path: "s3://company-data-lake-ACCOUNT_ID/metrics"
-  checkpoint_path: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
-  backup_path: "s3://company-backups-ACCOUNT_ID"
+lake:
+  root: "s3://company-data-lake-ACCOUNT_ID"
+  bronze: "s3://company-data-lake-ACCOUNT_ID/bronze"
+  silver: "s3://company-data-lake-ACCOUNT_ID/silver"
+  gold: "s3://company-data-lake-ACCOUNT_ID/gold"
+  metrics: "s3://company-data-lake-ACCOUNT_ID/metrics"
+  checkpoint: "s3://company-data-lake-ACCOUNT_ID/checkpoints"
+  backup: "s3://company-backups-ACCOUNT_ID"
 
 # Spark configuration for production
 spark:
