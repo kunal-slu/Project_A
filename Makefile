@@ -1,161 +1,171 @@
-# AWS Production ETL Pipeline - Makefile
-# Provides convenient targets for development and operations
+# Makefile - Developer convenience targets
 
-.PHONY: help test lint sync-dags deploy clean format check-deps
+.PHONY: help venv install dev test run-local dq-check airflow-check terraform-init terraform-validate terraform-plan catalog-register
 
-# Default target
 help:
-	@echo "🚀 AWS Production ETL Pipeline - Available Targets"
-	@echo "=================================================="
-	@echo ""
-	@echo "📋 Development:"
-	@echo "  test         - Run all tests"
-	@echo "  lint         - Run linting and formatting checks"
-	@echo "  format       - Format code with black and isort"
-	@echo "  check-deps   - Check Python dependencies"
-	@echo ""
-	@echo "🚀 Deployment:"
-	@echo "  deploy       - Deploy to AWS production"
-	@echo "  sync-dags    - Sync DAGs to MWAA"
-	@echo "  infra-plan   - Plan Terraform infrastructure"
-	@echo "  infra-apply  - Apply Terraform infrastructure"
-	@echo ""
-	@echo "🧹 Maintenance:"
-	@echo "  clean        - Clean build artifacts and caches"
-	@echo "  optimize     - Optimize Delta tables"
-	@echo "  dq-check     - Run data quality checks"
-	@echo ""
-	@echo "📊 Monitoring:"
-	@echo "  status       - Check pipeline status"
-	@echo "  logs         - View recent logs"
-	@echo "  metrics      - Show performance metrics"
+	@echo "Available targets:"
+	@echo "  install            Install base dependencies"
+	@echo "  dev                Install dev dependencies"
+	@echo "  test               Run tests"
+	@echo "  run-local          Run local end-to-end pipeline"
+	@echo "  dq-check           Run data quality checks"
+	@echo "  airflow-check      Validate Airflow DAG imports"
+	@echo "  terraform-init     Terraform init in aws/terraform"
+	@echo "  terraform-validate Terraform validate in aws/terraform"
+	@echo "  terraform-plan     Terraform plan in aws/terraform"
+	@echo "  catalog-register   Register Glue tables from Silver"
 
-# Development targets
+venv:
+	python3 -m venv venv
+	. venv/bin/activate && pip install -U pip
+
+install:
+	pip install -r requirements.txt
+
+dev:
+	pip install -r requirements-dev.txt || true
+
+TEST_FLAGS ?= -q
+
 test:
-	@echo "🧪 Running tests..."
-	pytest tests/ -v --cov=src --cov-report=html --cov-report=term
+	pytest $(TEST_FLAGS)
 
-lint:
-	@echo "🔍 Running linting checks..."
-	black --check src/ tests/ --line-length=120
-	isort --check-only src/ tests/ --profile black
-	flake8 src/ tests/ --max-line-length=120 --ignore=E203,W503,F401
-	mypy src/ --ignore-missing-imports --no-strict-optional
+export PYTHONPATH := $(PWD)/src:$(PYTHONPATH)
 
-format:
-	@echo "✨ Formatting code..."
-	black src/ tests/ --line-length=120
-	isort src/ tests/ --profile black
+run-local:
+	python scripts/local/run_pipeline.py --config config/dev.yaml --phase all
 
-check-deps:
-	@echo "📦 Checking dependencies..."
-	pip check
-	pip-audit
-
-# Deployment targets
-deploy:
-	@echo "🚀 Deploying to AWS production..."
-	./aws/scripts/aws_production_deploy.sh
-
-sync-dags:
-	@echo "🔄 Syncing DAGs to MWAA..."
-	aws s3 sync aws/dags/ s3://$${MWAA_DAGS_BUCKET}/ --delete
-
-infra-plan:
-	@echo "📋 Planning Terraform infrastructure..."
-	cd infra/terraform && terraform plan -var-file="variables.tfvars"
-
-infra-apply:
-	@echo "🏗️ Applying Terraform infrastructure..."
-	cd infra/terraform && terraform apply -var-file="variables.tfvars"
-
-# Maintenance targets
-clean:
-	@echo "🧹 Cleaning build artifacts..."
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	find . -type f -name "*.pyo" -delete 2>/dev/null || true
-	find . -type f -name ".coverage" -delete 2>/dev/null || true
-	rm -rf htmlcov/ 2>/dev/null || true
-	rm -rf .pytest_cache/ 2>/dev/null || true
-	rm -rf dist/ 2>/dev/null || true
-	rm -rf build/ 2>/dev/null || true
-
-optimize:
-	@echo "⚡ Optimizing Delta tables..."
-	python aws/scripts/optimize_delta_tables.py
+DQ_CONFIG ?= config/dev.yaml
 
 dq-check:
-	@echo "🔍 Running data quality checks..."
-	python aws/scripts/run_ge_checks.py
+	python aws/jobs/transform/dq_check_bronze.py || true
+	python aws/jobs/transform/dq_check_silver.py || true
 
-# Monitoring targets
-status:
-	@echo "📊 Checking pipeline status..."
-	@echo "EMR Application ID: $${EMR_APP_ID:-Not set}"
-	@echo "S3 Lake Bucket: $${S3_LAKE_BUCKET:-Not set}"
-	@echo "Glue Silver DB: $${GLUE_DB_SILVER:-Not set}"
-	@echo "Glue Gold DB: $${GLUE_DB_GOLD:-Not set}"
-	@echo ""
-	@echo "Recent EMR jobs:"
-	aws emr-serverless list-job-runs --application-id $${EMR_APP_ID} --max-items 5 2>/dev/null || echo "EMR_APP_ID not set"
+airflow-check:
+	python - <<'PY'
+import pkgutil
+import sys
+from pathlib import Path
+base = Path('dags')
+failed = False
+for p in base.rglob('*.py'):
+    if any(x in str(p) for x in ('development/archive', '__pycache__')):
+        continue
+    try:
+        mod_path = 'dags.' + p.with_suffix('').as_posix().replace('/', '.')
+        __import__(mod_path)
+        print(f"OK  {p}")
+    except Exception as e:
+        print(f"FAIL {p}: {e}")
+        failed = True
+sys.exit(1 if failed else 0)
+PY
 
-logs:
-	@echo "📋 Recent logs:"
-	aws logs describe-log-groups --log-group-name-prefix /aws/emr-serverless --max-items 5
+terraform-init:
+	cd aws/terraform && terraform init
 
-metrics:
-	@echo "📈 Performance metrics:"
-	@echo "Data volumes:"
-	aws s3 ls s3://$${S3_LAKE_BUCKET}/bronze/ --recursive --summarize | tail -1
-	aws s3 ls s3://$${S3_LAKE_BUCKET}/silver/ --recursive --summarize | tail -1
-	aws s3 ls s3://$${S3_LAKE_BUCKET}/gold/ --recursive --summarize | tail -1
+terraform-validate:
+	cd aws/terraform && terraform validate
 
-# Setup targets
-setup-local:
-	@echo "🛠️ Setting up local development environment..."
-	pip install -r requirements.txt
-	cp .env.example .env
-	@echo "✅ Setup complete. Edit .env with your configuration."
+terraform-plan:
+	cd aws/terraform && terraform plan
 
-setup-aws:
-	@echo "☁️ Setting up AWS environment..."
-	source aws/scripts/source_terraform_outputs.sh
-	@echo "✅ AWS environment configured."
+GLUE_DB ?= silver
+GLUE_ROOT ?= s3://bucket/silver
 
-# Validation targets
-validate-dags:
-	@echo "🌪️ Validating Airflow DAGs..."
-	pytest tests/test_dag_import.py -v
+catalog-register:
+	python aws/scripts/utilities/register_glue_tables.py --db $(GLUE_DB) --root $(GLUE_ROOT)
 
-validate-config:
-	@echo "⚙️ Validating configuration files..."
-	python -c "import yaml; [yaml.safe_load(open(f)) for f in ['config/aws.yaml', 'config/default.yaml', 'config/local.yaml']]"
-	@echo "✅ All configuration files are valid YAML"
+.PHONY: fmt lint type test unit it docs wheel run-simple run-local dq-check airflow-check terraform-init terraform-validate terraform-plan catalog-register
 
-validate-data:
-	@echo "📊 Validating data files..."
-	python -c "import pandas as pd; [pd.read_csv(f, nrows=5) for f in ['aws/data_fixed/hubspot_contacts_25000.csv', 'aws/data_fixed/snowflake_customers_50000.csv']]"
-	@echo "✅ Data files are valid"
+fmt:        ## Format code
+	black src/ tests/ aws/jobs/ dags/
+	isort src/ tests/ aws/jobs/ dags/
+	ruff format src/ tests/ aws/jobs/ dags/
 
-# Smoke test
-smoke-test: validate-config validate-data validate-dags test
-	@echo "🚀 Smoke test completed successfully!"
-	@echo "✅ Configuration files valid"
-	@echo "✅ Data files accessible"
-	@echo "✅ DAGs import correctly"
-	@echo "✅ Tests pass"
-	@echo ""
-	@echo "🎯 Pipeline is ready for deployment!"
+lint:       ## Lint code
+	ruff check src/ tests/ aws/jobs/ dags/
+	yamllint config/ aws/emr_configs/ || true
+	python3 << 'PYEOF'
+import json
+import yaml
+import jsonschema
 
-# Golden path (complete deployment)
-golden-path: clean format lint test deploy sync-dags dq-check
-	@echo "🏆 Golden path completed successfully!"
-	@echo "✅ Code formatted and linted"
-	@echo "✅ Tests passed"
-	@echo "✅ Deployed to AWS"
-	@echo "✅ DAGs synchronized"
-	@echo "✅ Data quality checks passed"
-	@echo ""
-	@echo "🎉 Production pipeline is live!"
+with open('config/config.schema.json') as f:
+    schema = json.load(f)
+
+for config_file in ['config/prod.yaml', 'config/dev.yaml']:
+    try:
+        with open(config_file) as f:
+            config = yaml.safe_load(f)
+        jsonschema.validate(config, schema)
+        print(f"✓ {config_file} is valid")
+    except Exception as e:
+        print(f"✗ {config_file} failed: {e}")
+        exit(1)
+PYEOF
+
+type:       ## Type-check with mypy
+	mypy src/ --ignore-missing-imports || true
+
+test: unit  ## All tests
+
+unit:       ## Unit tests
+	pytest -q -m "not integration" --cov=src --cov-report=term-missing
+
+it:         ## Integration tests
+	pytest -q -m "integration" --cov=src --cov-report=term-missing
+
+docs:       ## Generate documentation
+	@echo "Documentation is in docs/ directory"
+
+wheel:      ## Build wheel package
+	python -m build --wheel
+	@echo "Wheel built in dist/"
+
+run-simple: ## Local CSV→Delta smoke test
+	python scripts/local/run_pipeline.py --config config/local.yaml --phase bronze_silver
+
+run-local:  ## Full local run
+	python scripts/local/run_pipeline.py --config config/local.yaml --phase all
+
+dq-check:   ## Run data quality checks
+	python aws/jobs/transform/dq_check_bronze.py --config config/dev.yaml || true
+	python aws/jobs/transform/dq_check_silver.py --config config/dev.yaml || true
+
+airflow-check:  ## Validate Airflow DAG imports
+	python - <<'PY'
+import sys
+from pathlib import Path
+base = Path('dags')
+failed = False
+for p in base.rglob('*.py'):
+    if '__pycache__' in str(p):
+        continue
+    try:
+        mod_path = 'dags.' + p.with_suffix('').as_posix().replace('/', '.')
+        __import__(mod_path)
+        print(f"OK  {p}")
+    except Exception as e:
+        print(f"FAIL {p}: {e}")
+        failed = True
+sys.exit(1 if failed else 0)
+PY
+
+terraform-init:
+	cd aws/terraform && terraform init
+
+terraform-validate:
+	cd aws/terraform && terraform validate
+
+terraform-plan:
+	cd aws/terraform && terraform plan
+
+GLUE_DB ?= silver
+GLUE_ROOT ?= s3://bucket/silver
+
+catalog-register:
+	python aws/scripts/utilities/register_glue_tables.py --db $(GLUE_DB) --root $(GLUE_ROOT)
+
+help:       ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

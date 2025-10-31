@@ -35,8 +35,12 @@ from .metrics import (
     track_dq_check
 )
 
+# Add alias for backward compatibility
+get_spark_session = build_spark
+
 __all__ = [
     "build_spark",
+    "get_spark_session",  # Add alias
     "load_conf",
     "setup_json_logging",
     "read_delta",

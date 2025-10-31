@@ -7,14 +7,16 @@ from typing import Dict
 logger = logging.getLogger(__name__)
 
 
-def build_spark(config: Dict) -> SparkSession:
+def build_spark(app_name: str = "pyspark_interview_project", config: Dict = None) -> SparkSession:
     """Create and configure SparkSession with Delta Lake support.
     
     Centralizes Delta initialization to avoid "CANNOT_MODIFY_CONFIG" errors.
     All Delta configs are set before getOrCreate() and never altered later.
     """
     try:
-        app_name = config.get("app_name", "pyspark_interview_project")
+        if config is None:
+            config = {}
+        app_name = config.get("app_name", app_name)
         
         # Build SparkSession - environment-aware Delta config
         builder = SparkSession.builder.appName(app_name)

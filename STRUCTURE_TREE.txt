@@ -1,0 +1,135 @@
+pyspark_data_engineer_project/
+│
+├── 📋 Configuration Files
+│   ├── README.md
+│   ├── Makefile
+│   ├── setup.py
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   ├── pytest.ini
+│   └── .env.example
+│
+├── ⚙️ config/                          # Centralized Configuration
+│   ├── local.yaml
+│   ├── dev.yaml
+│   ├── prod.yaml
+│   ├── dq.yaml
+│   ├── lineage.yaml
+│   ├── logging.conf
+│   └── schema_definitions/            # 14 schema files
+│       ├── crm_accounts.schema.json
+│       ├── crm_contacts.schema.json
+│       ├── snowflake_orders.schema.json
+│       └── ...
+│
+├── 🪶 dags/                            # Airflow DAGs
+│   ├── daily_batch_pipeline_dag.py
+│   ├── dq_watchdog_dag.py
+│   ├── salesforce_ingestion_dag.py
+│   ├── maintenance_dag.py
+│   └── utils/
+│       ├── emr_serverless_operator.py
+│       ├── sensors.py
+│       └── airflow_helpers.py
+│
+├── 🧠 src/pyspark_interview_project/   # Core Package (120 Python files)
+│   ├── utils/                          # Utility modules
+│   ├── contracts/                     # Data contracts
+│   ├── extract/                        # Extraction modules
+│   ├── transform/                      # Transformation modules
+│   ├── pipeline/                       # Pipeline orchestration
+│   ├── dq/                             # Data quality
+│   ├── monitoring/                     # Observability
+│   ├── jobs/                           # Job modules
+│   ├── io/                             # I/O operations
+│   ├── lineage/                        # Lineage tracking
+│   └── [other modules]/
+│
+├── ☁️ aws/                             # AWS Deployment
+│   ├── jobs/                           # 22 deployment jobs
+│   │   ├── ingest/                     # 8 ingestion jobs
+│   │   ├── transform/                  # 3 transformation jobs
+│   │   ├── analytics/                  # 4 analytics jobs
+│   │   └── maintenance/                # 2 maintenance jobs
+│   │
+│   ├── scripts/                        # Deployment scripts
+│   │   ├── deployment/
+│   │   ├── maintenance/
+│   │   └── utilities/
+│   │
+│   ├── terraform/                      # Infrastructure as Code (11 files)
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   ├── iam.tf
+│   │   ├── networking.tf
+│   │   ├── glue_catalog.tf
+│   │   ├── lake_formation.tf
+│   │   ├── secrets.tf
+│   │   └── cloudwatch.tf
+│   │
+│   ├── emr_configs/                   # EMR configurations
+│   │   ├── spark-defaults.conf
+│   │   ├── delta-core.conf
+│   │   └── logging.yaml
+│   │
+│   ├── config/                         # AWS-specific configs
+│   ├── dags/                           # AWS-specific DAGs
+│   ├── data/                           # Sample data
+│   ├── tests/                          # AWS tests
+│   └── docs/                           # AWS documentation
+│
+├── 📊 data/                            # Data Directory
+│   ├── samples/                        # Sample datasets
+│   │   ├── crm/                        # 3 CSV files
+│   │   ├── snowflake/                  # 3 CSV files
+│   │   ├── redshift/                   # 1 CSV file
+│   │   ├── fx/                         # 2 CSV files
+│   │   └── kafka/                      # 1 CSV file
+│   │
+│   └── lakehouse_delta/                # Delta Lake output
+│       ├── bronze/
+│       ├── silver/
+│       └── gold/
+│
+├── 📒 notebooks/                      # Jupyter Notebooks
+│   ├── 01_run_pipeline.py
+│   └── 02_run_standard_pipeline.py
+│
+├── 🧪 tests/                           # Test Suite (27 files)
+│   ├── conftest.py
+│   ├── test_spark_session.py
+│   ├── test_io_utils.py
+│   ├── test_dq_runner.py
+│   ├── test_contracts.py
+│   ├── test_dag_imports.py
+│   └── [21 more test files]
+│
+├── 📚 docs/                           # Documentation
+│   ├── guides/                        # 8 guide files
+│   ├── runbooks/                      # 9 runbook files
+│   ├── architecture/                   # Architecture docs
+│   ├── schema_contracts/             # 3 schema docs
+│   └── [40+ documentation files]
+│
+├── 🔧 scripts/                        # Utility Scripts
+│   ├── local/                         # 9 local execution scripts
+│   └── [25+ utility scripts]
+│
+└── 🐳 docker/                         # Docker configs
+    ├── docker-compose.yml
+    └── spark-defaults.conf
+
+
+📊 STATISTICS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Source Code Files:       120 Python files
+  AWS Jobs:                22 files
+  DAGs:                    7 files
+  Config Files:            28 files
+  Tests:                    27 files
+  Documentation:           60+ files
+  Scripts:                  34+ files
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

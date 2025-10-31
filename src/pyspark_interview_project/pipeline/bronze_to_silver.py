@@ -3,25 +3,94 @@ Bronze to Silver transformation with data cleaning and schema alignment.
 """
 
 import logging
+import time
 from typing import Dict, Any
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, trim, when, to_date, regexp_replace, upper
+from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
+from pyspark_interview_project.monitoring.metrics_collector import emit_rowcount, emit_duration
+from pyspark_interview_project.utils.schema_validator import validate_schema
 
 logger = logging.getLogger(__name__)
 
 
-def transform_customers_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame) -> DataFrame:
+def bronze_to_silver(spark: SparkSession, config: Dict[str, Any]) -> Dict[str, int]:
+    """
+    Main bronze to silver transformation function.
+    
+    Args:
+        spark: Spark session
+        config: Configuration dictionary
+        
+    Returns:
+        Dictionary with record counts by table
+    """
+    logger.info("Starting Bronze to Silver transformation")
+    bronze_path = config.get("data_lake", {}).get("bronze_path", "data/lakehouse_delta/bronze")
+    silver_path = config.get("data_lake", {}).get("silver_path", "data/lakehouse_delta/silver")
+    
+    counts = {}
+    
+    try:
+        # Transform customers
+        customers_bronze = spark.read.format("delta").load(f"{bronze_path}/customers")
+        customers_silver = transform_customers_bronze_to_silver(spark, customers_bronze, config)
+        customers_silver.write.format("delta").mode("overwrite").save(f"{silver_path}/customers")
+        counts["customers"] = customers_silver.count()
+        
+        # Transform orders
+        orders_bronze = spark.read.format("delta").load(f"{bronze_path}/orders")
+        orders_silver = transform_orders_bronze_to_silver(spark, orders_bronze, config)
+        orders_silver.write.format("delta").mode("overwrite").save(f"{silver_path}/orders")
+        counts["orders"] = orders_silver.count()
+        
+        # Transform products
+        products_bronze = spark.read.format("delta").load(f"{bronze_path}/products")
+        products_silver = transform_products_bronze_to_silver(spark, products_bronze, config)
+        products_silver.write.format("delta").mode("overwrite").save(f"{silver_path}/products")
+        counts["products"] = products_silver.count()
+        
+        logger.info(f"✅ Bronze to Silver completed: {counts}")
+        return counts
+        
+    except Exception as e:
+        logger.error(f"❌ Bronze to Silver failed: {e}")
+        raise
+
+
+@lineage_job(
+    name="bronze_to_silver_customers",
+    inputs=["s3://bucket/bronze/customers"],
+    outputs=["s3://bucket/silver/customers"]
+)
+def transform_customers_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame, config: Dict[str, Any] = None) -> DataFrame:
     """
     Transform customers from bronze to silver layer.
     
     Args:
         spark: Spark session
         bronze_df: Bronze customers DataFrame
+        config: Configuration dictionary
         
     Returns:
         Cleaned silver customers DataFrame
     """
     logger.info("Transforming customers from bronze to silver")
+    start_time = time.time()
+    
+    # Schema validation (if config provided)
+    if config:
+        try:
+            schema_mode = config.get("schema", {}).get("validation_mode", "allow_new")
+            bronze_df, validation_result = validate_schema(
+                bronze_df,
+                expected_schema={"table_name": "customers", "columns": []},
+                mode=schema_mode,
+                config=config,
+                spark=spark
+            )
+        except Exception as e:
+            logger.warning(f"Schema validation warning: {e}")
     
     # Clean and standardize data
     silver_df = bronze_df.select(
@@ -47,22 +116,37 @@ def transform_customers_bronze_to_silver(spark: SparkSession, bronze_df: DataFra
     # Remove duplicates on business key
     silver_df = silver_df.dropDuplicates(["customer_id"])
     
-    logger.info("Customers bronze to silver transformation completed")
+    record_count = silver_df.count()
+    duration_ms = (time.time() - start_time) * 1000
+    
+    # Emit metrics
+    if config:
+        emit_rowcount("records_silver", record_count, {"table": "customers", "layer": "silver"}, config)
+        emit_duration("transformation_duration", duration_ms, {"stage": "bronze_to_silver", "table": "customers"}, config)
+    
+    logger.info(f"Customers bronze to silver transformation completed: {record_count:,} records in {duration_ms:.0f}ms")
     return silver_df
 
 
-def transform_orders_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame) -> DataFrame:
+@lineage_job(
+    name="bronze_to_silver_orders",
+    inputs=["s3://bucket/bronze/orders"],
+    outputs=["s3://bucket/silver/orders"]
+)
+def transform_orders_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame, config: Dict[str, Any] = None) -> DataFrame:
     """
     Transform orders from bronze to silver layer.
     
     Args:
         spark: Spark session
         bronze_df: Bronze orders DataFrame
+        config: Configuration dictionary
         
     Returns:
         Cleaned silver orders DataFrame
     """
     logger.info("Transforming orders from bronze to silver")
+    start_time = time.time()
     
     # Check if we have nested payment structure or flat structure
     columns = bronze_df.columns
@@ -105,22 +189,37 @@ def transform_orders_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame)
     # Remove duplicates on business key
     silver_df = silver_df.dropDuplicates(["order_id"])
     
-    logger.info("Orders bronze to silver transformation completed")
+    record_count = silver_df.count()
+    duration_ms = (time.time() - start_time) * 1000
+    
+    # Emit metrics
+    if config:
+        emit_rowcount("records_silver", record_count, {"table": "orders", "layer": "silver"}, config)
+        emit_duration("transformation_duration", duration_ms, {"stage": "bronze_to_silver", "table": "orders"}, config)
+    
+    logger.info(f"Orders bronze to silver transformation completed: {record_count:,} records in {duration_ms:.0f}ms")
     return silver_df
 
 
-def transform_products_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame) -> DataFrame:
+@lineage_job(
+    name="bronze_to_silver_products",
+    inputs=["s3://bucket/bronze/products"],
+    outputs=["s3://bucket/silver/products"]
+)
+def transform_products_bronze_to_silver(spark: SparkSession, bronze_df: DataFrame, config: Dict[str, Any] = None) -> DataFrame:
     """
     Transform products from bronze to silver layer.
     
     Args:
         spark: Spark session
         bronze_df: Bronze products DataFrame
+        config: Configuration dictionary
         
     Returns:
         Cleaned silver products DataFrame
     """
     logger.info("Transforming products from bronze to silver")
+    start_time = time.time()
     
     # Check if we have in_stock column or stock_quantity column
     columns = bronze_df.columns
@@ -155,5 +254,13 @@ def transform_products_bronze_to_silver(spark: SparkSession, bronze_df: DataFram
     # Remove duplicates on business key
     silver_df = silver_df.dropDuplicates(["product_id"])
     
-    logger.info("Products bronze to silver transformation completed")
+    record_count = silver_df.count()
+    duration_ms = (time.time() - start_time) * 1000
+    
+    # Emit metrics
+    if config:
+        emit_rowcount("records_silver", record_count, {"table": "products", "layer": "silver"}, config)
+        emit_duration("transformation_duration", duration_ms, {"stage": "bronze_to_silver", "table": "products"}, config)
+    
+    logger.info(f"Products bronze to silver transformation completed: {record_count:,} records in {duration_ms:.0f}ms")
     return silver_df

@@ -1,0 +1,40 @@
+# Data Quality Global Thresholds
+# These are applied across all tables in their respective layers
+
+global_thresholds:
+  # Bronze layer (raw ingestion)
+  bronze:
+    min_row_count: 1
+    max_null_percentage: 0.10
+    freshness_hours_max: 24
+    duplicate_rate_max: 0.05
+    
+  # Silver layer (cleaned and conformed)
+  silver:
+    min_row_count: 100
+    max_null_percentage: 0.05
+    freshness_hours_max: 6
+    duplicate_rate_max: 0.01
+    
+  # Gold layer (business-ready)
+  gold:
+    min_row_count: 100
+    max_null_percentage: 0.02
+    freshness_hours_max: 24
+    duplicate_rate_max: 0.0
+
+# Table-specific overrides
+table_overrides:
+  bronze.hubspot.contacts:
+    min_row_count: 1000
+    max_null_percentage: 0.05
+    
+  bronze.snowflake.orders:
+    min_row_count: 5000
+    max_null_percentage: 0.01
+    
+  bronze.fx_vendor.fx_rates:
+    min_row_count: 1
+    max_null_percentage: 0.0
+    freshness_hours_max: 6
+

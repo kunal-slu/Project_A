@@ -1,0 +1,84 @@
+{
+  "type": "record",
+  "name": "CustomerProfile",
+  "namespace": "com.company.dataplatform.profiles",
+  "doc": "Avro schema for customer profile events",
+  "fields": [
+    {
+      "name": "profile_id",
+      "type": "string",
+      "doc": "Unique profile identifier"
+    },
+    {
+      "name": "customer_id",
+      "type": "string",
+      "doc": "Customer identifier"
+    },
+    {
+      "name": "first_name",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Customer first name"
+    },
+    {
+      "name": "last_name",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Customer last name"
+    },
+    {
+      "name": "email",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Customer email (PII)"
+    },
+    {
+      "name": "phone",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Customer phone (PII)"
+    },
+    {
+      "name": "segment",
+      "type": {
+        "type": "enum",
+        "name": "CustomerSegment",
+        "symbols": ["ENTERPRISE", "MID_MARKET", "SMB", "CONSUMER", "UNKNOWN"]
+      },
+      "default": "UNKNOWN",
+      "doc": "Customer segment"
+    },
+    {
+      "name": "lifetime_value",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Customer lifetime value in USD"
+    },
+    {
+      "name": "created_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Profile creation timestamp"
+    },
+    {
+      "name": "updated_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Profile last update timestamp"
+    },
+    {
+      "name": "attributes",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Additional customer attributes"
+    }
+  ]
+}
+

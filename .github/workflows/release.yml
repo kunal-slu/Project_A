@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install build dependencies
+        run: |
+          pip install -U pip build wheel twine
+      
+      - name: Build wheel
+        run: |
+          python -m build --wheel
+      
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheel-package
+          path: dist/*.whl
+      
+      - name: Upload to S3 (if CODE_BUCKET set)
+        if: env.CODE_BUCKET != ''
+        env:
+          CODE_BUCKET: ${{ secrets.CODE_BUCKET }}
+          AWS_REGION: us-east-1
+        run: |
+          # Requires AWS credentials in secrets
+          aws s3 cp dist/*.whl s3://${CODE_BUCKET}/wheels/ || echo "S3 upload skipped (no credentials)"
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

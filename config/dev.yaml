@@ -1,0 +1,139 @@
+# Development Configuration
+# This config is for local development and testing
+
+env: "dev"
+environment: "dev"
+region: "us-east-1"
+
+# AWS Configuration (dev buckets)
+aws:
+  region: "us-east-1"
+  s3:
+    data_lake_bucket: "company-data-lake-dev"
+    backup_bucket: "company-backups-dev"
+    logs_bucket: "company-logs-dev"
+    artifacts_bucket: "company-artifacts-dev"
+
+# EMR Configuration (dev)
+emr:
+  mode: "serverless"
+  application_id: "emr-serverless-app-dev"
+  execution_role_arn: "arn:aws:iam::123456789012:role/EmrServerlessJobExecutionRoleDev"
+  spark_submit_defaults:
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.serializer: "org.apache.spark.serializer.KryoSerializer"
+    spark.sql.shuffle.partitions: "200"
+
+# Data Lake Configuration
+data_lake:
+  bronze_prefix: "bronze"
+  silver_prefix: "silver"
+  gold_prefix: "gold"
+  checkpoint_prefix: "checkpoints"
+  metrics_prefix: "metrics"
+
+# Secrets Configuration (dev)
+secrets:
+  snowflake: "snowflake/etl/dev"
+  salesforce: "salesforce/api_token/dev"
+  stripe: "stripe/api_token/dev"
+  paypal: "paypal/api_token/dev"
+  redshift: "redshift/etl_user/dev"
+  kafka: "kafka/orders_stream/dev"
+  zendesk: "zendesk/api_token/dev"
+
+# Streaming Configuration (disabled for dev)
+streaming:
+  enabled: false
+  source: "kafka"
+  checkpoint_prefix: "checkpoints/streaming/orders"
+  trigger_interval: "5 minutes"
+  kafka:
+    topic: "orders_events_dev"
+    bootstrap_servers: "localhost:9092"
+    credentials_secret: "kafka/orders_stream/dev"
+
+# Spark Configuration
+spark:
+  app_name: "Company ETL Dev"
+  shuffle_partitions: 200
+  enable_aqe: true
+  cloud: "local"
+
+# Runtime Configuration
+runtime:
+  shuffle_partitions: 200
+  app_name: "Company ETL Dev"
+
+# Data Quality Configuration
+data_quality:
+  enabled: true
+  validation_rules:
+    - name: "opportunity_id_not_null"
+      rule: "opportunity_id IS NOT NULL"
+      table: "opportunities"
+    - name: "account_id_not_null"
+      rule: "account_id IS NOT NULL"
+      table: "accounts"
+    - name: "positive_amount"
+      rule: "amount > 0"
+      table: "opportunities"
+
+# Monitoring Configuration
+monitoring:
+  enabled: false
+  metrics_export: "console"
+  log_level: "INFO"
+
+# Lake Configuration (local paths)
+lake:
+  root: "data/lakehouse_delta"
+  bronze: "data/lakehouse_delta/bronze"
+  silver: "data/lakehouse_delta/silver"
+  gold: "data/lakehouse_delta/gold"
+  metrics: "data/lakehouse_delta/metrics"
+  checkpoint: "data/lakehouse_delta/checkpoints"
+  backup: "data/backups"
+  bronze_path: "data/lakehouse_delta/bronze"
+  silver_path: "data/lakehouse_delta/silver"
+  gold_path: "data/lakehouse_delta/gold"
+
+# Data source paths
+paths:
+  crm_accounts: "aws/data/crm/accounts.csv"
+  crm_contacts: "aws/data/crm/contacts.csv"
+  crm_opportunities: "aws/data/crm/opportunities.csv"
+  
+  snowflake_orders: "aws/data/snowflake/snowflake_orders_100000.csv"
+  snowflake_customers: "aws/data/snowflake/snowflake_customers_50000.csv"
+  snowflake_products: "aws/data/snowflake/snowflake_products_10000.csv"
+  
+  redshift_behavior: "aws/data/redshift/redshift_customer_behavior_50000.csv"
+  
+  fx_rates: "aws/data/fx/fx_rates_historical_730_days.csv"
+  financial_metrics: "aws/data/fx/financial_metrics_24_months.csv"
+  
+  kafka_events: "aws/data/kafka/stream_kafka_events_100000.csv"
+
+# Bronze layer paths
+bronze:
+  base: "data/lakehouse_delta/bronze"
+  crm_accounts: "data/lakehouse_delta/bronze/crm/accounts"
+  crm_contacts: "data/lakehouse_delta/bronze/crm/contacts"
+  crm_opportunities: "data/lakehouse_delta/bronze/crm/opportunities"
+  snowflake_orders: "data/lakehouse_delta/bronze/snowflake/orders"
+  snowflake_customers: "data/lakehouse_delta/bronze/snowflake/customers"
+  snowflake_products: "data/lakehouse_delta/bronze/snowflake/products"
+  redshift_behavior: "data/lakehouse_delta/bronze/redshift/customer_behavior"
+  fx_rates: "data/lakehouse_delta/bronze/fx/rates"
+  financial_metrics: "data/lakehouse_delta/bronze/fx/financial_metrics"
+  kafka_events: "data/lakehouse_delta/bronze/stream/kafka_events"
+
+# Silver layer paths
+silver:
+  base: "data/lakehouse_delta/silver"
+
+# Gold layer paths
+gold:
+  base: "data/lakehouse_delta/gold"

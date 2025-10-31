@@ -18,6 +18,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from pyspark_interview_project.utils.spark_session import build_spark
 from pyspark_interview_project.utils.config import load_conf
 from pyspark_interview_project.utils.logging import setup_json_logging
+from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
+from pyspark_interview_project.monitoring.metrics_collector import emit_rowcount, emit_duration
+from pyspark_interview_project.utils.pii_utils import apply_pii_masking
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -149,11 +153,8 @@ def main():
     config = load_conf(args.config)
     lake_root = args.lake_root
     
-    # Create Spark session with Delta config
-    spark = get_spark_session(
-        app_name="silver-to-gold",
-        config=get_delta_config()
-    )
+    # Create Spark session
+    spark = build_spark(app_name="silver-to-gold", config=config)
     
     try:
         # Read Silver layer data
@@ -170,6 +171,7 @@ def main():
         
         # Create Gold layer dimensions and facts
         logger.info("Creating Gold layer tables")
+        start_time = time.time()
         
         # Create dimensions
         dim_customers = create_dim_customers(spark, salesforce_accounts)
@@ -177,6 +179,12 @@ def main():
         
         # Create fact table
         fact_orders = create_fact_orders(spark, orders_silver, dim_customers, dim_fx)
+        
+        # Apply PII masking to customer dimension (if config provided)
+        pii_config = config.get("pii_masking", {})
+        if pii_config.get("enabled", False):
+            logger.info("Applying PII masking to Gold layer")
+            dim_customers = apply_pii_masking(dim_customers, pii_config, layer="gold")
         
         # Write Gold layer tables
         logger.info("Writing Gold layer tables")
@@ -200,6 +208,12 @@ def main():
             .mode("overwrite") \
             .option("mergeSchema", "true") \
             .save(f"{lake_root}/gold/fact_orders")
+        
+        # Emit metrics
+        duration_ms = (time.time() - start_time) * 1000
+        gold_count = fact_orders.count()
+        emit_rowcount("records_gold", gold_count, {"table": "fact_orders", "layer": "gold"}, config)
+        emit_duration("silver_to_gold_duration", duration_ms, {"stage": "silver_to_gold"}, config)
         
         logger.info("Silver to Gold transformation completed successfully")
         

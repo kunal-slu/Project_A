@@ -3,9 +3,30 @@
 # Global DQ settings
 dq:
   enabled: true
-  strict_mode: false
+  strict_mode: true  # Enable strict mode for production
   on_failure:
-    action: "log"  # log, alert, fail
+    action: "fail"  # log, alert, fail - fail for critical checks
+    
+# Quality Gates - thresholds that block deployment/DAG execution
+quality_gates:
+  min_pass_rate: 0.95  # 95% of checks must pass
+  critical_checks:
+    - not_null_keys
+    - referential_integrity
+    - freshness
+    - volume
+  
+  # Table-specific thresholds
+  thresholds:
+    silver.orders:
+      min_pass_rate: 0.98
+      critical_checks: ["not_null_keys", "referential_integrity"]
+    silver.fx_rates:
+      min_pass_rate: 0.95
+      critical_checks: ["not_null_keys"]
+    gold.fact_revenue:
+      min_pass_rate: 0.99
+      critical_checks: ["not_null_keys", "referential_integrity"]
     
 # Validation rules configuration
 validation_rules:

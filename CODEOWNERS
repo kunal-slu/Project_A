@@ -1,0 +1,28 @@
+# Codeowners file
+# See: https://help.github.com/en/articles/about-code-owners
+
+# Global owners
+* @data-engineering-team
+
+# DAGs require data engineering review
+/dags/ @data-engineering-team @airflow-admins
+
+# Source code requires senior data engineer review
+/src/ @data-engineering-team @senior-data-engineers
+
+# Infrastructure changes require DevOps review
+/aws/terraform/ @data-engineering-team @devops-team
+/infra/ @data-engineering-team @devops-team
+
+# Configuration changes require architect review
+/config/ @data-engineering-team @data-architects
+
+# Documentation
+/docs/ @data-engineering-team
+
+# Tests
+/tests/ @data-engineering-team
+
+# CI/CD
+/.github/ @data-engineering-team @devops-team
+

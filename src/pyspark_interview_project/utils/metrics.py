@@ -40,37 +40,40 @@ def emit_metric(
     logger.info(f"Metric: {metric_data}")
 
 
-def track_job_start(job_name: str, config: Dict[str, Any]) -> None:
-    """Track job start event."""
+def track_job_start(job_name: str, config: Dict[str, Any]) -> str:
+    """Track job start event and return job ID."""
+    job_id = f"{job_name}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
     logger.info(f"Job started: {job_name}")
     emit_metric(
         "jobs.started",
         value=1.0,
         dimensions={"job_name": job_name}
     )
+    return job_id
 
 
-def track_job_complete(job_name: str, duration_seconds: float) -> None:
+def track_job_complete(job_id: str, status: str, record_count: int = 0, error_msg: str = None) -> None:
     """Track job completion event."""
-    logger.info(f"Job completed: {job_name} in {duration_seconds}s")
+    logger.info(f"Job completed: {job_id} with status: {status}")
     emit_metric(
         "jobs.completed",
         value=1.0,
-        dimensions={"job_name": job_name}
+        dimensions={"job_id": job_id, "status": status}
     )
-    emit_metric(
-        "jobs.duration_seconds",
-        value=duration_seconds,
-        dimensions={"job_name": job_name}
-    )
+    if record_count > 0:
+        emit_metric(
+            "records.processed",
+            value=float(record_count),
+            dimensions={"job_id": job_id}
+        )
 
 
-def track_records_processed(table_name: str, record_count: int) -> None:
+def track_records_processed(job_id: str, table_name: str, record_count: int) -> None:
     """Track records processed."""
     emit_metric(
         "records.processed",
         value=float(record_count),
-        dimensions={"table_name": table_name}
+        dimensions={"job_id": job_id, "table_name": table_name}
     )
 
 

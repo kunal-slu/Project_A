@@ -1,49 +1,46 @@
-FROM python:3.11-slim
+# Dockerfile for PySpark ETL Jobs
+# Supports running Spark jobs in containerized environments (ECS, Kubernetes, etc.)
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/src \
-    AIRFLOW_HOME=/app/airflow \
-    SPARK_HOME=/opt/spark \
-    JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+FROM amazoncorretto:17-alpine AS base
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    openjdk-11-jdk \
+RUN apk add --no-cache \
+    python3 \
+    python3-dev \
+    py3-pip \
     curl \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
+    bash \
+    && ln -sf python3 /usr/bin/python
 
-# Create non-root user
-RUN adduser --disabled-password --gecos "" app
-
-# Set up Spark
-RUN wget https://archive.apache.org/dist/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz && \
-    tar -xzf spark-3.5.1-bin-hadoop3.tgz -C /opt && \
-    ln -s /opt/spark-3.5.1-bin-hadoop3 /opt/spark && \
-    rm spark-3.5.1-bin-hadoop3.tgz
-
-# Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
+# Copy requirements
 COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install --no-cache-dir -r requirements-dev.txt
 
 # Copy application code
-COPY . .
+COPY src/ ./src/
+COPY config/ ./config/
+COPY scripts/ ./scripts/
+COPY aws/ ./aws/
 
-# Change ownership to app user
-RUN chown -R app:app /app
+# Set Python path
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+ENV SPARK_HOME=/opt/spark
 
-# Switch to non-root user
-USER app
+# Install Spark (lightweight version for container)
+ARG SPARK_VERSION=3.5.0
+ARG HADOOP_VERSION=3
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+RUN curl -sSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" | \
+    tar -xz -C /opt && \
+    ln -s /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} ${SPARK_HOME}
+
+# Add Spark to PATH
+ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:$PATH
 
 # Default command
-CMD ["python", "-m", "pyspark_interview_project.cli", "--config", "config/local.yaml", "--env", "local", "--cmd", "full"]
+CMD ["python3", "-m", "pyspark_interview_project.pipeline.run_pipeline"]

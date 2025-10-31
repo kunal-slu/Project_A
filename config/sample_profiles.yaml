@@ -1,0 +1,82 @@
+# Sample AWS/Snowflake/Redshift Connection Profiles
+# These are templates - never commit actual credentials
+# Use AWS Secrets Manager or environment variables in production
+
+profiles:
+  # AWS Profiles
+  aws:
+    local:
+      region: us-east-1
+      profile: local
+      endpoint_url: http://localhost:4566  # LocalStack
+    
+    dev:
+      region: us-east-1
+      profile: dev-profile
+      s3_data_lake: s3://company-data-lake-dev-123456789012
+      s3_code_bucket: s3://company-code-artifacts-dev-123456789012
+    
+    prod:
+      region: us-east-1
+      profile: prod-profile
+      s3_data_lake: s3://company-data-lake-123456789012
+      s3_code_bucket: s3://company-code-artifacts-123456789012
+
+  # Snowflake Profiles
+  snowflake:
+    dev:
+      account: "dev-account"
+      warehouse: "DEV_WH"
+      database: "DEV_DB"
+      schema: "PUBLIC"
+      # Credentials from AWS Secrets Manager: snowflake/etl/dev
+    
+    prod:
+      account: "prod-account"
+      warehouse: "PROD_WH"
+      database: "PROD_DB"
+      schema: "PUBLIC"
+      # Credentials from AWS Secrets Manager: snowflake/etl/prod
+
+  # Redshift Profiles
+  redshift:
+    dev:
+      host: "dev-cluster.region.redshift.amazonaws.com"
+      port: 5439
+      database: "dev_db"
+      schema: "public"
+      # Credentials from AWS Secrets Manager: redshift/analytics/dev
+    
+    prod:
+      host: "prod-cluster.region.redshift.amazonaws.com"
+      port: 5439
+      database: "prod_db"
+      schema: "public"
+      # Credentials from AWS Secrets Manager: redshift/analytics/prod
+
+  # Kafka/MSK Profiles
+  kafka:
+    dev:
+      brokers: "dev-kafka-brokers:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-512"
+      # Credentials from AWS Secrets Manager: kafka/brokers/dev
+    
+    prod:
+      brokers: "prod-kafka-brokers:9092"
+      security_protocol: "SASL_SSL"
+      sasl_mechanism: "SCRAM-SHA-512"
+      # Credentials from AWS Secrets Manager: kafka/brokers/prod
+
+  # Salesforce Profiles
+  salesforce:
+    dev:
+      domain: "test"  # test.salesforce.com
+      api_version: "58.0"
+      # Credentials from AWS Secrets Manager: salesforce/api_token/dev
+    
+    prod:
+      domain: "login"  # login.salesforce.com
+      api_version: "58.0"
+      # Credentials from AWS Secrets Manager: salesforce/api_token/prod
+
