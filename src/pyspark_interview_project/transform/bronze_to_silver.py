@@ -14,6 +14,7 @@ from pyspark_interview_project.utils.dq_utils import validate_not_null, validate
 from pyspark_interview_project.io.write_table import write_table
 from pyspark.sql import functions as F
 from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
+from pyspark_interview_project.dq.ge_runner import GERunner
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,22 @@ def transform_bronze_to_silver(
             .withColumn("_run_id", F.lit(run_id)) \
             .withColumn("_exec_date", F.lit(execution_date))
 
+        # Run GE data quality checks BEFORE writing
+        if config:
+            try:
+                ge_runner = GERunner(config)
+                dq_results = ge_runner.run_suite(
+                    spark=spark,
+                    df=df_with_metadata,
+                    suite_name=f"{table}",
+                    layer="silver",
+                    execution_date=execution_date
+                )
+                logger.info(f"✅ DQ validation passed for silver.{table}: {dq_results.get('passed', False)}")
+            except Exception as dq_error:
+                logger.error(f"❌ DQ validation failed for silver.{table}: {dq_error}")
+                raise  # Re-raise to fail pipeline
+        
         # Write using abstracted write_table function (supports Iceberg/Delta/Parquet)
         if config is None:
             config = {}

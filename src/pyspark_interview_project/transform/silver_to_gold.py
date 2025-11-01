@@ -8,6 +8,7 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, sum as spark_sum, count, avg
 from pyspark_interview_project.io.write_table import write_table
 from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
+from pyspark_interview_project.dq.ge_runner import GERunner
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,22 @@ def transform_silver_to_gold(
         
         rows_out = df_gold.count()
         logger.info(f"Successfully transformed to Gold: {rows_out} records")
+        
+        # Run GE data quality checks BEFORE writing
+        if config:
+            try:
+                ge_runner = GERunner(config)
+                dq_results = ge_runner.run_suite(
+                    spark=spark,
+                    df=df_gold,
+                    suite_name=table_name,
+                    layer="gold",
+                    execution_date=None  # Will use current date
+                )
+                logger.info(f"✅ DQ validation passed for gold.{table_name}: {dq_results.get('passed', False)}")
+            except Exception as dq_error:
+                logger.error(f"❌ DQ validation failed for gold.{table_name}: {dq_error}")
+                raise  # Re-raise to fail pipeline
         
         # Write using abstracted write_table function (supports Iceberg/Delta/Parquet)
         if config is None:
