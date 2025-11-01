@@ -1,0 +1,19 @@
+name: 'pyspark_interview_project'
+version: '1.0.0'
+profile: 'snowflake'
+
+# Snowflake profile configuration
+models:
+  pyspark_interview_project:
+    staging:
+      materialized: view
+      schema: staging
+    marts:
+      materialized: table
+      schema: marts
+    
+    events:
+      materialized: incremental
+      unique_key: 'event_id'
+      incremental_strategy: 'merge'
+

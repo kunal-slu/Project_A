@@ -1,0 +1,47 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw data sources in Snowflake"
+    schema: raw
+    
+    tables:
+      - name: customer_behavior
+        description: "Raw customer behavior events from Redshift"
+        columns:
+          - name: event_id
+            description: "Unique event identifier"
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            description: "Customer identifier"
+            tests:
+              - not_null
+          - name: event_name
+            description: "Type of event"
+          - name: event_ts
+            description: "Event timestamp"
+            tests:
+              - not_null
+          - name: session_id
+            description: "Session identifier"
+          - name: revenue
+            description: "Transaction revenue if purchase event"
+        
+      - name: orders
+        description: "Raw orders data from Snowflake"
+        columns:
+          - name: order_id
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            tests:
+              - not_null
+          - name: order_date
+            tests:
+              - not_null
+          - name: total_amount
+            description: "Order total in USD"
+
