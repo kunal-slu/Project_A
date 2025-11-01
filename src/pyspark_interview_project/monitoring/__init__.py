@@ -22,6 +22,7 @@ from .lineage_emitter import (
     emit_complete,
     emit_fail,
 )
+from .lineage_decorator import lineage_job
 from .alerts import (
     send_slack_alert,
     send_email_alert,
@@ -49,6 +50,7 @@ __all__ = [
     "emit_start",
     "emit_complete",
     "emit_fail",
+    "lineage_job",
     # Alerts
     "send_slack_alert",
     "send_email_alert",

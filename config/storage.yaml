@@ -1,0 +1,17 @@
+# Storage format configuration
+# Controls which format to use: iceberg, delta, or parquet
+
+format: iceberg   # options: iceberg | delta | parquet
+warehouse: s3://my-etl-lake-demo
+catalog: glue_catalog
+
+# Iceberg-specific settings
+iceberg:
+  catalog_impl: org.apache.iceberg.aws.glue.GlueCatalog
+  io_impl: org.apache.iceberg.aws.s3.S3FileIO
+  
+# Delta-specific settings
+delta:
+  enable_optimizations: true
+  auto_compact: true
+

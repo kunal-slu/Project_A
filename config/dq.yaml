@@ -46,7 +46,105 @@ validation_rules:
     enabled: false
     severity: "info"
 
-# Data quality expectations
+# Multi-layer Data Quality Expectations
+
+# Bronze Layer DQ (Source-level)
+bronze:
+  behavior:
+    level: bronze
+    checks:
+      - type: columns_exist
+        columns: [event_id, customer_id, event_name, event_ts]
+        action: fail_fast
+      - type: min_row_count
+        value: 1
+        action: alert
+      - type: file_present
+        action: fail_fast
+  
+  snowflake_orders:
+    level: bronze
+    checks:
+      - type: columns_exist
+        columns: [order_id, customer_id, order_date, total_amount]
+        action: fail_fast
+      - type: min_row_count
+        value: 1
+        action: alert
+
+# Silver Layer DQ (Business rules)
+silver:
+  behavior:
+    level: silver
+    checks:
+      - type: value_in_set
+        column: event_name
+        allowed: [email_open, email_click, page_view, add_to_cart, purchase, login, signup]
+        action: quarantine
+      - type: timestamp_recent
+        column: event_ts
+        days: 30
+        action: quarantine
+      - type: regex_pattern
+        column: session_id
+        pattern: "^SESS-\\d+$"
+        action: quarantine
+    quarantine_path: "s3://my-etl-lake-demo/silver/_rejects/behavior"
+  
+  orders:
+    level: silver
+    checks:
+      - type: expect_column_to_exist
+        column: order_id
+      - type: expect_column_values_to_not_be_null
+        column: order_id
+      - type: pk_unique
+        columns: [order_id]
+        action: fail
+  
+  fx_rates:
+    level: silver
+    checks:
+      - type: expect_column_to_exist
+        column: ccy
+      - type: expect_column_values_to_be_in_set
+        column: ccy
+        value_set: [USD, EUR, GBP, JPY, CNY, AUD, CAD, CHF]
+        action: quarantine
+
+# Gold Layer DQ (Contract enforcement)
+gold:
+  customer_360:
+    level: gold
+    checks:
+      - type: pk_unique
+        columns: [customer_id]
+        action: fail
+      - type: fk_exists
+        column: account_id
+        reference_table: silver.crm_accounts
+        reference_column: account_id
+        action: fail
+      - type: not_null
+        columns: [customer_id, email]
+        action: fail
+      - type: business_rule
+        rule: "lifetime_value_usd >= 0"
+        action: quarantine
+  
+  product_perf_daily:
+    level: gold
+    checks:
+      - type: pk_unique
+        columns: [date, product_id]
+        action: fail
+      - type: fk_exists
+        column: product_id
+        reference_table: silver.snowflake_products
+        reference_column: product_id
+        action: fail
+
+# Legacy expectations (kept for backward compatibility)
 expectations:
   silver:
     orders:
@@ -57,14 +155,14 @@ expectations:
         kwargs:
           column: "order_id"
       
-  fx_rates:
-    - expectation_type: "expect_column_to_exist"
-      kwargs:
-        column: "ccy"
-    - expectation_type: "expect_column_values_to_be_in_set"
-      kwargs:
-        column: "ccy"
-        value_set: ["USD", "EUR", "GBP", "JPY"]
+    fx_rates:
+      - expectation_type: "expect_column_to_exist"
+        kwargs:
+          column: "ccy"
+      - expectation_type: "expect_column_values_to_be_in_set"
+        kwargs:
+          column: "ccy"
+          value_set: ["USD", "EUR", "GBP", "JPY"]
         
   gold:
     revenue:

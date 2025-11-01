@@ -1,16 +1,23 @@
 app_name: pyspark_interview_project
 cloud: local
+env: local
 
 io:
   format: csv
   compression: null
 
-# Lakehouse configuration
+# Lakehouse configuration (legacy, kept for compatibility)
 lakehouse:
   base_path: "data/lakehouse_delta"
   bronze: "data/lakehouse_delta/bronze"
   silver: "data/lakehouse_delta/silver"
   gold: "data/lakehouse_delta/gold"
+
+# Lake configuration (new standard)
+lake:
+  bronze_path: "data/lakehouse_delta/bronze"
+  silver_path: "data/lakehouse_delta/silver"
+  gold_path: "data/lakehouse_delta/gold"
 
 # Delta Lake path for CLI
 delta_path: "data/lakehouse_delta_standard"
@@ -18,9 +25,9 @@ delta_path: "data/lakehouse_delta_standard"
 # Legacy paths (for compatibility)
 paths:
   bronze:
-    customers: data/input_data/customers.csv
-    orders: data/input_data/orders.json
-    products: data/input_data/products.csv
+    customers: data/snowflake/snowflake_customers_50000.csv
+    orders: data/snowflake/snowflake_orders_100000.csv
+    products: data/snowflake/snowflake_products_10000.csv
   silver:
     customers: data/lakehouse_delta/silver/customers
     orders: data/lakehouse_delta/silver/orders
@@ -29,6 +36,11 @@ paths:
     customers: data/lakehouse_delta/gold/customers
     orders: data/lakehouse_delta/gold/orders
     products: data/lakehouse_delta/gold/products
+
+# Runtime configuration
+runtime:
+  shuffle_partitions: 400
+  app_name: pyspark_interview_project
 
 spark:
   master: "local[*]"
@@ -43,3 +55,41 @@ dq:
   enabled: true
   null_threshold: 0.1
   duplicate_threshold: 0.05
+
+# Ingestion configuration
+ingestion:
+  mode: schema_on_write
+  on_unknown_column: quarantine
+  quarantine_path: "data/lakehouse_delta/bronze/_unknown_cols"
+
+# Data lake paths (new standard)
+data_lake:
+  bucket: null
+  state_prefix: "_state"
+  bronze_path: "data/lakehouse_delta/bronze"
+  silver_path: "data/lakehouse_delta/silver"
+  gold_path: "data/lakehouse_delta/gold"
+  dq_results_path: "data/lakehouse_delta/_dq_results"
+
+# Storage configuration (format selection)
+storage:
+  warehouse: "data/lakehouse_delta"
+  format: "delta"
+  catalog: "glue_catalog"
+
+# AWS Configuration
+aws:
+  region: "us-east-1"
+  glue_catalog: "glue_catalog"
+
+# Snowflake config for local
+snowflake_orders:
+  path: "data/snowflake/snowflake_orders_100000.csv"
+
+# Redshift config for local
+redshift_behavior:
+  path: "data/redshift/redshift_customer_behavior_50000.csv"
+
+# FX rates config for local
+fx_rates:
+  path: "data/fx/fx_rates_historical_730_days.csv"

@@ -97,6 +97,12 @@ lake:
   checkpoint: "s3://company-data-lake-123456789012/checkpoints"
   backup: "s3://company-backups-123456789012"
 
+# Storage configuration (format selection)
+storage:
+  warehouse: "s3://company-data-lake-123456789012"
+  format: "iceberg"  # options: parquet | delta | iceberg
+  catalog: "glue_catalog"  # Iceberg catalog name
+
 # Security Configuration
 security:
   encryption_enabled: true

@@ -167,3 +167,21 @@ def emit_duration(metric_name: str, milliseconds: float, labels: Optional[Dict[s
     collector = get_metrics_collector(config)
     collector.emit_duration(metric_name, milliseconds, labels)
 
+
+def emit_metrics(
+    job_name: str,
+    rows_in: int,
+    rows_out: int,
+    duration_seconds: float,
+    dq_status: str,
+    config: Optional[Dict[str, Any]] = None
+) -> None:
+    """Emit standard metrics for a job run.
+
+    Default sink is CloudWatch via put_metric_data; fallback logs a JSON line.
+    """
+    labels = {"job": job_name, "dq_status": dq_status}
+    emit_rowcount("rows_in", rows_in, labels, config)
+    emit_rowcount("rows_out", rows_out, labels, config)
+    emit_duration("duration_ms", duration_seconds * 1000.0, labels, config)
+

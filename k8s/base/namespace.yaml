@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: pyspark-etl
-  labels:
-    name: pyspark-etl
-    environment: production
-    team: data-engineering
-

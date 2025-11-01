@@ -6,6 +6,7 @@ from datetime import datetime
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import lit, current_timestamp, col
 from pyspark_interview_project.utils.watermark_utils import get_watermark, upsert_watermark, get_latest_timestamp_from_df
+from pyspark_interview_project.utils.secrets import get_snowflake_credentials
 from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
 from pyspark_interview_project.monitoring.metrics_collector import emit_rowcount, emit_duration
 import time
@@ -58,7 +59,18 @@ def extract_snowflake_orders(
                 df = df.filter(col("order_date") >= lit(since_ts))
         else:
             # In AWS, use Snowflake JDBC connection with incremental query
-            snowflake_config = config.get('data_sources', {}).get('snowflake', {})
+            # Get credentials from Secrets Manager
+            snowflake_config = get_snowflake_credentials(config)
+            # Build connection options
+            account = snowflake_config.get('account', '').replace('.snowflakecomputing.com', '')
+            snowflake_options = {
+                "sfURL": f"{account}.snowflakecomputing.com",
+                "sfUser": snowflake_config.get("user"),
+                "sfPassword": snowflake_config.get("password"),
+                "sfDatabase": snowflake_config.get("database", "ANALYTICS"),
+                "sfSchema": snowflake_config.get("schema", "PUBLIC"),
+                "sfWarehouse": snowflake_config.get("warehouse"),
+            }
             
             # Build query with watermark filter
             if since_ts:
@@ -74,7 +86,7 @@ def extract_snowflake_orders(
             
             df = spark.read \
                 .format("snowflake") \
-                .options(**snowflake_config) \
+                .options(**snowflake_options) \
                 .option("query", query) \
                 .load()
         

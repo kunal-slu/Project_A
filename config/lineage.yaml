@@ -1,59 +1,95 @@
-# OpenLineage Configuration
-# This config file defines settings for data lineage tracking via OpenLineage
+# Dataset registry for data lineage tracking.
+# Maps logical dataset names to physical locations and schemas.
 
-lineage:
-  enabled: true
-  url: "${OPENLINEAGE_URL}"  # Set via environment variable or MWAA variable
-  namespace: "${OPENLINEAGE_NAMESPACE}"  # e.g., "prod-data-platform"
-  api_key_secret: "${OPENLINEAGE_API_KEY_SECRET}"  # AWS Secrets Manager secret name (optional)
-  
-  # OpenLineage client settings
-  timeout_seconds: 5
-  retry_attempts: 3
-  retry_backoff_seconds: 1
-  
-  # Events to emit
-  emit_job_start: true
-  emit_job_complete: true
-  emit_job_fail: true
-  emit_dataset_input: true
-  emit_dataset_output: true
-  
-  # Metadata to include
-  include_spark_metrics: true
-  include_row_counts: true
-  include_schema_info: true
-  
-  # Namespace prefixes for different data sources
-  namespaces:
-    s3: "s3://"
-    bronze: "bronze"
-    silver: "silver"
-    gold: "gold"
+# Lineage configuration
+enabled: true
+url: ${OPENLINEAGE_URL:-http://localhost:5000}  # OpenLineage backend URL
+namespace: ${OPENLINEAGE_NAMESPACE:-data-platform}
+
+datasets:
+  # Bronze layer
+  - name: bronze.behavior
+    location: s3://my-etl-lake-demo/bronze/redshift/behavior
+    schema: config/schema_definitions/redshift_behavior_bronze.json
+    layer: bronze
+    source: redshift
+    table: customer_behavior
     
-# CloudWatch Metrics Export (additional to OpenLineage)
-cloudwatch:
-  enabled: true
-  namespace: "ETLPipelineMetrics"
-  region: "${AWS_REGION}"
-  
-  # Metrics to emit
-  metrics:
-    - name: "records.processed"
-      unit: "Count"
-      dimensions: ["job_name", "table_name"]
-    - name: "records.failed"
-      unit: "Count"
-      dimensions: ["job_name", "error_type"]
-    - name: "job.duration"
-      unit: "Seconds"
-      dimensions: ["job_name", "status"]
-    - name: "dq.checks.failed"
-      unit: "Count"
-      dimensions: ["suite_name", "check_name"]
-      
-# Prometheus Export (optional, for self-hosted monitoring)
-prometheus:
-  enabled: false
-  port: 9090
-  path: "/metrics"
+  - name: bronze.crm_accounts
+    location: s3://my-etl-lake-demo/bronze/crm/accounts
+    schema: config/schema_definitions/crm_accounts_bronze.json
+    layer: bronze
+    source: crm
+    table: accounts
+    
+  - name: bronze.crm_contacts
+    location: s3://my-etl-lake-demo/bronze/crm/contacts
+    schema: config/schema_definitions/crm_contacts_bronze.json
+    layer: bronze
+    source: crm
+    table: contacts
+    
+  - name: bronze.snowflake_orders
+    location: s3://my-etl-lake-demo/bronze/snowflake/orders
+    schema: config/schema_definitions/snowflake_orders_bronze.json
+    layer: bronze
+    source: snowflake
+    table: orders
+    
+  - name: bronze.fx_rates
+    location: s3://my-etl-lake-demo/bronze/fx/rates
+    schema: config/schema_definitions/fx_rates_bronze.json
+    layer: bronze
+    source: fx
+    table: rates
+    
+  # Silver layer
+  - name: silver.behavior
+    location: s3://my-etl-lake-demo/silver/behavior
+    schema: config/schema_definitions/behavior_silver.json
+    layer: silver
+    source: redshift
+    table: behavior
+    
+  - name: silver.crm_accounts
+    location: s3://my-etl-lake-demo/silver/crm/accounts
+    schema: config/schema_definitions/crm_accounts_silver.json
+    layer: silver
+    source: crm
+    table: accounts
+    
+  - name: silver.crm_contacts
+    location: s3://my-etl-lake-demo/silver/crm/contacts
+    schema: config/schema_definitions/crm_contacts_silver.json
+    layer: silver
+    source: crm
+    table: contacts
+    
+  - name: silver.snowflake_orders
+    location: s3://my-etl-lake-demo/silver/snowflake/orders
+    schema: config/schema_definitions/orders_silver.json
+    layer: silver
+    source: snowflake
+    table: orders
+    
+  - name: silver.fx_rates
+    location: s3://my-etl-lake-demo/silver/fx/rates
+    schema: config/schema_definitions/fx_rates_silver.json
+    layer: silver
+    source: fx
+    table: rates
+    
+  # Gold layer
+  - name: gold.customer_360
+    location: s3://my-etl-lake-demo/gold/customer_360
+    schema: config/schema_definitions/customer_360_gold.json
+    layer: gold
+    source: derived
+    table: customer_360
+    
+  - name: gold.product_perf_daily
+    location: s3://my-etl-lake-demo/gold/product_perf_daily
+    schema: config/schema_definitions/product_perf_daily_gold.json
+    layer: gold
+    source: derived
+    table: product_perf_daily
