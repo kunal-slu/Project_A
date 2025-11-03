@@ -89,9 +89,12 @@ See [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) for complete deployment i
 
 ## 📖 Documentation
 
-- [AWS Deployment Guide](AWS_DEPLOYMENT_GUIDE.md)
-- [Project Structure](PROJECT_FINAL_STRUCTURE.md)
-- [AWS Runbook](RUNBOOK_AWS_2025.md)
+- **[Getting Started Guide](README_GETTING_STARTED.md)** 🌟 - **START HERE! Your next steps**
+- **[Beginners AWS Guide](BEGINNERS_AWS_DEPLOYMENT_GUIDE.md)** ⭐ - Step-by-step AWS deployment for novices
+- [AWS Deployment Guide](AWS_COMPLETE_DEPLOYMENT_GUIDE.md) - Complete end-to-end AWS deployment
+- [Data Sources & Architecture](DATA_SOURCES_AND_ARCHITECTURE.md) - All 6 data sources and architecture
+- [P0-P6 Implementation Plan](P0_P6_IMPLEMENTATION_PLAN.md) - Production-ready roadmap
+- [AWS Runbook](RUNBOOK_AWS_2025.md) - Operational procedures
 
 ## 🧪 Testing
 
@@ -119,19 +122,13 @@ MIT License
 
 ### Production-Grade Enhancements Completed
 
-**A. Real Lineage Tracking**
-- ✅ OpenLineage integration with HTTP endpoint
-- ✅ Automatic metadata capture (schema, row counts, timestamps)
-- ✅ Failure event tracking
-- ✅ Applied to all extract/transform functions
+- ✅ **Real Lineage Tracking** - OpenLineage integration with automatic metadata capture
+- ✅ **Data Quality Gates** - Great Expectations with critical failure handling
+- ✅ **Snowflake Target** - Dual destination loading with MERGE operations
+- ✅ **AWS Deployment** - Complete end-to-end deployment guide (see [AWS_COMPLETE_DEPLOYMENT_GUIDE.md](AWS_COMPLETE_DEPLOYMENT_GUIDE.md))
+- ✅ **Multi-Source Architecture** - 6 data sources documented (see [DATA_SOURCES_AND_ARCHITECTURE.md](DATA_SOURCES_AND_ARCHITECTURE.md))
 
-**B. Data Quality Gates**
-- ✅ Great Expectations integration with `config/dq.yaml`
-- ✅ Critical failure handling (DQ breaker)
-- ✅ Automated quality validation on all layers
-- ✅ Results persisted to S3/local
-
-**C. Snowflake Target**
+**Additional Production Features**
 - ✅ Dual destination: S3 (data lake) + Snowflake (analytics)
 - ✅ `write_df_to_snowflake()` with MERGE support
 - ✅ Idempotent upserts with composite primary keys
@@ -141,15 +138,14 @@ MIT License
 - ✅ Glue catalog integration for Iceberg
 - ✅ Transparent to application code
 
-### Full ETL Pipeline Tested
+### Quick Start
 ```bash
-# Run complete pipeline
+# Run complete pipeline locally
 python -m pyspark_interview_project.cli \
   --config config/local.yaml \
   --env local \
   --cmd full
 
-# Results: ✅ 9 files ingested, 6 Delta Lake tables created, 114 versions maintained
+# Deploy to AWS
+# See AWS_COMPLETE_DEPLOYMENT_GUIDE.md for step-by-step instructions
 ```
-
-See `ETL_RUN_SUCCESS.md` and `ENHANCEMENTS_A_TO_D_COMPLETE.md` for details.

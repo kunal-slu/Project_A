@@ -94,12 +94,13 @@ bronze_to_silver = BashOperator(
 )
 
 # ============================================================================
-# DQ GATE 2: Silver Layer
+# DQ GATE 2: Silver Layer (with SLA)
 # ============================================================================
 
 dq_check_silver = BashOperator(
     task_id='dq_check_silver',
     bash_command='python aws/scripts/run_ge_checks.py --suite-name silver_orders --data-asset s3://$S3_LAKE_BUCKET/silver/orders --critical-only --fail-on-error',
+    sla=timedelta(minutes=20),  # P4-11: SLA on dq_gate
     dag=dag,
 )
 
