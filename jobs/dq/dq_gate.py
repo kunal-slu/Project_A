@@ -37,16 +37,14 @@ def main():
         table_path = f"s3a://{lake_bucket}/{args.layer}/{args.table}/"
         df = spark.read.format("delta").load(table_path)
         
-        # Run DQ gate
-        gate = DQGate()
-        result = gate.validate_table(df, args.table, layer=args.layer)
+        # Run DQ gate (pass config)
+        gate = DQGate(config)
+        result = gate.check_and_block(spark, df, args.table, layer=args.layer)
         
-        if result.success:
-            print(f"✅ DQ Gate passed for {args.layer}.{args.table}")
-            sys.exit(0)
-        else:
-            print(f"❌ DQ Gate failed for {args.layer}.{args.table}")
-            sys.exit(1)
+        print(f"✅ DQ Gate passed for {args.layer}.{args.table}")
+        print(f"  - Critical failures: {result.get('critical_failures', 0)}")
+        print(f"  - Warnings: {result.get('warnings', 0)}")
+        sys.exit(0)
             
     except Exception as e:
         print(f"❌ DQ Gate error: {e}")

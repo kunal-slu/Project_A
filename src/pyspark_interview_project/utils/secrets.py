@@ -157,7 +157,7 @@ def _get_secret_from_env(secret_name: str) -> Dict[str, Any]:
 
 def get_snowflake_credentials(config: Dict[str, Any]) -> Dict[str, str]:
     """
-    Get Snowflake credentials from Secrets Manager or config.
+    Get Snowflake credentials from Secrets Manager (Phase 2 format).
     
     Args:
         config: Configuration dictionary
@@ -165,24 +165,23 @@ def get_snowflake_credentials(config: Dict[str, Any]) -> Dict[str, str]:
     Returns:
         Dictionary with Snowflake connection parameters
     """
-    secrets_config = config.get('secrets', {})
-    snowflake_secret_name = secrets_config.get('snowflake', {}).get('secret_name')
+    import boto3
     
-    if snowflake_secret_name:
-        logger.info(f"Retrieving Snowflake credentials from Secrets Manager: {snowflake_secret_name}")
-        return get_secret_from_manager(
-            snowflake_secret_name,
-            region_name=config.get('aws', {}).get('region', 'us-east-1')
-        )
-    else:
+    region = config.get('region', 'us-east-1')
+    secret_name = "project-a-dev/snowflake/conn"
+    
+    try:
+        logger.info(f"Retrieving Snowflake credentials from Secrets Manager: {secret_name}")
+        return get_secret_from_manager(secret_name, region_name=region)
+    except Exception as e:
+        logger.warning(f"Failed to get secret from SM: {e}, checking config fallback")
         # Fallback to config
-        logger.info("Using Snowflake credentials from config")
         return config.get('data_sources', {}).get('snowflake', {})
 
 
 def get_redshift_credentials(config: Dict[str, Any]) -> Dict[str, str]:
     """
-    Get Redshift credentials from Secrets Manager or config.
+    Get Redshift credentials from Secrets Manager (Phase 2 format).
     
     Args:
         config: Configuration dictionary
@@ -190,16 +189,15 @@ def get_redshift_credentials(config: Dict[str, Any]) -> Dict[str, str]:
     Returns:
         Dictionary with Redshift connection parameters
     """
-    secrets_config = config.get('secrets', {})
-    redshift_secret_name = secrets_config.get('redshift', {}).get('secret_name')
+    import boto3
     
-    if redshift_secret_name:
-        logger.info(f"Retrieving Redshift credentials from Secrets Manager: {redshift_secret_name}")
-        return get_secret_from_manager(
-            redshift_secret_name,
-            region_name=config.get('aws', {}).get('region', 'us-east-1')
-        )
-    else:
+    region = config.get('region', 'us-east-1')
+    secret_name = "project-a-dev/redshift/conn"
+    
+    try:
+        logger.info(f"Retrieving Redshift credentials from Secrets Manager: {secret_name}")
+        return get_secret_from_manager(secret_name, region_name=region)
+    except Exception as e:
+        logger.warning(f"Failed to get secret from SM: {e}, checking config fallback")
         # Fallback to config
-        logger.info("Using Redshift credentials from config")
         return config.get('data_sources', {}).get('redshift', {})

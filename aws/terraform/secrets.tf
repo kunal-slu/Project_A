@@ -2,11 +2,11 @@
 
 # HubSpot/Salesforce credentials
 resource "aws_secretsmanager_secret" "hubspot" {
-  name        = "${var.project}-${var.environment}-hubspot-creds"
+  name        = "${var.project_name}-${var.environment}-hubspot-creds"
   description = "HubSpot CRM credentials"
 
   tags = merge(var.tags, {
-    Name   = "${var.project}-${var.environment}-hubspot-creds"
+    Name   = "${var.project_name}-${var.environment}-hubspot-creds"
     Source = "hubspot"
   })
 }
@@ -22,11 +22,11 @@ resource "aws_secretsmanager_secret_version" "hubspot" {
 
 # Snowflake credentials
 resource "aws_secretsmanager_secret" "snowflake" {
-  name        = "${var.project}-${var.environment}-snowflake-creds"
+  name        = "${var.project_name}-${var.environment}-snowflake-creds"
   description = "Snowflake database credentials"
 
   tags = merge(var.tags, {
-    Name   = "${var.project}-${var.environment}-snowflake-creds"
+    Name   = "${var.project_name}-${var.environment}-snowflake-creds"
     Source = "snowflake"
   })
 }
@@ -47,11 +47,11 @@ resource "aws_secretsmanager_secret_version" "snowflake" {
 
 # Redshift credentials
 resource "aws_secretsmanager_secret" "redshift" {
-  name        = "${var.project}-${var.environment}-redshift-creds"
+  name        = "${var.project_name}-${var.environment}-redshift-creds"
   description = "Redshift analytics database credentials"
 
   tags = merge(var.tags, {
-    Name   = "${var.project}-${var.environment}-redshift-creds"
+    Name   = "${var.project_name}-${var.environment}-redshift-creds"
     Source = "redshift"
   })
 }
@@ -70,11 +70,11 @@ resource "aws_secretsmanager_secret_version" "redshift" {
 
 # Kafka/MSK credentials
 resource "aws_secretsmanager_secret" "kafka" {
-  name        = "${var.project}-${var.environment}-kafka-creds"
+  name        = "${var.project_name}-${var.environment}-kafka-creds"
   description = "Kafka/MSK connection credentials"
 
   tags = merge(var.tags, {
-    Name   = "${var.project}-${var.environment}-kafka-creds"
+    Name   = "${var.project_name}-${var.environment}-kafka-creds"
     Source = "kafka"
   })
 }
@@ -92,11 +92,11 @@ resource "aws_secretsmanager_secret_version" "kafka" {
 
 # FX Vendor credentials
 resource "aws_secretsmanager_secret" "fx_vendor" {
-  name        = "${var.project}-${var.environment}-fx-vendor-creds"
+  name        = "${var.project_name}-${var.environment}-fx-vendor-creds"
   description = "FX rates vendor API credentials"
 
   tags = merge(var.tags, {
-    Name   = "${var.project}-${var.environment}-fx-vendor-creds"
+    Name   = "${var.project_name}-${var.environment}-fx-vendor-creds"
     Source = "fx_vendor"
   })
 }

@@ -6,8 +6,8 @@ environment = "dev"
 region      = "us-east-1"
 
 # VPC Configuration
-vpc_cidr                   = "10.0.0.0/16"
-create_vpc                 = true
+vpc_cidr                       = "10.0.0.0/16"
+create_vpc                     = true
 create_redshift_security_group = true
 
 # Logging

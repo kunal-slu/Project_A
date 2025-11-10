@@ -91,7 +91,7 @@
 
 # Service Role for EMR Serverless
 resource "aws_iam_role" "emr_serverless_service_role" {
-  name = "${var.project}-${var.environment}-emr-service-role"
+  name = "${local.name_prefix}-emr-service-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -104,9 +104,11 @@ resource "aws_iam_role" "emr_serverless_service_role" {
     }]
   })
 
-  tags = merge(var.tags, {
-    Name = "${var.project}-${var.environment}-emr-service-role"
-  })
+  tags = {
+    Name    = "${local.name_prefix}-emr-service-role"
+    Project = var.project_name
+    Env     = var.environment
+  }
 }
 
 # Note: EMR Serverless doesn't require a service role policy attachment

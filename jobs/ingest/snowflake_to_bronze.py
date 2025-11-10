@@ -93,7 +93,7 @@ def extract_snowflake_orders_production(
                 logger.info("📌 No watermark found, performing full load")
         
         # 2. EXTRACT: Read from Snowflake or local sample
-        if config.get('environment') == 'local':
+        if config.get('env') == 'dev' and config.get('environment') == 'local':
             sample_path = config.get('paths', {}).get('snowflake_orders', 
                 "data/samples/snowflake/snowflake_orders_100000.csv")
             df = spark.read.option("header", "true").option("inferSchema", "true").csv(sample_path)

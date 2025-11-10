@@ -22,10 +22,14 @@ def build_spark(app_name: str = "pyspark_interview_project", config: Dict = None
         
         # Get storage format from config
         storage_cfg = config.get("storage", {})
-        storage_format = storage_cfg.get("format", "parquet")
-        warehouse = storage_cfg.get("warehouse", "s3://my-etl-lake-demo")
+        storage_format = storage_cfg.get("format", "delta")  # Default to delta for Phase 2
+        warehouse = storage_cfg.get("warehouse", config.get("paths", {}).get("bronze", "").replace("/bronze/", ""))
         catalog_name = storage_cfg.get("catalog", "glue_catalog")
-        aws_region = config.get("aws", {}).get("region", "us-east-1")
+        aws_region = config.get("region", config.get("aws", {}).get("region", "us-east-1"))
+        
+        # Phase 2: Check for EMR spark_defaults
+        emr_config = config.get("emr", {})
+        spark_defaults = emr_config.get("spark_defaults", {})
         
         # Build SparkSession
         builder = SparkSession.builder.appName(app_name)
@@ -59,8 +63,12 @@ def build_spark(app_name: str = "pyspark_interview_project", config: Dict = None
                 )
             
         elif storage_format == "delta":
-            # Legacy Delta Lake configuration
-            if spark_env in {"emr", "prod", "aws", "azure"}:
+            # Phase 2: Use spark_defaults from config if available
+            if spark_defaults:
+                for key, value in spark_defaults.items():
+                    builder = builder.config(key, value)
+                logger.info(f"Delta Lake configured from EMR spark_defaults")
+            elif spark_env in {"emr", "prod", "aws", "azure"}:
                 builder = (builder
                           .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
                           .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"))

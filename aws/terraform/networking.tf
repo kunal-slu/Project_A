@@ -11,14 +11,14 @@ resource "aws_vpc" "data_platform" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project}-${var.environment}-vpc"
+      Name = "${var.project_name}-${var.environment}-vpc"
     }
   )
 }
 
 # Security Group for EMR Serverless
 resource "aws_security_group" "emr_serverless" {
-  name_prefix = "${var.project}-${var.environment}-emr-"
+  name_prefix = "${var.project_name}-${var.environment}-emr-"
   vpc_id      = var.create_vpc ? aws_vpc.data_platform[0].id : var.vpc_id
 
   egress {
@@ -31,7 +31,7 @@ resource "aws_security_group" "emr_serverless" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project}-${var.environment}-emr-sg"
+      Name = "${var.project_name}-${var.environment}-emr-sg"
     }
   )
 }
@@ -40,7 +40,7 @@ resource "aws_security_group" "emr_serverless" {
 resource "aws_security_group" "redshift" {
   count = var.create_redshift_security_group ? 1 : 0
 
-  name_prefix = "${var.project}-${var.environment}-redshift-"
+  name_prefix = "${var.project_name}-${var.environment}-redshift-"
   vpc_id      = var.create_vpc ? aws_vpc.data_platform[0].id : var.vpc_id
 
   ingress {
@@ -53,7 +53,7 @@ resource "aws_security_group" "redshift" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project}-${var.environment}-redshift-sg"
+      Name = "${var.project_name}-${var.environment}-redshift-sg"
     }
   )
 }

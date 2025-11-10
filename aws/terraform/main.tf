@@ -9,6 +9,16 @@ terraform {
       version = ">= 5.0"
     }
   }
+
+  # Remote state backend (uncomment and configure after creating S3 bucket and DynamoDB table)
+  # backend "s3" {
+  #   bucket         = "my-etl-terraform-state-424570854632"
+  #   key            = "project_a/dev/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "terraform-locks-project-a"
+  #   encrypt        = true
+  #   profile        = "kunal21"
+  # }
 }
 
 provider "aws" {
@@ -26,7 +36,7 @@ provider "aws" {
 
 # Data sources
 data "aws_region" "current" {}
-# Note: aws_caller_identity is defined in lake_formation.tf
+# Note: aws_caller_identity is defined in lake_formation.tf to avoid duplication
 
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
@@ -258,7 +268,13 @@ resource "aws_iam_role_policy" "emr_exec" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${local.name_prefix}-*"
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:project-a-dev/snowflake/*",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:project-a-dev/redshift/*",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:project-a-dev/kafka/*",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:project-a-dev/salesforce/*",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:project-a-dev/fx/*"
+        ]
       }
     ]
   })

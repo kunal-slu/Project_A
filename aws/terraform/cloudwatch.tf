@@ -2,33 +2,33 @@
 
 # Log Group for EMR Serverless
 resource "aws_cloudwatch_log_group" "emr_serverless" {
-  name              = "/aws/emr-serverless/spark/${var.project}-${var.environment}"
+  name              = "/aws/emr-serverless/spark/${var.project_name}-${var.environment}"
   retention_in_days = var.log_retention_days
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.project}-${var.environment}-emr-logs"
+      Name = "${var.project_name}-${var.environment}-emr-logs"
     }
   )
 }
 
 # Log Group for Application Logs
 resource "aws_cloudwatch_log_group" "application" {
-  name              = "/aws/data-platform/${var.project}-${var.environment}"
+  name              = "/aws/data-platform/${var.project_name}-${var.environment}"
   retention_in_days = var.log_retention_days
 
   tags = merge(
     var.tags,
     {
-      Name = "${var.project}-${var.environment}-app-logs"
+      Name = "${var.project_name}-${var.environment}-app-logs"
     }
   )
 }
 
 # CloudWatch Alarm for EMR Job Failures
 resource "aws_cloudwatch_metric_alarm" "emr_job_failures" {
-  alarm_name          = "${var.project}-${var.environment}-emr-job-failures"
+  alarm_name          = "${var.project_name}-${var.environment}-emr-job-failures"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
   metric_name         = "JobRunFailed"
@@ -47,7 +47,7 @@ resource "aws_cloudwatch_metric_alarm" "emr_job_failures" {
 
 # SNS Topic for Alerts
 resource "aws_sns_topic" "data_platform_alerts" {
-  name = "${var.project}-${var.environment}-data-platform-alerts"
+  name = "${var.project_name}-${var.environment}-data-platform-alerts"
 
   tags = var.tags
 }
