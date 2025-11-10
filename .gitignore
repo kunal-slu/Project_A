@@ -48,3 +48,12 @@ data/
 *.key
 *.crt
 secrets/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars.bak
+main.tf.bak
+main.tf.fixed
