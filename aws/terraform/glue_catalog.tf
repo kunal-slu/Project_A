@@ -4,7 +4,7 @@
 resource "aws_glue_catalog_database" "bronze" {
   name        = "${var.project}_bronze_${var.environment}"
   description = "Bronze layer for raw ingested data"
-  
+
   tags = merge(
     var.tags,
     {
@@ -19,7 +19,7 @@ resource "aws_glue_catalog_database" "bronze" {
 resource "aws_glue_catalog_database" "silver" {
   name        = "${var.project}_silver_${var.environment}"
   description = "Silver layer for cleaned and conformed data"
-  
+
   tags = merge(
     var.tags,
     {
@@ -34,7 +34,7 @@ resource "aws_glue_catalog_database" "silver" {
 resource "aws_glue_catalog_database" "gold" {
   name        = "${var.project}_gold_${var.environment}"
   description = "Gold layer for business-ready data"
-  
+
   tags = merge(
     var.tags,
     {

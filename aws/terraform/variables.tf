@@ -13,9 +13,21 @@ variable "region" {
 }
 
 variable "project" {
+  description = "Project name (deprecated, use project_name)"
+  type        = string
+  default     = "pyspark-etl-project"
+}
+
+variable "project_name" {
   description = "Project name"
   type        = string
   default     = "pyspark-etl-project"
+}
+
+variable "aws_profile" {
+  description = "AWS profile to use"
+  type        = string
+  default     = null
 }
 
 variable "environment" {
@@ -70,4 +82,16 @@ variable "tags" {
   description = "Additional tags to apply to resources"
   type        = map(string)
   default     = {}
+}
+
+variable "enable_external_access" {
+  description = "Enable external analytics access"
+  type        = bool
+  default     = false
+}
+
+variable "external_analytics_role_arn" {
+  description = "ARN of external analytics role (if enable_external_access is true)"
+  type        = string
+  default     = ""
 }

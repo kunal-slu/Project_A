@@ -1,158 +1,230 @@
 """
-Complete Daily Pipeline DAG with all P0-P6 features (P4-11).
-
-Task boundaries:
-extract_* → bronze_to_silver → dq_gate → silver_to_gold → register_glue
-
-Features:
-- Dataset scheduling (Airflow 2.6+)
-- SLA on dq_gate
-- Proper task dependencies
-- EMR Serverless job operators
+Airflow DAG: Daily ETL Pipeline with Task Boundaries and DQ Gates
+Production-ready orchestration for Bronze → Silver → Gold
 """
-
-from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.providers.amazon.aws.operators.emr import EmrServerlessStartJobRunOperator
+from airflow.providers.amazon.aws.sensors.emr import EmrServerlessJobSensor
 from airflow.operators.python import PythonOperator
-from airflow.datasets import Dataset
+from datetime import datetime, timedelta
 from airflow.utils.task_group import TaskGroup
+import boto3
+import json
 
-# Datasets for dataset-based scheduling (Airflow 2.6+)
-bronze_dataset = Dataset("s3://bucket/bronze")
-silver_dataset = Dataset("s3://bucket/silver")
-gold_dataset = Dataset("s3://bucket/gold")
-
-# Default arguments
 default_args = {
-    'owner': 'data-engineering',
-    'depends_on_past': False,
-    'start_date': datetime(2025, 1, 1),
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'execution_timeout': timedelta(hours=6),
+    "owner": "data-engineering",
+    "depends_on_past": False,
+    "email_on_failure": True,
+    "email_on_retry": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+    "email": ["data-engineering@example.com"]
 }
 
-# Create DAG
-dag = DAG(
-    'daily_pipeline_complete',
-    default_args=default_args,
-    description='Complete ETL pipeline with P0-P6 features',
-    schedule=[bronze_dataset],  # Dataset-based scheduling
-    catchup=False,
-    tags=['production', 'p0-p6', 'complete'],
-    max_active_runs=1,
-)
-
-# ============================================================================
-# INGESTION: Source → Bronze (Parallel)
-# ============================================================================
-
-with TaskGroup("extract_bronze", dag=dag) as extract_group:
-    extract_snowflake_orders = BashOperator(
-        task_id='extract_snowflake_orders',
-        bash_command='aws emr-serverless start-job-run \
-            --application-id ${EMR_APP_ID} \
-            --execution-role-arn ${EMR_EXECUTION_ROLE} \
-            --job-driver "{\\"sparkSubmit\\":{\\"entryPoint\\":\\"s3://${CODE_BUCKET}/jobs/ingest/snowflake_to_bronze.py\\"}}" \
-            --configuration-overrides "{\\"monitoringConfiguration\\":{\\"s3MonitoringConfiguration\\":{\\"logUri\\":\\"s3://${LOGS_BUCKET}/emr-serverless/\\"}}}"',
-        outlets=[bronze_dataset],  # Produces bronze dataset
-        dag=dag,
-    )
-    
-    extract_redshift_behavior = BashOperator(
-        task_id='extract_redshift_behavior',
-        bash_command='aws emr-serverless start-job-run \
-            --application-id ${EMR_APP_ID} \
-            --execution-role-arn ${EMR_EXECUTION_ROLE} \
-            --job-driver "{\\"sparkSubmit\\":{\\"entryPoint\\":\\"s3://${CODE_BUCKET}/jobs/ingest/redshift_behavior_ingest.py\\"}}"',
-        outlets=[bronze_dataset],
-        dag=dag,
-    )
-
-# ============================================================================
-# TRANSFORMATION: Bronze → Silver
-# ============================================================================
-
-bronze_to_silver = BashOperator(
-    task_id='bronze_to_silver',
-    bash_command='aws emr-serverless start-job-run \
-        --application-id ${EMR_APP_ID} \
-        --execution-role-arn ${EMR_EXECUTION_ROLE} \
-        --job-driver "{\\"sparkSubmit\\":{\\"entryPoint\\":\\"s3://${CODE_BUCKET}/jobs/bronze_to_silver_multi_source.py\\"}}"',
-    outlets=[silver_dataset],  # Produces silver dataset
-    dag=dag,
-)
-
-# ============================================================================
-# DQ GATE: Silver Layer (CRITICAL - FAILS PIPELINE ON ERROR)
-# ============================================================================
-
-dq_gate_silver = BashOperator(
-    task_id='dq_gate_silver',
-    bash_command='python -m pyspark_interview_project.dq.gate \
-        --suite silver.orders \
-        --data-path s3://${S3_LAKE_BUCKET}/silver/orders \
-        --fail-on-critical',
-    sla=timedelta(minutes=20),  # P4-11: SLA on dq_gate
-    dag=dag,
-)
-
-# ============================================================================
-# TRANSFORMATION: Silver → Gold
-# ============================================================================
-
-silver_to_gold = BashOperator(
-    task_id='silver_to_gold',
-    bash_command='aws emr-serverless start-job-run \
-        --application-id ${EMR_APP_ID} \
-        --execution-role-arn ${EMR_EXECUTION_ROLE} \
-        --job-driver "{\\"sparkSubmit\\":{\\"entryPoint\\":\\"s3://${CODE_BUCKET}/jobs/gold_star_schema.py\\"}}"',
-    outlets=[gold_dataset],  # Produces gold dataset
-    dag=dag,
-)
-
-# ============================================================================
-# GOVERNANCE: Register Glue Catalog
-# ============================================================================
 
 def register_all_glue_tables(**context):
     """Register all Delta tables in Glue Catalog."""
-    import sys
-    from pathlib import Path
+    import boto3
     
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+    glue = boto3.client("glue", region_name="us-east-1")
     
-    from pyspark_interview_project.utils.spark_session import build_spark
-    from pyspark_interview_project.config_loader import load_config_resolved
+    tables_to_register = [
+        {"database": "pyspark-etl-project_bronze_dev", "table": "snowflake_orders", "path": "s3://my-etl-lake-demo-424570854632/bronze/snowflake/orders/"},
+        {"database": "pyspark-etl-project_bronze_dev", "table": "snowflake_customers", "path": "s3://my-etl-lake-demo-424570854632/bronze/snowflake/customers/"},
+        {"database": "pyspark-etl-project_silver_dev", "table": "orders", "path": "s3://my-etl-lake-demo-424570854632/silver/orders/"},
+        {"database": "pyspark-etl-project_silver_dev", "table": "customers", "path": "s3://my-etl-lake-demo-424570854632/silver/customers/"},
+        {"database": "pyspark-etl-project_gold_dev", "table": "fact_sales", "path": "s3://my-etl-lake-demo-424570854632/gold/fact_sales/"},
+        {"database": "pyspark-etl-project_gold_dev", "table": "dim_customer", "path": "s3://my-etl-lake-demo-424570854632/gold/dim_customer/"},
+    ]
     
-    config = load_config_resolved("config/prod.yaml")
-    spark = build_spark(config)
+    for tbl in tables_to_register:
+        try:
+            # Check if table exists
+            try:
+                glue.get_table(DatabaseName=tbl["database"], Name=tbl["table"])
+                print(f"✅ Table {tbl['database']}.{tbl['table']} already exists")
+            except glue.exceptions.EntityNotFoundException:
+                # Create table
+                glue.create_table(
+                    DatabaseName=tbl["database"],
+                    TableInput={
+                        "Name": tbl["table"],
+                        "StorageDescriptor": {
+                            "Columns": [],  # Schema inferred from Delta
+                            "Location": tbl["path"],
+                            "InputFormat": "org.apache.hadoop.mapred.FileInputFormat",
+                            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveOutputFormat",
+                            "SerdeInfo": {
+                                "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+                            }
+                        },
+                        "TableType": "EXTERNAL_TABLE",
+                        "Parameters": {
+                            "classification": "delta",
+                            "typeOfData": "file"
+                        }
+                    }
+                )
+                print(f"✅ Registered {tbl['database']}.{tbl['table']}")
+        except Exception as e:
+            print(f"⚠️  Failed to register {tbl['database']}.{tbl['table']}: {e}")
+
+
+with DAG(
+    "daily_pipeline_complete",
+    default_args=default_args,
+    description="Daily ETL: Bronze → Silver → Gold with DQ Gates",
+    schedule_interval="0 2 * * *",  # 2 AM UTC daily
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    max_active_runs=1,
+    tags=["etl", "production", "p0-p6"],
+) as dag:
     
-    try:
-        # Register tables (implementation in aws/scripts/register_glue_tables.py)
-        # For now, just log
-        print("✅ Glue catalog registration complete")
-    finally:
-        spark.stop()
-
-register_glue = PythonOperator(
-    task_id='register_glue_catalog',
-    python_callable=register_all_glue_tables,
-    dag=dag,
-)
-
-# ============================================================================
-# DAG DEPENDENCIES (Critical Flow)
-# ============================================================================
-
-# Flow: extract_* → bronze_to_silver → dq_gate_silver → silver_to_gold → register_glue
-# If dq_gate_silver fails, downstream tasks DO NOT run (airflow default behavior)
-
-extract_group >> bronze_to_silver >> dq_gate_silver >> silver_to_gold >> register_glue
-
-# CRITICAL: This enforces "DQ fails = Gold never updates"
-# If dq_gate_silver fails, silver_to_gold and register_glue do NOT run.
-
+    # Extract tasks (parallel)
+    with TaskGroup("extract") as extract_group:
+        extract_snowflake_orders = EmrServerlessStartJobRunOperator(
+            task_id="extract_snowflake_orders",
+            application_id="{{ var.value.emr_app_id }}",
+            execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+            job_driver={
+                "sparkSubmit": {
+                    "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/ingest/snowflake_to_bronze.py",
+                    "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                }
+            },
+            configuration_overrides={
+                "monitoringConfiguration": {
+                    "s3MonitoringConfiguration": {
+                        "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                    }
+                }
+            }
+        )
+        
+        extract_snowflake_customers = EmrServerlessStartJobRunOperator(
+            task_id="extract_snowflake_customers",
+            application_id="{{ var.value.emr_app_id }}",
+            execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+            job_driver={
+                "sparkSubmit": {
+                    "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/ingest/snowflake_customers_to_bronze.py",
+                    "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                }
+            },
+            configuration_overrides={
+                "monitoringConfiguration": {
+                    "s3MonitoringConfiguration": {
+                        "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                    }
+                }
+            }
+        )
+        
+        extract_redshift_behavior = EmrServerlessStartJobRunOperator(
+            task_id="extract_redshift_behavior",
+            application_id="{{ var.value.emr_app_id }}",
+            execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+            job_driver={
+                "sparkSubmit": {
+                    "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/ingest/redshift_to_bronze.py",
+                    "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                }
+            },
+            configuration_overrides={
+                "monitoringConfiguration": {
+                    "s3MonitoringConfiguration": {
+                        "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                    }
+                }
+            }
+        )
+    
+    # Transform: Bronze → Silver
+    bronze_to_silver = EmrServerlessStartJobRunOperator(
+        task_id="bronze_to_silver",
+        application_id="{{ var.value.emr_app_id }}",
+        execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+        job_driver={
+            "sparkSubmit": {
+                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/transform/bronze_to_silver.py",
+                "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+            }
+        },
+        configuration_overrides={
+            "monitoringConfiguration": {
+                "s3MonitoringConfiguration": {
+                    "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                }
+            }
+        }
+    )
+    
+    # DQ Gate (hard stop on critical failures)
+    dq_gate_silver = EmrServerlessStartJobRunOperator(
+        task_id="dq_gate_silver",
+        application_id="{{ var.value.emr_app_id }}",
+        execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+        job_driver={
+            "sparkSubmit": {
+                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/dq/dq_gate.py",
+                "sparkSubmitParameters": "--table orders --layer silver --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension"
+            }
+        },
+        sla=timedelta(minutes=20),  # SLA: must complete by 3:15 AM UTC
+        configuration_overrides={
+            "monitoringConfiguration": {
+                "s3MonitoringConfiguration": {
+                    "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                }
+            }
+        }
+    )
+    
+    # Transform: Silver → Gold (SCD2 + Star Schema)
+    silver_to_gold_scd2 = EmrServerlessStartJobRunOperator(
+        task_id="silver_to_gold_scd2",
+        application_id="{{ var.value.emr_app_id }}",
+        execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+        job_driver={
+            "sparkSubmit": {
+                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/gold/dim_customer_scd2.py",
+                "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+            }
+        },
+        configuration_overrides={
+            "monitoringConfiguration": {
+                "s3MonitoringConfiguration": {
+                    "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                }
+            }
+        }
+    )
+    
+    silver_to_gold_star = EmrServerlessStartJobRunOperator(
+        task_id="silver_to_gold_star_schema",
+        application_id="{{ var.value.emr_app_id }}",
+        execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+        job_driver={
+            "sparkSubmit": {
+                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/gold/star_schema.py",
+                "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+            }
+        },
+        configuration_overrides={
+            "monitoringConfiguration": {
+                "s3MonitoringConfiguration": {
+                    "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                }
+            }
+        }
+    )
+    
+    # Register Glue tables
+    register_glue = PythonOperator(
+        task_id="register_glue_tables",
+        python_callable=register_all_glue_tables
+    )
+    
+    # Task dependencies
+    extract_group >> bronze_to_silver >> dq_gate_silver >> [silver_to_gold_scd2, silver_to_gold_star] >> register_glue

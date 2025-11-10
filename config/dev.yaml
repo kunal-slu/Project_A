@@ -1,139 +1,84 @@
-# Development Configuration
-# This config is for local development and testing
+# Development Configuration - Phase 2
+# Non-secret runtime parameters for AWS deployment
 
-env: "dev"
-environment: "dev"
-region: "us-east-1"
+env: dev
+region: us-east-1
 
-# AWS Configuration (dev buckets)
-aws:
-  region: "us-east-1"
-  s3:
-    data_lake_bucket: "company-data-lake-dev"
-    backup_bucket: "company-backups-dev"
-    logs_bucket: "company-logs-dev"
-    artifacts_bucket: "company-artifacts-dev"
+buckets:
+  lake: my-etl-lake-demo-424570854632
+  artifacts: my-etl-artifacts-demo-424570854632
+  # optional:
+  code: my-etl-code-demo-424570854632
+  logs: my-etl-logs-demo-424570854632
 
-# EMR Configuration (dev)
+glue:
+  databases:
+    bronze: pyspark-etl-project_bronze_dev
+    silver: pyspark-etl-project_silver_dev
+    gold:   pyspark-etl-project_gold_dev
+
 emr:
-  mode: "serverless"
-  application_id: "emr-serverless-app-dev"
-  execution_role_arn: "arn:aws:iam::123456789012:role/EmrServerlessJobExecutionRoleDev"
-  spark_submit_defaults:
-    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
-    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
-    spark.serializer: "org.apache.spark.serializer.KryoSerializer"
+  app_id: <PASTE_APP_ID_FROM_TERRAFORM_OUTPUTS>
+  execution_role_arn: <PASTE_EXEC_ARN_FROM_TERRAFORM_OUTPUTS>
+  spark_defaults:
+    spark.sql.extensions: io.delta.sql.DeltaSparkSessionExtension
+    spark.sql.catalog.spark_catalog: org.apache.spark.sql.delta.catalog.DeltaCatalog
+    spark.delta.logStore.class: org.apache.spark.sql.delta.storage.S3SingleDriverLogStore
+    spark.hadoop.fs.s3a.server-side-encryption-algorithm: SSE-KMS
+    spark.hadoop.fs.s3a.server-side-encryption.key: <PASTE_KMS_ARN_FROM_TERRAFORM_OUTPUTS>
+    spark.sql.adaptive.enabled: "true"
     spark.sql.shuffle.partitions: "200"
 
-# Data Lake Configuration
-data_lake:
-  bronze_prefix: "bronze"
-  silver_prefix: "silver"
-  gold_prefix: "gold"
-  checkpoint_prefix: "checkpoints"
-  metrics_prefix: "metrics"
-
-# Secrets Configuration (dev)
-secrets:
-  snowflake: "snowflake/etl/dev"
-  salesforce: "salesforce/api_token/dev"
-  stripe: "stripe/api_token/dev"
-  paypal: "paypal/api_token/dev"
-  redshift: "redshift/etl_user/dev"
-  kafka: "kafka/orders_stream/dev"
-  zendesk: "zendesk/api_token/dev"
-
-# Streaming Configuration (disabled for dev)
-streaming:
-  enabled: false
-  source: "kafka"
-  checkpoint_prefix: "checkpoints/streaming/orders"
-  trigger_interval: "5 minutes"
-  kafka:
-    topic: "orders_events_dev"
-    bootstrap_servers: "localhost:9092"
-    credentials_secret: "kafka/orders_stream/dev"
-
-# Spark Configuration
-spark:
-  app_name: "Company ETL Dev"
-  shuffle_partitions: 200
-  enable_aqe: true
-  cloud: "local"
-
-# Runtime Configuration
-runtime:
-  shuffle_partitions: 200
-  app_name: "Company ETL Dev"
-
-# Data Quality Configuration
-data_quality:
-  enabled: true
-  validation_rules:
-    - name: "opportunity_id_not_null"
-      rule: "opportunity_id IS NOT NULL"
-      table: "opportunities"
-    - name: "account_id_not_null"
-      rule: "account_id IS NOT NULL"
-      table: "accounts"
-    - name: "positive_amount"
-      rule: "amount > 0"
-      table: "opportunities"
-
-# Monitoring Configuration
-monitoring:
-  enabled: false
-  metrics_export: "console"
-  log_level: "INFO"
-
-# Lake Configuration (local paths)
-lake:
-  root: "data/lakehouse_delta"
-  bronze: "data/lakehouse_delta/bronze"
-  silver: "data/lakehouse_delta/silver"
-  gold: "data/lakehouse_delta/gold"
-  metrics: "data/lakehouse_delta/metrics"
-  checkpoint: "data/lakehouse_delta/checkpoints"
-  backup: "data/backups"
-  bronze_path: "data/lakehouse_delta/bronze"
-  silver_path: "data/lakehouse_delta/silver"
-  gold_path: "data/lakehouse_delta/gold"
-
-# Data source paths
 paths:
-  crm_accounts: "aws/data/crm/accounts.csv"
-  crm_contacts: "aws/data/crm/contacts.csv"
-  crm_opportunities: "aws/data/crm/opportunities.csv"
-  
-  snowflake_orders: "aws/data/snowflake/snowflake_orders_100000.csv"
-  snowflake_customers: "aws/data/snowflake/snowflake_customers_50000.csv"
-  snowflake_products: "aws/data/snowflake/snowflake_products_10000.csv"
-  
-  redshift_behavior: "aws/data/redshift/redshift_customer_behavior_50000.csv"
-  
-  fx_rates: "aws/data/fx/fx_rates_historical_730_days.csv"
-  financial_metrics: "aws/data/fx/financial_metrics_24_months.csv"
-  
-  kafka_events: "aws/data/kafka/stream_kafka_events_100000.csv"
+  bronze: s3a://my-etl-lake-demo-424570854632/bronze/
+  silver: s3a://my-etl-lake-demo-424570854632/silver/
+  gold:   s3a://my-etl-lake-demo-424570854632/gold/
+  checkpoints: s3a://my-etl-lake-demo-424570854632/_checkpoints/
+  errors:      s3a://my-etl-lake-demo-424570854632/_errors/
 
-# Bronze layer paths
-bronze:
-  base: "data/lakehouse_delta/bronze"
-  crm_accounts: "data/lakehouse_delta/bronze/crm/accounts"
-  crm_contacts: "data/lakehouse_delta/bronze/crm/contacts"
-  crm_opportunities: "data/lakehouse_delta/bronze/crm/opportunities"
-  snowflake_orders: "data/lakehouse_delta/bronze/snowflake/orders"
-  snowflake_customers: "data/lakehouse_delta/bronze/snowflake/customers"
-  snowflake_products: "data/lakehouse_delta/bronze/snowflake/products"
-  redshift_behavior: "data/lakehouse_delta/bronze/redshift/customer_behavior"
-  fx_rates: "data/lakehouse_delta/bronze/fx/rates"
-  financial_metrics: "data/lakehouse_delta/bronze/fx/financial_metrics"
-  kafka_events: "data/lakehouse_delta/bronze/stream/kafka_events"
+dq:
+  mode: strict
+  critical_checks:
+    - primary_keys_not_null
+    - referential_integrity
+    - non_negative_amounts
+    - timestamp_window_valid
+    - fx_coverage_all_currencies
+  warn_checks:
+    - volume_variance_7d
+    - schema_evolution_detected
+    - late_records_fraction
 
-# Silver layer paths
-silver:
-  base: "data/lakehouse_delta/silver"
+lineage:
+  enabled: true
+  emitter: openlineage
+  endpoint: https://example-marquez-or-datahub
+  namespace: project-a-dev
 
-# Gold layer paths
-gold:
-  base: "data/lakehouse_delta/gold"
+sla:
+  bronze_by_utc: "02:30"
+  silver_by_utc: "03:15"
+  gold_by_utc:   "04:00"
+
+logging:
+  level: INFO
+
+# Source-specific ingestion configuration (P0)
+sources:
+  snowflake_orders:
+    load_type: incremental
+    watermark_column: updated_at
+    watermark_state_key: snowflake_orders_max_ts
+    schema_contract: config/schema_definitions/snowflake_orders_bronze.json
+  
+  redshift_behavior:
+    load_type: incremental
+    watermark_column: event_ts
+    watermark_state_key: redshift_behavior_max_ts
+    schema_contract: config/schema_definitions/redshift_behavior_bronze.json
+  
+  snowflake_customers:
+    load_type: incremental
+    watermark_column: last_modified_ts
+    watermark_state_key: snowflake_customers_max_ts
+    schema_contract: config/schema_definitions/customers_bronze.json

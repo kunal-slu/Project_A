@@ -1,41 +1,64 @@
-# AWS EMR Serverless + S3 Data Lake Infrastructure
-
+##############################################################
+# Provider & Terraform
+##############################################################
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.5.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 5.0"
     }
   }
 }
 
 provider "aws" {
-  region = var.aws_region
-}
+  region  = var.aws_region
+  profile = var.aws_profile
 
-# Data sources
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
-
-# Local values
-locals {
-  common_tags = {
-    Project     = var.project
-    Environment = var.environment
-    ManagedBy   = "terraform"
+  default_tags {
+    tags = {
+      Project = var.project_name
+      Env     = var.environment
+      Owner   = "kunal"
+    }
   }
 }
 
-# S3 Data Lake Bucket
-resource "aws_s3_bucket" "data_lake" {
-  bucket = "${var.project}-${var.environment}-data-lake"
+# Data sources
+data "aws_region" "current" {}
+# Note: aws_caller_identity is defined in lake_formation.tf
 
-  tags = merge(local.common_tags, {
-    Name = "Data Lake Bucket"
-  })
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+  kms_alias   = "alias/${local.name_prefix}-cmk"
 }
 
+##############################################################
+# KMS (CMK + alias)
+##############################################################
+resource "aws_kms_key" "cmk" {
+  description             = "CMK for ${local.name_prefix}"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+}
+
+resource "aws_kms_alias" "cmk_alias" {
+  name          = local.kms_alias
+  target_key_id = aws_kms_key.cmk.key_id
+}
+
+##############################################################
+# S3 buckets (data lake, artifacts) + hardening
+##############################################################
+resource "aws_s3_bucket" "data_lake" {
+  bucket = "my-etl-lake-demo-424570854632"
+}
+
+resource "aws_s3_bucket" "artifacts" {
+  bucket = "my-etl-artifacts-demo-424570854632"
+}
+
+# Versioning
 resource "aws_s3_bucket_versioning" "data_lake" {
   bucket = aws_s3_bucket.data_lake.id
   versioning_configuration {
@@ -43,23 +66,62 @@ resource "aws_s3_bucket_versioning" "data_lake" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "data_lake" {
-  bucket = aws_s3_bucket.data_lake.id
+resource "aws_s3_bucket_versioning" "artifacts" {
+  bucket = aws_s3_bucket.artifacts.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
 
+# SSE-KMS encryption
+resource "aws_s3_bucket_server_side_encryption_configuration" "data_lake" {
+  bucket = aws_s3_bucket.data_lake.bucket
   rule {
     apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.s3.arn
       sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.cmk.arn
     }
   }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
+  bucket = aws_s3_bucket.artifacts.bucket
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.cmk.arn
+    }
+  }
+}
+
+# Block public access
+resource "aws_s3_bucket_public_access_block" "data_lake" {
+  bucket                  = aws_s3_bucket.data_lake.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "artifacts" {
+  bucket                  = aws_s3_bucket.artifacts.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Lifecycle: IA @30d, Glacier @90d (current & noncurrent)
 resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
   bucket = aws_s3_bucket.data_lake.id
 
   rule {
-    id     = "transition_to_ia"
+    id     = "ia-30-glacier-90"
     status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
 
     transition {
       days          = 30
@@ -70,86 +132,81 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
       days          = 90
       storage_class = "GLACIER"
     }
-  }
-}
 
-# S3 Code Artifacts Bucket
-resource "aws_s3_bucket" "artifacts" {
-  bucket = "${var.project}-${var.environment}-artifacts"
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "STANDARD_IA"
+    }
 
-  tags = merge(local.common_tags, {
-    Name = "Code Artifacts Bucket"
-  })
-}
-
-resource "aws_s3_bucket_versioning" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.s3.arn
-      sse_algorithm     = "aws:kms"
+    noncurrent_version_transition {
+      noncurrent_days = 90
+      storage_class   = "GLACIER"
     }
   }
 }
 
-# KMS Key for S3 encryption
-resource "aws_kms_key" "s3" {
-  description             = "KMS key for S3 encryption"
-  deletion_window_in_days = 7
+resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
+  bucket = aws_s3_bucket.artifacts.id
 
-  tags = merge(local.common_tags, {
-    Name = "S3 Encryption Key"
-  })
+  rule {
+    id     = "ia-30-glacier-90"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "STANDARD_IA"
+    }
+
+    noncurrent_version_transition {
+      noncurrent_days = 90
+      storage_class   = "GLACIER"
+    }
+  }
 }
 
-resource "aws_kms_alias" "s3" {
-  name          = "alias/${var.project}-${var.environment}-s3"
-  target_key_id = aws_kms_key.s3.key_id
+##############################################################
+# IAM roles (EMR exec, Glue)
+##############################################################
+data "aws_iam_policy_document" "emr_trust" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["emr-serverless.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
+  }
 }
 
-# IAM Role for EMR Serverless
-resource "aws_iam_role" "emr_serverless_job_role" {
-  name = "${var.project}-${var.environment}-emr-serverless-job-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "emr-serverless.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = local.common_tags
+resource "aws_iam_role" "emr_exec" {
+  name               = "${local.name_prefix}-emr-exec"
+  assume_role_policy = data.aws_iam_policy_document.emr_trust.json
 }
 
-resource "aws_iam_role_policy" "emr_serverless_job_policy" {
-  name = "${var.project}-${var.environment}-emr-serverless-job-policy"
-  role = aws_iam_role.emr_serverless_job_role.id
-
+resource "aws_iam_role_policy" "emr_exec" {
+  name = "${local.name_prefix}-emr-exec-policy"
+  role = aws_iam_role.emr_exec.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "S3LakeRW"
         Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
+        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:DeleteObject"]
         Resource = [
           aws_s3_bucket.data_lake.arn,
           "${aws_s3_bucket.data_lake.arn}/*",
@@ -158,101 +215,95 @@ resource "aws_iam_role_policy" "emr_serverless_job_policy" {
         ]
       },
       {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/emr-serverless/*"
+        Sid      = "KMSAccess"
+        Effect   = "Allow"
+        Action   = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey", "kms:DescribeKey"]
+        Resource = aws_kms_key.cmk.arn
       },
       {
+        Sid    = "CloudWatchLogs"
         Effect = "Allow"
         Action = [
-          "secretsmanager:GetSecretValue"
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:CreateLogGroup"
         ]
-        Resource = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project}-${var.environment}-*"
+        Resource = "arn:aws:logs:${var.aws_region}:*:log-group:/aws/emr-serverless/*"
+      },
+      {
+        Sid    = "GlueAccess"
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:CreateDatabase",
+          "glue:UpdateDatabase",
+          "glue:GetTable",
+          "glue:CreateTable",
+          "glue:UpdateTable",
+          "glue:GetPartition",
+          "glue:CreatePartition",
+          "glue:UpdatePartition",
+          "glue:DeletePartition"
+        ]
+        Resource = [
+          "arn:aws:glue:${var.aws_region}:*:catalog",
+          "arn:aws:glue:${var.aws_region}:*:database/*",
+          "arn:aws:glue:${var.aws_region}:*:table/*"
+        ]
+      },
+      {
+        Sid    = "SecretsManagerAccess"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${local.name_prefix}-*"
       }
     ]
   })
 }
 
-# EMR Serverless Application
-resource "aws_emrserverless_application" "spark_app" {
-  name         = "${var.project}-${var.environment}-spark-app"
-  release_label = "emr-6.15.0"
-  type         = "spark"
-
-  initial_capacity {
-    initial_capacity_type = "Driver"
-    initial_capacity_config {
-      worker_count = 1
-      worker_configuration {
-        cpu    = "2 vCPU"
-        memory = "4 GB"
-      }
+data "aws_iam_policy_document" "glue_trust" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["glue.amazonaws.com"]
     }
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "glue" {
+  name               = "${local.name_prefix}-glue"
+  assume_role_policy = data.aws_iam_policy_document.glue_trust.json
+}
+
+##############################################################
+# EMR Serverless application (Delta defaults)
+##############################################################
+resource "aws_emrserverless_application" "spark" {
+  name          = "${local.name_prefix}-spark"
+  release_label = "emr-7.1.0"
+  type          = "SPARK"
+
+  auto_start_configuration {
+    enabled = true
   }
 
-  initial_capacity {
-    initial_capacity_type = "Executor"
-    initial_capacity_config {
-      worker_count = 2
-      worker_configuration {
-        cpu    = "4 vCPU"
-        memory = "8 GB"
-      }
-    }
+  auto_stop_configuration {
+    enabled              = true
+    idle_timeout_minutes = 15
   }
 
-  maximum_capacity {
-    max_cpu    = "20 vCPU"
-    max_memory = "40 GB"
-  }
-
-  tags = local.common_tags
+  # Note: Spark configurations (Delta Lake, KMS) should be set at job runtime
+  # via spark-submit or job configuration parameters
 }
 
-# Glue Databases
-resource "aws_glue_catalog_database" "silver" {
-  name = "${var.project}_silver"
-
-  tags = merge(local.common_tags, {
-    Name = "Silver Database"
-  })
-}
-
-resource "aws_glue_catalog_database" "gold" {
-  name = "${var.project}_gold"
-
-  tags = merge(local.common_tags, {
-    Name = "Gold Database"
-  })
-}
-
-# Secrets Manager entries (placeholders)
-resource "aws_secretsmanager_secret" "salesforce_credentials" {
-  name                    = "${var.project}-${var.environment}-salesforce-credentials"
-  description             = "Salesforce API credentials"
-  recovery_window_in_days = 7
-
-  tags = local.common_tags
-}
-
-resource "aws_secretsmanager_secret_version" "salesforce_credentials" {
-  secret_id = aws_secretsmanager_secret.salesforce_credentials.id
-  secret_string = jsonencode({
-    username       = "your-salesforce-username"
-    password       = "your-salesforce-password"
-    security_token = "your-salesforce-token"
-    domain         = "login"
-  })
-}
-
-# CloudWatch Log Groups
-resource "aws_cloudwatch_log_group" "emr_serverless" {
-  name              = "/aws/emr-serverless/${aws_emrserverless_application.spark_app.id}"
-  retention_in_days = 14
-
-  tags = local.common_tags
-}
+##############################################################
+# (Intentionally omitted here to avoid duplicates)
+# - Glue DBs -> glue_catalog.tf
+# - Secrets  -> secrets.tf
+# - CW Logs & SNS -> cloudwatch.tf
+##############################################################
