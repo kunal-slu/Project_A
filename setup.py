@@ -4,10 +4,13 @@ Setup configuration for pyspark_interview_project package.
 """
 
 from setuptools import setup, find_packages
+import os
 
-# Read requirements
-with open("requirements.txt", "r") as f:
-    requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+# Read requirements - fallback to empty list if file doesn't exist
+requirements = []
+if os.path.exists("requirements.txt"):
+    with open("requirements.txt", "r") as f:
+        requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
 # Read long description from README
 try:
@@ -26,7 +29,7 @@ setup(
     python_requires=">=3.10",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    install_requires=requirements,
+    install_requires=requirements if requirements else [],  # Use empty list if no requirements.txt
     include_package_data=True,
     zip_safe=False,
     classifiers=[
