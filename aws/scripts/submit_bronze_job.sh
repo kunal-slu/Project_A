@@ -101,12 +101,16 @@ echo "Config: $CONFIG_S3_URI"
 echo "Environment: $ENV"
 echo ""
 
-# Submit job - template with consistent wheel path
+# Get lake bucket for monitoring config
+LAKE_BUCKET="${LAKE_BUCKET:-my-etl-lake-demo-424570854632}"
+
+# Submit job - template with consistent wheel path and monitoring
 RESPONSE=$(aws emr-serverless start-job-run \
   --application-id "${EMR_APP_ID}" \
   --execution-role-arn "${EMR_ROLE_ARN}" \
   --region $AWS_REGION \
   --profile $AWS_PROFILE \
+  --name "${ENV}-${JOB_NAME}" \
   --job-driver "{
     \"sparkSubmit\": {
       \"entryPoint\": \"${ENTRY_POINT}\",
@@ -114,7 +118,14 @@ RESPONSE=$(aws emr-serverless start-job-run \
         \"--env\", \"${ENV}\",
         \"--config\", \"${CONFIG_S3_URI}\"
       ],
-      \"sparkSubmitParameters\": \"--py-files s3://my-etl-artifacts-demo-424570854632/packages/project_a-0.1.0-py3-none-any.whl --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog\"
+      \"sparkSubmitParameters\": \"--packages io.delta:delta-core_2.12:2.4.0 --py-files s3://${ARTIFACTS_BUCKET}/packages/dependencies.zip,s3://${ARTIFACTS_BUCKET}/packages/project_a-0.1.0-py3-none-any.whl --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog\"
+    }
+  }" \
+  --configuration-overrides "{
+    \"monitoringConfiguration\": {
+      \"s3MonitoringConfiguration\": {
+        \"logUri\": \"s3://${LAKE_BUCKET}/logs/emr-serverless/\"
+      }
     }
   }" \
   --output json)

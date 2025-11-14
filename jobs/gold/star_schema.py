@@ -4,6 +4,8 @@ Gold Layer: Star Schema Builder
 Creates fact_sales, dim_product, dim_date with surrogate keys
 """
 import sys
+import argparse
+import tempfile
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -18,11 +20,46 @@ from pyspark_interview_project.config_loader import load_config_resolved
 
 def main():
     """Main entry point."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Silver to Gold star schema transformation job")
+    parser.add_argument("--env", default="dev", help="Environment (dev/prod)")
+    parser.add_argument("--config", help="Config file path (local or S3)")
+    args = parser.parse_args()
+    
     # Load config
-    config_path = Path("config/dev.yaml")
-    if not config_path.exists():
-        config_path = Path("config/prod.yaml")
-    config = load_config_resolved(str(config_path))
+    if args.config:
+        config_path = args.config
+        # If S3 path, read it using Spark's native S3 support
+        if config_path.startswith("s3://"):
+            from pyspark.sql import SparkSession
+            spark_temp = SparkSession.builder \
+                .appName("config_loader") \
+                .config("spark.sql.adaptive.enabled", "false") \
+                .getOrCreate()
+            try:
+                config_lines = spark_temp.sparkContext.textFile(config_path).collect()
+                config_content = "\n".join(config_lines)
+                tmp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8")
+                tmp_file.write(config_content)
+                tmp_file.close()
+                config_path = tmp_file.name
+            finally:
+                spark_temp.stop()
+        else:
+            config_path = str(Path(config_path))
+    else:
+        config_path = Path(f"config/{args.env}.yaml")
+        if not config_path.exists():
+            config_path = Path("config/prod.yaml")
+        if not config_path.exists():
+            config_path = Path("config/local.yaml")
+        config_path = str(config_path)
+    
+    config = load_config_resolved(config_path)
+    
+    # Ensure environment is set correctly for EMR
+    if not config.get("environment"):
+        config["environment"] = "emr"
     
     # Build Spark session
     spark = build_spark(config)

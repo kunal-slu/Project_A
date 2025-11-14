@@ -57,3 +57,12 @@ secrets/
 *.tfvars.bak
 main.tf.bak
 main.tf.fixed
+
+# Build artifacts (should be uploaded to S3, not committed)
+dependencies.zip
+.emr_deps/
+dist/emr_deps_pyyaml.zip
+
+# Terraform plan files
+*.tfplan
+*.tfstate*

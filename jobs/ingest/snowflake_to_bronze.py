@@ -13,6 +13,7 @@ P0 Features:
 import sys
 import logging
 import uuid
+import argparse
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
@@ -92,8 +93,22 @@ def extract_snowflake_orders_production(
             else:
                 logger.info("📌 No watermark found, performing full load")
         
-        # 2. EXTRACT: Read from Snowflake or local sample
-        if config.get('env') == 'dev' and config.get('environment') == 'local':
+        # 2. EXTRACT: Read from Snowflake, demo files, or local sample
+        # Note: demo_mode and demo_path will be passed from main() via config
+        demo_mode = config.get('demo_mode', False)
+        demo_path = config.get('demo_path')
+        
+        if demo_mode and demo_path:
+            # Demo mode: read from CSV files
+            logger.info(f"📦 Demo mode: Reading from {demo_path}")
+            if demo_path.startswith("s3://"):
+                # Read from S3
+                df = spark.read.option("header", "true").option("inferSchema", "true").csv(f"{demo_path}/*.csv")
+            else:
+                # Read from local path
+                df = spark.read.option("header", "true").option("inferSchema", "true").csv(f"{demo_path}/*.csv")
+            logger.info(f"✅ Loaded {df.count()} records from demo files")
+        elif config.get('env') == 'dev' and config.get('environment') == 'local':
             sample_path = config.get('paths', {}).get('snowflake_orders', 
                 "data/samples/snowflake/snowflake_orders_100000.csv")
             df = spark.read.option("header", "true").option("inferSchema", "true").csv(sample_path)
@@ -211,17 +226,74 @@ def extract_snowflake_orders_production(
 
 def main():
     """Main entry point for EMR job."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Snowflake to Bronze ingestion job")
+    parser.add_argument("--env", default="dev", help="Environment (dev/prod)")
+    parser.add_argument("--config", help="Config file path (local or S3)")
+    parser.add_argument("--demo", action="store_true", help="Use demo mode with CSV files")
+    parser.add_argument("--demo-path", help="Path to demo CSV files (S3 or local)")
+    args = parser.parse_args()
+    
     # Setup structured logging
     trace_id = get_trace_id()
     setup_json_logging(level="INFO", include_trace_id=True)
-    logger.info(f"Job started (trace_id={trace_id})")
+    logger.info(f"Job started (trace_id={trace_id}, env={args.env})")
     
     # Load configuration
-    config_path = Path("config/prod.yaml")
-    if not config_path.exists():
-        config_path = Path("config/local.yaml")
+    if args.config:
+        config_path = args.config
+        # If S3 path, read it using Spark's native S3 support (no boto3)
+        if config_path.startswith("s3://"):
+            logger.info(f"Reading config from S3 using Spark: {config_path}")
+            # Use Spark's textFile to read from S3 - no boto3 needed
+            from pyspark.sql import SparkSession
+            import tempfile
+            import yaml
+            
+            # Create minimal Spark session just for reading config
+            spark_temp = SparkSession.builder \
+                .appName("config_loader") \
+                .config("spark.sql.adaptive.enabled", "false") \
+                .getOrCreate()
+            
+            try:
+                # Read config file as text from S3 using Spark
+                config_lines = spark_temp.sparkContext.textFile(config_path).collect()
+                config_content = "\n".join(config_lines)
+                
+                # Write to temp file for load_config_resolved
+                tmp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8")
+                tmp_file.write(config_content)
+                tmp_file.close()
+                config_path = tmp_file.name
+                logger.info(f"Loaded config from S3: {args.config} -> {config_path}")
+            finally:
+                spark_temp.stop()
+        else:
+            # Local file path
+            config_path = str(Path(config_path))
+    else:
+        # Fallback to local files
+        config_path = Path(f"config/{args.env}.yaml")
+        if not config_path.exists():
+            config_path = Path("config/prod.yaml")
+        if not config_path.exists():
+            config_path = Path("config/local.yaml")
+        config_path = str(config_path)
     
-    config = load_config_resolved(str(config_path))
+    logger.info(f"Loading config from: {config_path}")
+    config = load_config_resolved(config_path)
+    
+    # Ensure environment is set correctly for EMR
+    if not config.get("environment"):
+        config["environment"] = "emr"
+        logger.info("Set environment=emr in config (was missing)")
+    
+    # Add demo mode flags to config if provided
+    if args.demo and args.demo_path:
+        config['demo_mode'] = True
+        config['demo_path'] = args.demo_path
+        logger.info(f"Demo mode enabled: {args.demo_path}")
     
     # Generate run ID
     run_id = str(uuid.uuid4())

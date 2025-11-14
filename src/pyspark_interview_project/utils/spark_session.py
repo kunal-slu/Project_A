@@ -35,7 +35,9 @@ def build_spark(app_name: str = "pyspark_interview_project", config: Dict = None
         builder = SparkSession.builder.appName(app_name)
         
         # Configure based on storage format
-        spark_env = os.getenv("SPARK_ENV", "local")
+        # Check environment variable first, then config file
+        spark_env = os.getenv("SPARK_ENV") or config.get("environment") or config.get("env") or "local"
+        logger.info(f"Detected Spark environment: {spark_env} (from SPARK_ENV={os.getenv('SPARK_ENV')}, config.environment={config.get('environment')}, config.env={config.get('env')})")
         
         if storage_format == "iceberg":
             # Configure Iceberg with Glue catalog
@@ -98,6 +100,8 @@ def build_spark(app_name: str = "pyspark_interview_project", config: Dict = None
         
         # Try to create real SparkSession
         try:
+            # Note: EMR Serverless handles event logging automatically
+            # Don't configure it here to avoid directory conflicts
             spark = builder.getOrCreate()
             logger.info("SparkSession with Delta Lake created successfully")
             
@@ -124,10 +128,15 @@ def build_spark(app_name: str = "pyspark_interview_project", config: Dict = None
             return spark
             
         except Exception as e:
+            # In EMR/production, fail fast - don't use mock session
+            if spark_env in {"emr", "prod", "aws"}:
+                logger.error(f"Failed to create SparkSession in {spark_env} environment: {str(e)}")
+                raise
+            
             logger.warning(f"Failed to create real SparkSession: {str(e)}")
-            logger.info("Creating mock SparkSession for testing purposes")
+            logger.info("Creating mock SparkSession for testing purposes (local only)")
 
-            # Create a mock Spark session for testing
+            # Create a mock Spark session for testing (local only)
             spark = MagicMock(spec=SparkSession)
             spark.version = "3.5.6"
             spark.conf = MagicMock()

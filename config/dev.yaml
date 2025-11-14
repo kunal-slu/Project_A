@@ -1,4 +1,5 @@
 env: dev
+environment: emr  # Set to 'emr' for EMR Serverless execution
 
 project_name: project-a
 
