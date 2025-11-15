@@ -36,6 +36,60 @@ paths:
   checkpoints_root: "s3://my-etl-lake-demo-424570854632/_checkpoints"
   dq_results_root:  "s3://my-etl-lake-demo-424570854632/_dq_results"
 
+# Source file definitions - single source of truth
+sources:
+  crm:
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/crm"
+    files:
+      accounts: "accounts.csv"
+      contacts: "contacts.csv"
+      opportunities: "opportunities.csv"
+  
+  redshift:
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/redshift"
+    files:
+      behavior: "redshift_customer_behavior_50000.csv"
+  
+  snowflake:
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes"
+    files:
+      customers: "snowflake_customers_50000.csv"
+      orders: "snowflake_orders_100000.csv"
+      products: "snowflake_products_10000.csv"
+  
+  fx:
+    type: json
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/fx"
+    raw_path: "s3://my-etl-lake-demo-424570854632/bronze/fx/json/"
+    bronze_path: "s3://my-etl-lake-demo-424570854632/bronze/fx/delta/"
+    silver_path: "s3://my-etl-lake-demo-424570854632/silver/fx/"
+    files:
+      daily_rates: "fx_rates_historical_730_days.csv"
+      daily_rates_json: "fx_rates_historical.json"  # JSON Lines format
+    base_currency: "USD"
+    expected_currencies: ["USD", "EUR", "GBP", "JPY", "INR", "CHF", "CAD", "AUD", "CNY"]
+  
+  kafka_sim:
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/kafka"
+    files:
+      orders_seed: "stream_kafka_events_100000.csv"
+
+# Table name definitions for Silver and Gold layers
+tables:
+  silver:
+    customers: "customers_silver"
+    orders: "orders_silver"
+    products: "products_silver"
+    behavior: "customer_behavior_silver"
+    fx_rates: "fx_rates_silver"
+    order_events: "order_events_silver"
+  
+  gold:
+    fact_orders: "fact_orders"
+    dim_customer: "dim_customer"
+    dim_product: "dim_product"
+    fact_customer_24m: "fact_customer_24m"
+
 dq:
   mode: "strict"           # stop pipeline on critical failures
   fail_on_error: true
@@ -52,7 +106,8 @@ sla:
   silver_ready_by: "03:15"
   gold_ready_by: "04:00"
 
-sources:
+# Legacy source connection configs (for live connections)
+source_connections:
   snowflake:
     secret_name: "project-a-dev/snowflake/conn"
     default_warehouse: "DEV_WH"
@@ -70,3 +125,22 @@ sources:
 
   fx_api:
     secret_name: "project-a-dev/fx/conn"
+
+# Sink configurations (dual sink: S3 + Snowflake)
+sinks:
+  snowflake:
+    enabled: true
+    account: "${SNOWFLAKE_ACCOUNT}"  # e.g., "xy12345.us-east-1"
+    user: "PROJECT_A_INGEST"
+    password_secret_name: "/project-a/dev/snowflake/password"  # AWS Secrets Manager
+    role: "DATA_ENG_ROLE"
+    warehouse: "WH_DATA_ENG"
+    database: "PROJECT_A"
+    schema: "ANALYTICS"
+    tables:
+      fact_orders: "FACT_ORDERS_DAILY"
+      dim_customer: "DIM_CUSTOMER"
+      dim_product: "DIM_PRODUCT"
+      customer_360: "CUSTOMER_360"
+    # Snowflake Spark connector options
+    connector_jar: "net.snowflake:snowflake-jdbc:3.13.29,net.snowflake:spark-snowflake_2.12:2.12.0-spark_3.3"

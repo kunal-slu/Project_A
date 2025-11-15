@@ -17,8 +17,9 @@ from typing import Any, Dict
 
 import yaml
 
-# Matches ${ENV:VAR} or ${SECRET:scope:key}
+# Matches ${ENV:VAR} or ${SECRET:scope:key} or ${paths.bronze_root} style variable references
 _SECRET_PATTERN = re.compile(r"\$\{(ENV|SECRET):([^}:]+)(?::([^}]+))?\}")
+_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
 
 class ConfigLoader:
@@ -89,11 +90,12 @@ def _get_dbutils():
             return None
 
 
-def _resolve_value(value: Any, dbutils) -> Any:
+def _resolve_value(value: Any, dbutils, config: Dict[str, Any] = None) -> Any:
     if not isinstance(value, str):
         return value
 
-    def replace(match: re.Match) -> str:
+    # First resolve secrets (ENV: and SECRET:)
+    def replace_secret(match: re.Match) -> str:
         kind = match.group(1)
         p1 = match.group(2)
         p2 = match.group(3)
@@ -108,15 +110,41 @@ def _resolve_value(value: Any, dbutils) -> Any:
             return ""
         return match.group(0)
 
-    return _SECRET_PATTERN.sub(replace, value)
+    value = _SECRET_PATTERN.sub(replace_secret, value)
+
+    # Then resolve config variable references (${paths.bronze_root})
+    def replace_var(match: re.Match) -> str:
+        var_path = match.group(1)
+        if config:
+            try:
+                # Support nested paths like paths.bronze_root
+                parts = var_path.split(".")
+                result = config
+                for part in parts:
+                    if isinstance(result, dict):
+                        result = result.get(part)
+                    else:
+                        return match.group(0)  # Return original if path invalid
+                if result is not None:
+                    return str(result)
+            except Exception:
+                pass
+        return match.group(0)  # Return original if not found
+
+    return _VAR_PATTERN.sub(replace_var, value)
 
 
-def _resolve_secrets(obj: Any, dbutils) -> Any:
+def _resolve_secrets(obj: Any, dbutils, config: Dict[str, Any] = None) -> Any:
     if isinstance(obj, dict):
-        return {k: _resolve_secrets(v, dbutils) for k, v in obj.items()}
+        # Pass config to nested resolution
+        resolved = {k: _resolve_secrets(v, dbutils, config) for k, v in obj.items()}
+        # Update config reference for variable substitution
+        if config is None:
+            config = resolved
+        return resolved
     if isinstance(obj, list):
-        return [_resolve_secrets(v, dbutils) for v in obj]
-    return _resolve_value(obj, dbutils)
+        return [_resolve_secrets(v, dbutils, config) for v in obj]
+    return _resolve_value(obj, dbutils, config)
 
 
 def load_config_resolved(
@@ -145,4 +173,6 @@ def load_config_resolved(
         cfg = yaml.safe_load(f)
 
     dbutils = _get_dbutils()
-    return _resolve_secrets(cfg, dbutils)
+    # First pass: resolve secrets, second pass: resolve variable references
+    cfg = _resolve_secrets(cfg, dbutils, cfg)
+    return cfg

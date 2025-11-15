@@ -1,171 +1,74 @@
-# Makefile - Developer convenience targets
+.PHONY: help lint lint-fix test test-integration test-contracts test-dags package deploy-dev clean
 
-.PHONY: help venv install dev test run-local dq-check airflow-check terraform-init terraform-validate terraform-plan catalog-register
-
-help:
+help: ## Show this help message
 	@echo "Available targets:"
-	@echo "  install            Install base dependencies"
-	@echo "  dev                Install dev dependencies"
-	@echo "  test               Run tests"
-	@echo "  run-local          Run local end-to-end pipeline"
-	@echo "  dq-check           Run data quality checks"
-	@echo "  airflow-check      Validate Airflow DAG imports"
-	@echo "  terraform-init     Terraform init in aws/terraform"
-	@echo "  terraform-validate Terraform validate in aws/terraform"
-	@echo "  terraform-plan     Terraform plan in aws/terraform"
-	@echo "  catalog-register   Register Glue tables from Silver"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-venv:
-	python3 -m venv venv
-	. venv/bin/activate && pip install -U pip
+lint: ## Run all linting checks
+	@echo "🔍 Running linting checks..."
+	ruff check src jobs aws/dags
+	ruff format --check src jobs aws/dags
+	mypy src/pyspark_interview_project || true
+	@echo "✅ Linting complete"
 
-install:
-	pip install -r requirements.txt
+lint-fix: ## Auto-fix linting issues
+	@echo "🔧 Fixing linting issues..."
+	ruff check --fix src jobs aws/dags
+	ruff format src jobs aws/dags
+	@echo "✅ Linting fixes applied"
 
-dev:
-	pip install -r requirements-dev.txt || true
+test: ## Run all unit tests
+	@echo "🧪 Running unit tests..."
+	pytest -q tests/ --ignore=tests/integration
+	@echo "✅ Unit tests complete"
 
-TEST_FLAGS ?= -q
+test-integration: ## Run integration tests
+	@echo "🧪 Running integration tests..."
+	pytest -q tests/integration/
+	@echo "✅ Integration tests complete"
 
-test:
-	pytest $(TEST_FLAGS)
+test-contracts: ## Run contract validation tests
+	@echo "📋 Running contract tests..."
+	pytest -q tests/test_contracts_all_sources.py
+	@echo "✅ Contract tests complete"
 
-export PYTHONPATH := $(PWD)/src:$(PYTHONPATH)
+test-dags: ## Test Airflow DAG imports
+	@echo "🪶 Testing Airflow DAGs..."
+	pytest -q tests/test_dags_import.py
+	@echo "✅ DAG tests complete"
 
-run-local:
-	python scripts/local/run_pipeline.py --config config/dev.yaml --phase all
+test-all: test test-integration test-contracts test-dags ## Run all tests
 
-DQ_CONFIG ?= config/dev.yaml
+package: ## Build Python wheel package
+	@echo "📦 Building package..."
+	python -m build
+	@echo "✅ Package built: dist/project_a-*.whl"
 
-dq-check:
-	python aws/jobs/transform/dq_check_bronze.py || true
-	python aws/jobs/transform/dq_check_silver.py || true
+terraform-fmt: ## Format Terraform files
+	@echo "🔧 Formatting Terraform..."
+	cd aws/terraform && terraform fmt -recursive
+	@echo "✅ Terraform formatted"
 
-airflow-check:
-	python - <<'PY'
-import pkgutil
-import sys
-from pathlib import Path
-base = Path('dags')
-failed = False
-for p in base.rglob('*.py'):
-    if any(x in str(p) for x in ('development/archive', '__pycache__')):
-        continue
-    try:
-        mod_path = 'dags.' + p.with_suffix('').as_posix().replace('/', '.')
-        __import__(mod_path)
-        print(f"OK  {p}")
-    except Exception as e:
-        print(f"FAIL {p}: {e}")
-        failed = True
-sys.exit(1 if failed else 0)
-PY
+terraform-validate: ## Validate Terraform configuration
+	@echo "✅ Validating Terraform..."
+	cd aws/terraform && terraform init && terraform validate
+	@echo "✅ Terraform validation complete"
 
-terraform-init:
-	cd aws/terraform && terraform init
+terraform-plan: ## Show Terraform plan
+	@echo "📋 Generating Terraform plan..."
+	cd aws/terraform && terraform plan -var-file=env/dev.tfvars
+	@echo "✅ Terraform plan complete"
 
-terraform-validate:
-	cd aws/terraform && terraform validate
+deploy-dev: terraform-validate ## Deploy to dev environment
+	@echo "🚀 Deploying to dev..."
+	cd aws/terraform && terraform apply -var-file=env/dev.tfvars
+	@echo "✅ Deployment complete"
 
-terraform-plan:
-	cd aws/terraform && terraform plan
+clean: ## Clean build artifacts
+	@echo "🧹 Cleaning..."
+	rm -rf dist/ build/ *.egg-info/
+	find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete
+	@echo "✅ Clean complete"
 
-GLUE_DB ?= silver
-GLUE_ROOT ?= s3://bucket/silver
-
-catalog-register:
-	python aws/scripts/utilities/register_glue_tables.py --db $(GLUE_DB) --root $(GLUE_ROOT)
-
-.PHONY: fmt lint type test unit it docs wheel run-simple run-local dq-check airflow-check terraform-init terraform-validate terraform-plan catalog-register
-
-fmt:        ## Format code
-	black src/ tests/ aws/jobs/ dags/
-	isort src/ tests/ aws/jobs/ dags/
-	ruff format src/ tests/ aws/jobs/ dags/
-
-lint:       ## Lint code
-	ruff check src/ tests/ aws/jobs/ dags/
-	yamllint config/ aws/emr_configs/ || true
-	python3 << 'PYEOF'
-import json
-import yaml
-import jsonschema
-
-with open('config/config.schema.json') as f:
-    schema = json.load(f)
-
-for config_file in ['config/prod.yaml', 'config/dev.yaml']:
-    try:
-        with open(config_file) as f:
-            config = yaml.safe_load(f)
-        jsonschema.validate(config, schema)
-        print(f"✓ {config_file} is valid")
-    except Exception as e:
-        print(f"✗ {config_file} failed: {e}")
-        exit(1)
-PYEOF
-
-type:       ## Type-check with mypy
-	mypy src/ --ignore-missing-imports || true
-
-test: unit  ## All tests
-
-unit:       ## Unit tests
-	pytest -q -m "not integration" --cov=src --cov-report=term-missing
-
-it:         ## Integration tests
-	pytest -q -m "integration" --cov=src --cov-report=term-missing
-
-docs:       ## Generate documentation
-	@echo "Documentation is in docs/ directory"
-
-wheel:      ## Build wheel package
-	python -m build --wheel
-	@echo "Wheel built in dist/"
-
-run-simple: ## Local CSV→Delta smoke test
-	python scripts/local/run_pipeline.py --config config/local.yaml --phase bronze_silver
-
-run-local:  ## Full local run
-	python scripts/local/run_pipeline.py --config config/local.yaml --phase all
-
-dq-check:   ## Run data quality checks
-	python aws/jobs/transform/dq_check_bronze.py --config config/dev.yaml || true
-	python aws/jobs/transform/dq_check_silver.py --config config/dev.yaml || true
-
-airflow-check:  ## Validate Airflow DAG imports
-	python - <<'PY'
-import sys
-from pathlib import Path
-base = Path('dags')
-failed = False
-for p in base.rglob('*.py'):
-    if '__pycache__' in str(p):
-        continue
-    try:
-        mod_path = 'dags.' + p.with_suffix('').as_posix().replace('/', '.')
-        __import__(mod_path)
-        print(f"OK  {p}")
-    except Exception as e:
-        print(f"FAIL {p}: {e}")
-        failed = True
-sys.exit(1 if failed else 0)
-PY
-
-terraform-init:
-	cd aws/terraform && terraform init
-
-terraform-validate:
-	cd aws/terraform && terraform validate
-
-terraform-plan:
-	cd aws/terraform && terraform plan
-
-GLUE_DB ?= silver
-GLUE_ROOT ?= s3://bucket/silver
-
-catalog-register:
-	python aws/scripts/utilities/register_glue_tables.py --db $(GLUE_DB) --root $(GLUE_ROOT)
-
-help:       ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+all: lint test-all package ## Run lint, tests, and build package

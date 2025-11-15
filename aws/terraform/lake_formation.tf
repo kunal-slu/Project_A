@@ -1,15 +1,45 @@
 # Lake Formation Permissions
 # Implements tiered access control for Bronze/Silver/Gold layers
 
+variable "enable_lake_formation" {
+  description = "Enable Lake Formation governance"
+  type        = bool
+  default     = true
+}
+
 resource "aws_lakeformation_data_lake_settings" "main" {
+  count = var.enable_lake_formation ? 1 : 0
+
   admins = [
-    aws_iam_role.emr_exec.arn
-    # Note: Add additional admin roles/users here once they exist in your AWS account
-    # "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/DataEngineerRole"
+    aws_iam_role.emr_exec.arn,
+    # Add current user/role as admin
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
   ]
 
   # Note: Default permissions are set per database/table via aws_lakeformation_permissions
   # Default permissions blocks only support IAM users, not roles
+}
+
+# Register S3 data locations with Lake Formation
+resource "aws_lakeformation_resource" "bronze" {
+  count = var.enable_lake_formation ? 1 : 0
+
+  arn      = "${aws_s3_bucket.data_lake.arn}/bronze"
+  role_arn = aws_iam_role.emr_exec.arn
+}
+
+resource "aws_lakeformation_resource" "silver" {
+  count = var.enable_lake_formation ? 1 : 0
+
+  arn      = "${aws_s3_bucket.data_lake.arn}/silver"
+  role_arn = aws_iam_role.emr_exec.arn
+}
+
+resource "aws_lakeformation_resource" "gold" {
+  count = var.enable_lake_formation ? 1 : 0
+
+  arn      = "${aws_s3_bucket.data_lake.arn}/gold"
+  role_arn = aws_iam_role.emr_exec.arn
 }
 
 # Bronze Layer Permissions (Data Engineers only)

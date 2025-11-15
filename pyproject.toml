@@ -64,6 +64,7 @@ test = [
 projecta = "project_a.cli:main"
 etl-pipeline = "project_a.cli:etl_main"
 data-quality = "project_a.cli:dq_main"
+run-pipeline = "project_a.pipeline.run_pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

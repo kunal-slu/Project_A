@@ -1,95 +1,85 @@
-# Dataset registry for data lineage tracking.
-# Maps logical dataset names to physical locations and schemas.
+# Lineage Configuration for OpenLineage/Marquez
+# This configures data lineage tracking for the ETL pipeline
 
-# Lineage configuration
+# Enable/disable lineage emission
 enabled: true
-url: ${OPENLINEAGE_URL:-http://localhost:5000}  # OpenLineage backend URL
-namespace: ${OPENLINEAGE_NAMESPACE:-data-platform}
 
+# Backend type: "marquez" or "openlineage"
+backend: "openlineage"
+
+# Backend URL (replace with your actual Marquez/OpenLineage URL)
+# For local testing: http://localhost:5000
+# For production: https://your-marquez-instance.com
+url: "${OPENLINEAGE_URL:-http://localhost:5000}"
+
+# Namespace for lineage events
+namespace: "project_a_dev"
+
+# Optional API key for secured backends
+api_key: "${OPENLINEAGE_API_KEY:-}"
+
+# Dataset registry (optional - for reference)
 datasets:
   # Bronze layer
-  - name: bronze.behavior
-    location: s3://my-etl-lake-demo/bronze/redshift/behavior
-    schema: config/schema_definitions/redshift_behavior_bronze.json
-    layer: bronze
-    source: redshift
-    table: customer_behavior
-    
-  - name: bronze.crm_accounts
-    location: s3://my-etl-lake-demo/bronze/crm/accounts
-    schema: config/schema_definitions/crm_accounts_bronze.json
+  - name: bronze.crm.accounts
+    location: s3://my-etl-lake-demo-424570854632/bronze/crm/accounts
     layer: bronze
     source: crm
-    table: accounts
     
-  - name: bronze.crm_contacts
-    location: s3://my-etl-lake-demo/bronze/crm/contacts
-    schema: config/schema_definitions/crm_contacts_bronze.json
-    layer: bronze
-    source: crm
-    table: contacts
-    
-  - name: bronze.snowflake_orders
-    location: s3://my-etl-lake-demo/bronze/snowflake/orders
-    schema: config/schema_definitions/snowflake_orders_bronze.json
+  - name: bronze.snowflake.customers
+    location: s3://my-etl-lake-demo-424570854632/bronze/snowflakes/customers
     layer: bronze
     source: snowflake
-    table: orders
     
-  - name: bronze.fx_rates
-    location: s3://my-etl-lake-demo/bronze/fx/rates
-    schema: config/schema_definitions/fx_rates_bronze.json
+  - name: bronze.snowflake.orders
+    location: s3://my-etl-lake-demo-424570854632/bronze/snowflakes/orders
+    layer: bronze
+    source: snowflake
+    
+  - name: bronze.redshift.behavior
+    location: s3://my-etl-lake-demo-424570854632/bronze/redshift/behavior
+    layer: bronze
+    source: redshift
+    
+  - name: bronze.fx.rates
+    location: s3://my-etl-lake-demo-424570854632/bronze/fx/delta
     layer: bronze
     source: fx
-    table: rates
     
   # Silver layer
+  - name: silver.customers
+    location: s3://my-etl-lake-demo-424570854632/silver/customers_silver
+    layer: silver
+    
+  - name: silver.orders
+    location: s3://my-etl-lake-demo-424570854632/silver/orders_silver
+    layer: silver
+    
+  - name: silver.products
+    location: s3://my-etl-lake-demo-424570854632/silver/products_silver
+    layer: silver
+    
   - name: silver.behavior
-    location: s3://my-etl-lake-demo/silver/behavior
-    schema: config/schema_definitions/behavior_silver.json
+    location: s3://my-etl-lake-demo-424570854632/silver/customer_behavior_silver
     layer: silver
-    source: redshift
-    table: behavior
-    
-  - name: silver.crm_accounts
-    location: s3://my-etl-lake-demo/silver/crm/accounts
-    schema: config/schema_definitions/crm_accounts_silver.json
-    layer: silver
-    source: crm
-    table: accounts
-    
-  - name: silver.crm_contacts
-    location: s3://my-etl-lake-demo/silver/crm/contacts
-    schema: config/schema_definitions/crm_contacts_silver.json
-    layer: silver
-    source: crm
-    table: contacts
-    
-  - name: silver.snowflake_orders
-    location: s3://my-etl-lake-demo/silver/snowflake/orders
-    schema: config/schema_definitions/orders_silver.json
-    layer: silver
-    source: snowflake
-    table: orders
     
   - name: silver.fx_rates
-    location: s3://my-etl-lake-demo/silver/fx/rates
-    schema: config/schema_definitions/fx_rates_silver.json
+    location: s3://my-etl-lake-demo-424570854632/silver/fx_rates_silver
     layer: silver
-    source: fx
-    table: rates
     
   # Gold layer
-  - name: gold.customer_360
-    location: s3://my-etl-lake-demo/gold/customer_360
-    schema: config/schema_definitions/customer_360_gold.json
+  - name: gold.fact_orders
+    location: s3://my-etl-lake-demo-424570854632/gold/fact_orders
     layer: gold
-    source: derived
-    table: customer_360
     
-  - name: gold.product_perf_daily
-    location: s3://my-etl-lake-demo/gold/product_perf_daily
-    schema: config/schema_definitions/product_perf_daily_gold.json
+  - name: gold.dim_customer
+    location: s3://my-etl-lake-demo-424570854632/gold/dim_customer
     layer: gold
-    source: derived
-    table: product_perf_daily
+    
+  - name: gold.dim_product
+    location: s3://my-etl-lake-demo-424570854632/gold/dim_product
+    layer: gold
+    
+  - name: gold.customer_360
+    location: s3://my-etl-lake-demo-424570854632/gold/customer_360
+    layer: gold

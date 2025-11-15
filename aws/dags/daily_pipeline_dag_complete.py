@@ -6,19 +6,51 @@ from airflow import DAG
 from airflow.providers.amazon.aws.operators.emr import EmrServerlessStartJobRunOperator
 from airflow.providers.amazon.aws.sensors.emr import EmrServerlessJobSensor
 from airflow.operators.python import PythonOperator
+from airflow.models import Variable
 from datetime import datetime, timedelta
 from airflow.utils.task_group import TaskGroup
 import boto3
 import json
 
+def notify_failure(context):
+    """Failure callback - sends notification on task failure."""
+    from airflow.utils.email import send_email
+    
+    dag_id = context["dag"].dag_id
+    task_id = context["task_instance"].task_id
+    execution_date = context["execution_date"]
+    
+    msg = f"""
+    <h2>Pipeline Failure Alert</h2>
+    <p><strong>DAG:</strong> {dag_id}</p>
+    <p><strong>Task:</strong> {task_id}</p>
+    <p><strong>Execution Date:</strong> {execution_date}</p>
+    <p><strong>Log URL:</strong> {context.get('task_instance').log_url}</p>
+    """
+    
+    # In production, you'd also send to SNS/Slack here
+    # For now, email notification
+    try:
+        send_email(
+            to=["data-eng-oncall@example.com"],
+            subject=f"Pipeline Failure: {dag_id}.{task_id}",
+            html_content=msg
+        )
+        print(f"✅ Sent failure notification for {dag_id}.{task_id}")
+    except Exception as e:
+        print(f"⚠️  Failed to send notification: {e}")
+
+
 default_args = {
-    "owner": "data-engineering",
+    "owner": "data-platform",
     "depends_on_past": False,
-    "email_on_failure": True,
+    "email_on_failure": False,  # Use callback instead
     "email_on_retry": False,
     "retries": 2,
     "retry_delay": timedelta(minutes=5),
-    "email": ["data-engineering@example.com"]
+    "retry_exponential_backoff": True,  # Exponential backoff
+    "max_retry_delay": timedelta(minutes=30),
+    "on_failure_callback": notify_failure,
 }
 
 
@@ -139,15 +171,55 @@ with DAG(
                 }
             }
         )
+        
+        extract_fx_json = EmrServerlessStartJobRunOperator(
+            task_id="extract_fx_json_to_bronze",
+            application_id="{{ var.value.emr_app_id }}",
+            execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+            job_driver={
+                "sparkSubmit": {
+                    "entryPoint": "s3://{{ var.value.artifacts_bucket }}/packages/project_a-0.1.0-py3-none-any.whl",
+                    "entryPointArguments": [
+                        "--job", "fx_json_to_bronze",
+                        "--env", "{{ var.value.project_a_env | default('dev') }}",
+                        "--config", "s3://{{ var.value.artifacts_bucket }}/config/dev.yaml"
+                    ],
+                    "sparkSubmitParameters": " ".join([
+                        "--packages",
+                        "io.delta:delta-core_2.12:2.4.0",
+                        "--py-files",
+                        f"s3://{{{{ var.value.artifacts_bucket }}}}/packages/dependencies.zip",
+                        "--conf",
+                        "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension",
+                        "--conf",
+                        "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                    ])
+                }
+            },
+            configuration_overrides={
+                "monitoringConfiguration": {
+                    "s3MonitoringConfiguration": {
+                        "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                    }
+                }
+            },
+            execution_timeout=timedelta(hours=2),
+            sla=timedelta(minutes=30)  # SLA: must complete within 30 minutes
+        )
     
-    # Transform: Bronze → Silver
+    # Transform: Bronze → Silver (with SLA)
     bronze_to_silver = EmrServerlessStartJobRunOperator(
         task_id="bronze_to_silver",
         application_id="{{ var.value.emr_app_id }}",
         execution_role_arn="{{ var.value.emr_exec_role_arn }}",
         job_driver={
             "sparkSubmit": {
-                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/jobs/transform/bronze_to_silver.py",
+                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/packages/project_a-0.1.0-py3-none-any.whl",
+                "entryPointArguments": [
+                    "--job", "bronze_to_silver",
+                    "--env", "{{ var.value.project_a_env | default('dev') }}",
+                    "--config", "s3://{{ var.value.artifacts_bucket }}/config/dev.yaml"
+                ],
                 "sparkSubmitParameters": "--conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
             }
         },
@@ -157,7 +229,9 @@ with DAG(
                     "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
                 }
             }
-        }
+        },
+        sla=timedelta(minutes=45),  # SLA: must complete within 45 minutes
+        execution_timeout=timedelta(hours=2)
     )
     
     # DQ Gate (hard stop on critical failures)
@@ -226,5 +300,43 @@ with DAG(
         python_callable=register_all_glue_tables
     )
     
+    # Publish Gold to Snowflake (using MERGE pattern)
+    publish_gold_to_snowflake = EmrServerlessStartJobRunOperator(
+        task_id="publish_gold_to_snowflake",
+        application_id="{{ var.value.emr_app_id }}",
+        execution_role_arn="{{ var.value.emr_exec_role_arn }}",
+        job_driver={
+            "sparkSubmit": {
+                "entryPoint": "s3://{{ var.value.artifacts_bucket }}/packages/project_a-0.1.0-py3-none-any.whl",
+                "entryPointArguments": [
+                    "--job", "publish_gold_to_snowflake",
+                    "--env", "{{ var.value.project_a_env | default('dev') }}",
+                    "--config", "s3://{{ var.value.artifacts_bucket }}/config/dev.yaml",
+                    "--table", "fact_orders",
+                    "--mode", "merge"
+                ],
+                "sparkSubmitParameters": " ".join([
+                    "--packages",
+                    "io.delta:delta-core_2.12:2.4.0,net.snowflake:spark-snowflake_2.12:2.12.0-spark_3.3",
+                    "--py-files",
+                    f"s3://{{{{ var.value.artifacts_bucket }}}}/packages/dependencies.zip",
+                    "--conf",
+                    "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension",
+                    "--conf",
+                    "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                ])
+            }
+        },
+        configuration_overrides={
+            "monitoringConfiguration": {
+                "s3MonitoringConfiguration": {
+                    "logUri": "s3://{{ var.value.artifacts_bucket }}/emr-logs/"
+                }
+            }
+        },
+        execution_timeout=timedelta(hours=1),
+        sla=timedelta(minutes=60)  # SLA: must complete within 60 minutes
+    )
+    
     # Task dependencies
-    extract_group >> bronze_to_silver >> dq_gate_silver >> [silver_to_gold_scd2, silver_to_gold_star] >> register_glue
+    extract_group >> bronze_to_silver >> dq_gate_silver >> [silver_to_gold_scd2, silver_to_gold_star] >> register_glue >> publish_gold_to_snowflake
