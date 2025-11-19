@@ -24,22 +24,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F, types as T
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.path_resolver import resolve_path
-from pyspark_interview_project.utils.contracts import (
+from project_a.utils.spark_session import build_spark
+from project_a.utils.path_resolver import resolve_path
+from project_a.utils.contracts import (
     load_schema_contract,
     contract_to_struct_type,
     align_to_schema,
     validate_and_quarantine,
     add_metadata_columns
 )
-from pyspark_interview_project.utils.error_lanes import ErrorLaneHandler, add_row_id
-from pyspark_interview_project.utils.state_store import get_state_store
-from pyspark_interview_project.utils.secrets import get_snowflake_credentials
-from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
-from pyspark_interview_project.monitoring.metrics_collector import emit_rowcount, emit_duration
-from pyspark_interview_project.utils.logging import setup_json_logging, get_trace_id
-from pyspark_interview_project.config_loader import load_config_resolved
+from project_a.utils.error_lanes import ErrorLaneHandler, add_row_id
+from project_a.utils.state_store import get_state_store
+from project_a.utils.secrets import get_snowflake_credentials
+from project_a.monitoring.lineage_decorator import lineage_job
+from project_a.monitoring.metrics_collector import emit_rowcount, emit_duration
+from project_a.utils.logging import setup_json_logging, get_trace_id
+from project_a.config_loader import load_config_resolved
 
 import yaml
 import time

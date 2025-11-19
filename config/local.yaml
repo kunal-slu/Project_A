@@ -1,77 +1,137 @@
-# Local Development Configuration
-# Single source of truth for local pipeline execution
-
 env: local
-cloud: local
+environment: local  # Set to 'local' for local execution
 
-# AWS Configuration
+project_name: project-a
+
 aws:
   region: us-east-1
-  lake_bucket: my-etl-lake-demo
-  code_bucket: my-etl-code-demo
-  glue_catalog_db: bronze  # Used in register_glue_tables
+  account_id: "424570854632"
+  kms_key_arn: "arn:aws:kms:us-east-1:424570854632:key/66576e98-a4e4-4b87-8b61-4357c39d0886"
 
-# Redshift Configuration (disabled for local)
-redshift:
-  enabled: false  # Local should NOT try COPY
-  database: dev
-  schema: public
-  iam_role: ""  # Not used in local
+buckets:
+  lake: "my-etl-lake-demo-424570854632"
+  artifacts: "my-etl-artifacts-demo-424570854632"
+  logs: "my-etl-logs-demo-424570854632"
+  code: "my-etl-code-demo-424570854632"
 
-# Snowflake Configuration (disabled for local)
-snowflake:
-  enabled: false
-  warehouse: ""
-  database: ""
-  schema: ""
+glue:
+  bronze_db: "project-a_bronze_dev"
+  silver_db: "project-a_silver_dev"
+  gold_db: "project-a_gold_dev"
 
-# Unified Paths - Single Source of Truth
-# Use lake:// prefix that resolves to actual storage
+emr:
+  application_id: "00g0tm6kccmdcf09"
+  execution_role_arn: "arn:aws:iam::424570854632:role/project-a-dev-emr-exec"
+  driver:
+    cores: 2
+    memory: "4G"
+  executor:
+    cores: 2
+    memory: "8G"
+
+# Local file paths (use file:// for local execution)
 paths:
-  bronze: lake://bronze   # Resolves to s3:// in prod, data/lakehouse_delta/bronze in local
-  silver: lake://silver
-  gold: lake://gold
+  bronze_root: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze"
+  silver_root: "file:///Users/kunal/IdeaProjects/Project_A/data/silver"
+  gold_root: "file:///Users/kunal/IdeaProjects/Project_A/data/gold"
+  checkpoints_root: "file:///Users/kunal/IdeaProjects/Project_A/data/checkpoints"
+  dq_results_root: "file:///Users/kunal/IdeaProjects/Project_A/data/_dq_results"
 
-# DQ Configuration
-dq:
-  config_file: config/dq.yaml
-  enabled: true
-  strict_mode: false  # More lenient for local dev
-
-# Lineage Configuration
-lineage:
-  config_file: config/lineage.yaml
-  enabled: false  # Disable lineage in local for speed
-
-# Spark Runtime Configuration
-spark:
-  app_name: pyspark_interview_project_local
-  master: local[*]
-  shuffle_partitions: 200
-  enable_aqe: true
-  driver_memory: 2g
-  executor_memory: 4g
-
-# Storage Configuration
-storage:
-  warehouse: data/lakehouse_delta
-  format: delta  # delta | iceberg | parquet
-  catalog: glue_catalog
-
-# Data Lake Paths (derived from paths above)
-data_lake:
-  bucket: null
-  state_prefix: _state
-  bronze_path: data/lakehouse_delta/bronze
-  silver_path: data/lakehouse_delta/silver
-  gold_path: data/lakehouse_delta/gold
-  dq_results_path: data/lakehouse_delta/_dq_results
-
-# Local source file paths (for local testing)
+# Source file definitions - pointing to local sample data
 sources:
-  snowflake_orders: data/input_data/snowflake_orders_100000.csv
-  redshift_behavior: data/input_data/redshift_customer_behavior_50000.csv
-  fx_rates: data/input_data/fx_rates_historical_730_days.csv
-  crm_accounts: data/input_data/accounts.csv
-  crm_contacts: data/input_data/contacts.csv
-  crm_opportunities: data/input_data/opportunities.csv
+  crm:
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/crm"
+    files:
+      accounts: "accounts.csv"
+      contacts: "contacts.csv"
+      opportunities: "opportunities.csv"
+  
+  redshift:
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/redshift"
+    files:
+      behavior: "redshift_customer_behavior_50000.csv"
+  
+  snowflake:
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/snowflake"
+    files:
+      customers: "snowflake_customers_50000.csv"
+      orders: "snowflake_orders_100000.csv"
+      products: "snowflake_products_10000.csv"
+  
+  fx:
+    type: json
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/fx"
+    raw_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/fx"
+    bronze_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/fx/delta"
+    silver_path: "file:///Users/kunal/IdeaProjects/Project_A/data/silver/fx"
+    files:
+      daily_rates: "fx_rates_historical_730_days.csv"
+      daily_rates_json: "fx_rates_historical.json"
+    base_currency: "USD"
+    expected_currencies: ["USD", "EUR", "GBP", "JPY", "INR", "CHF", "CAD", "AUD", "CNY"]
+  
+  kafka_sim:
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/kafka"
+    files:
+      orders_seed: "stream_kafka_events_100000.csv"
+
+# Table name definitions for Silver and Gold layers
+tables:
+  silver:
+    customers: "customers_silver"
+    orders: "orders_silver"
+    products: "products_silver"
+    behavior: "customer_behavior_silver"
+    fx_rates: "fx_rates_silver"
+    order_events: "order_events_silver"
+  
+  gold:
+    fact_orders: "fact_orders"
+    dim_customer: "dim_customer"
+    dim_product: "dim_product"
+    fact_customer_24m: "fact_customer_24m"
+
+dq:
+  mode: "strict"
+  fail_on_error: true
+  alert_on_warning: true
+
+sinks:
+  redshift:
+    jdbc_url: "jdbc:redshift://HOST:5439/DB"
+    user: "redshift_user"
+    password: "******"
+  snowflake:
+    url: "account.snowflakecomputing.com"
+    user: "SF_USER"
+    password: "******"
+    database: "ANALYTICS"
+    schema: "PUBLIC"
+    warehouse: "COMPUTE_WH"
+    role: "SYSADMIN"
+
+lineage:
+  enabled: false  # Disable for local
+  backend: "openlineage"
+  endpoint: "http://marquez:5000"
+  namespace: "project-a-dev"
+
+sla:
+  bronze_ready_by: "02:30"
+  silver_ready_by: "03:15"
+  gold_ready_by: "04:00"
+
+source_connections:
+  snowflake:
+    secret_name: "project-a-dev/snowflake/conn"
+    default_warehouse: "DEV_WH"
+    default_database: "CUSTOMER_DB"
+    default_schema: "PUBLIC"
+  redshift:
+    secret_name: "project-a-dev/redshift/conn"
+  kafka:
+    secret_name: "project-a-dev/kafka/conn"
+  salesforce:
+    secret_name: "project-a-dev/salesforce/conn"
+  fx_api:
+    secret_name: "project-a-dev/fx/conn"

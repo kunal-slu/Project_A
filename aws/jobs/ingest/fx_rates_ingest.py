@@ -10,7 +10,7 @@ import os
 import sys
 import logging
 import pandas as pd
-import requests
+# Removed requests import - FX data is now read from S3 bronze layer
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 from pathlib import Path
@@ -22,9 +22,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit, current_timestamp, col, to_timestamp, to_date
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType, IntegerType
 
-from pyspark_interview_project.utils.spark import get_spark_session
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.logging import setup_json_logging
+from project_a.utils.spark import get_spark_session
+from project_a.utils.config import load_conf
+from project_a.utils.logging import setup_json_logging
 
 logger = logging.getLogger(__name__)
 
@@ -45,45 +45,22 @@ def get_fx_api_config() -> Dict[str, str]:
 
 def fetch_fx_rates(api_config: Dict[str, str], base_currency: str = "USD") -> List[Dict]:
     """
-    Fetch FX rates from external API.
+    DEPRECATED: FX rates are now read from S3 bronze layer.
+    
+    This function is kept for backward compatibility but should not be used.
+    FX data should be ingested separately and stored in S3 bronze.
     
     Args:
-        api_config: API configuration
-        base_currency: Base currency for rates
+        api_config: API configuration (unused)
+        base_currency: Base currency for rates (unused)
         
     Returns:
-        List of FX rate records
+        Empty list (function is deprecated)
     """
-    logger.info(f"Fetching FX rates for base currency: {base_currency}")
-    
-    try:
-        url = f"{api_config['base_url']}/latest/{base_currency}"
-        headers = {"Authorization": f"Bearer {api_config['api_key']}"}
-        
-        response = requests.get(url, headers=headers, timeout=api_config['timeout'])
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        # Transform API response to our format
-        fx_records = []
-        timestamp = datetime.now()
-        
-        for currency, rate in data.get('rates', {}).items():
-            fx_records.append({
-                "base_currency": base_currency,
-                "target_currency": currency,
-                "exchange_rate": rate,
-                "rate_timestamp": timestamp,
-                "source": "exchangerate-api"
-            })
-        
-        logger.info(f"Successfully fetched {len(fx_records)} FX rates")
-        return fx_records
-        
-    except Exception as e:
-        logger.error(f"Failed to fetch FX rates: {str(e)}")
-        raise
+    logger.warning("⚠️  fetch_fx_rates() is DEPRECATED. FX data should be read from S3 bronze layer.")
+    logger.warning("   Use project_a.extract.fx_json_reader.read_fx_rates_from_bronze() instead.")
+    logger.warning("   Returning empty list - this job should not be used for FX ingestion.")
+    return []
 
 
 def fetch_financial_metrics(api_config: Dict[str, str]) -> List[Dict]:

@@ -12,11 +12,11 @@ from typing import Dict, Any, Optional
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit, current_timestamp, to_date, col
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.state_store import get_state_store
-from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
-from pyspark_interview_project.monitoring.metrics_collector import emit_metrics
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_conf
+from project_a.utils.state_store import get_state_store
+from project_a.monitoring.lineage_decorator import lineage_job
+from project_a.monitoring.metrics_collector import emit_metrics
 import time
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ def ingest_crm_to_s3_raw(
     
     # Update watermark
     if record_count > 0 and watermark:
-        from pyspark_interview_project.utils.watermark_utils import get_latest_timestamp_from_df
+        from project_a.utils.watermark_utils import get_latest_timestamp_from_df
         latest_ts = get_latest_timestamp_from_df(df, "last_modified_date")
         if latest_ts:
             state_store.set_watermark(f"crm_{table}", latest_ts.isoformat())

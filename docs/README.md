@@ -1,114 +1,54 @@
-# PySpark Data Engineering Project
+# 📚 Project Documentation
 
-Comprehensive AWS Production ETL Pipeline with Delta Lake
+This directory contains all project documentation organized by category.
 
-## 🎯 Project Overview
+## 📖 Essential Reading
 
-This is a production-ready data engineering project that demonstrates best practices for:
-- Multi-source data ingestion (HubSpot, Snowflake, Redshift, Kafka, FX Rates)
-- Bronze → Silver → Gold data lakehouse architecture
-- Incremental loading with SCD2 support
-- Data quality validation
-- AWS EMR Serverless deployment
-- Delta Lake for ACID transactions
+- **[QUICK_START.md](QUICK_START.md)** - Get started in 10 minutes
+- **[COMMANDS_REFERENCE.md](COMMANDS_REFERENCE.md)** - Quick command reference
+- **[AWS_DEPLOYMENT_CHECKLIST.md](AWS_DEPLOYMENT_CHECKLIST.md)** - AWS deployment guide
+- **[REFACTORING_REVIEW.md](REFACTORING_REVIEW.md)** - Latest refactoring status
 
-## 📁 Project Structure
+## 📁 Directory Structure
 
-```
-pyspark_data_engineer_project/
-├── config/                      # Configuration files
-│   ├── local.yaml              # Local development
-│   ├── config-dev.yaml         # Dev environment
-│   ├── aws.yaml                # AWS production
-│   └── dq.yaml                 # Data quality config
-│
-├── src/pyspark_interview_project/
-│   ├── utils/                   # Core utilities
-│   ├── extract.py               # Data extraction
-│   ├── transform.py             # Data transformation
-│   ├── load.py                  # Data loading
-│   ├── incremental_loading.py   # SCD2 & CDC
-│   ├── jobs/                    # EMR job implementations
-│   ├── dq/                      # Data quality
-│   └── monitoring/              # Monitoring
-│
-├── jobs/                        # EMR job wrappers
-├── aws/
-│   ├── infra/terraform/        # Infrastructure as code
-│   ├── scripts/                 # Deployment scripts
-│   └── emr_configs/            # EMR configuration
-│
-├── tests/                       # Test suite
-├── notebooks/                   # Jupyter notebooks
-└── docs/                        # Documentation
-```
+### Core Documentation
+- `QUICK_START.md` - Quick start guide
+- `COMMANDS_REFERENCE.md` - Command reference
+- `PROJECT_OVERVIEW.md` - Project overview
+- `PRODUCTION_READINESS.md` - Production readiness checklist
 
-## 🚀 Quick Start
+### Guides (`guides/`)
+- `PLATFORM_OVERVIEW.md` - Platform architecture
+- `AWS_COMPLETE_DEPLOYMENT.md` - AWS deployment guide
+- `DQ_SETUP.md` - Data quality setup
+- `MONITORING_SETUP.md` - Monitoring setup
+- `PERFORMANCE_TUNING.md` - Performance tuning
+- `DATA_GOVERNANCE.md` - Data governance
 
-### Local Development
+### Runbooks (`runbooks/`)
+- `RUNBOOK_AWS_2025.md` - AWS operations runbook
+- `RUNBOOK_DQ_FAILOVER.md` - DQ failover procedures
+- `RUNBOOK_STREAMING_RECOVERY.md` - Streaming recovery
+- `BACKFILL_AND_RECOVERY.md` - Backfill procedures
+- `COST_OPTIMIZATION.md` - Cost optimization
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+### Schema Contracts (`schema_contracts/`)
+- Schema definitions and evolution policies
+- Data dictionaries
 
-# Run tests
-pytest tests/
+### Architecture (`architecture/`)
+- `PROJECT_FINAL_STRUCTURE.md` - Project structure
 
-# Run pipeline locally
-python src/pyspark_interview_project/pipeline_core.py config/config-dev.yaml
-```
+### Deployment (`deployment/`)
+- `AWS_DEPLOYMENT_GUIDE.md` - Deployment guide
 
-### AWS Deployment
+### Archive (`archive/`)
+- Old documentation and status files moved here for reference
 
-See [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) for complete deployment instructions.
+## 🔍 Finding Documentation
 
-## 📊 Data Sources
-
-1. **HubSpot CRM** - Contacts and deals
-2. **Snowflake** - Orders and customers
-3. **Redshift** - Customer behavior analytics
-4. **Kafka** - Real-time event streaming
-5. **FX Rates** - Exchange rates from vendors
-
-## 🏗️ Architecture
-
-- **Bronze Layer**: Raw data ingestion with schema validation
-- **Silver Layer**: Cleaned, conformed data with SCD2 support
-- **Gold Layer**: Business-ready dimensional models
-
-## 🔧 Key Features
-
-- ✅ Incremental loading strategies
-- ✅ SCD2 support for slowly changing dimensions
-- ✅ Data quality checks with Great Expectations
-- ✅ Delta Lake for ACID transactions
-- ✅ AWS EMR Serverless deployment
-- ✅ Monitoring and alerting
-
-## 📖 Documentation
-
-- [AWS Deployment Guide](AWS_DEPLOYMENT_GUIDE.md)
-- [Project Structure](PROJECT_FINAL_STRUCTURE.md)
-- [AWS Runbook](RUNBOOK_AWS_2025.md)
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run specific test suite
-pytest tests/test_contracts.py
-```
-
-## 📝 Requirements
-
-- Python 3.10+
-- PySpark 3.5+
-- Delta Lake
-- AWS CLI configured
-- Terraform 1.0+
-
-## 📄 License
-
-MIT License
+- **Getting Started**: Start with `QUICK_START.md`
+- **AWS Deployment**: See `AWS_DEPLOYMENT_CHECKLIST.md`
+- **Commands**: See `COMMANDS_REFERENCE.md`
+- **Runbooks**: See `runbooks/` directory
+- **Guides**: See `guides/` directory

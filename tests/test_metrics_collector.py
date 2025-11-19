@@ -4,7 +4,7 @@ Tests for metrics collector.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from pyspark_interview_project.monitoring.metrics_collector import (
+from project_a.monitoring.metrics_collector import (
     emit_rowcount, emit_duration, emit_metrics
 )
 
@@ -25,7 +25,7 @@ def mock_config():
     }
 
 
-@patch('pyspark_interview_project.monitoring.metrics_collector.boto3')
+@patch('project_a.monitoring.metrics_collector.boto3')
 def test_emit_rowcount_cloudwatch(mock_boto3, mock_config):
     """Test emit_rowcount with CloudWatch."""
     mock_client = Mock()
@@ -45,7 +45,7 @@ def test_emit_rowcount_local(mock_config):
     emit_rowcount("test_metric", 100, {}, mock_config)
 
 
-@patch('pyspark_interview_project.monitoring.metrics_collector.boto3')
+@patch('project_a.monitoring.metrics_collector.boto3')
 def test_emit_duration(mock_boto3, mock_config):
     """Test emit_duration."""
     mock_client = Mock()
@@ -56,7 +56,7 @@ def test_emit_duration(mock_boto3, mock_config):
     mock_client.put_metric_data.assert_called_once()
 
 
-@patch('pyspark_interview_project.monitoring.metrics_collector.boto3')
+@patch('project_a.monitoring.metrics_collector.boto3')
 def test_emit_metrics(mock_boto3, mock_config):
     """Test emit_metrics."""
     mock_client = Mock()

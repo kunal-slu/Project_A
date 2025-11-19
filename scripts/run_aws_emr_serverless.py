@@ -16,8 +16,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.logging import setup_json_logging, get_trace_id, log_with_trace
+from project_a.utils.config import load_conf
+from project_a.utils.logging import setup_json_logging, get_trace_id, log_with_trace
 
 
 def create_artifact_package(source_dir: str, output_path: str) -> str:

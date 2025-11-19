@@ -19,11 +19,11 @@ from pyspark.sql.functions import lit, current_timestamp, col
 # Add project root to path
 sys.path.append('/opt/airflow/dags/src')
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_config
-from pyspark_interview_project.extract.salesforce_accounts import extract_salesforce_accounts
-from pyspark_interview_project.extract.salesforce_contacts import extract_salesforce_contacts
-from pyspark_interview_project.extract.salesforce_opportunities import extract_salesforce_opportunities
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_config
+from project_a.extract.salesforce_accounts import extract_salesforce_accounts
+from project_a.extract.salesforce_contacts import extract_salesforce_contacts
+from project_a.extract.salesforce_opportunities import extract_salesforce_opportunities
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ def main():
         
         # Emit lineage and metrics
         try:
-            from pyspark_interview_project.jobs.emit_lineage_and_metrics import emit_lineage_and_metrics
+            from project_a.jobs.emit_lineage_and_metrics import emit_lineage_and_metrics
             
             run_id = f"salesforce_bronze_{ingest_date}_{datetime.now().strftime('%H%M%S')}"
             

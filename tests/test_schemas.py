@@ -11,7 +11,7 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pyspark_interview_project.schemas.production_schemas import (
+from project_a.schemas.production_schemas import (
     get_schema,
     validate_schema_drift,
     BRONZE_CUSTOMERS_SCHEMA,

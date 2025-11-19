@@ -7,7 +7,7 @@ Ensures all config files have required keys and valid values.
 import pytest
 import yaml
 from pathlib import Path
-from pyspark_interview_project.utils.config import load_conf
+from project_a.utils.config import load_conf
 
 
 def get_config_files():

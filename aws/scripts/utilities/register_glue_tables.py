@@ -19,8 +19,8 @@ S3_LAKE_BUCKET = os.getenv("S3_LAKE_BUCKET", "data-lake-bucket")
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pyspark_interview_project.utils.spark import get_spark_session
-from pyspark_interview_project.utils.config import load_conf
+from project_a.utils.spark import get_spark_session
+from project_a.utils.config import load_conf
 
 logger = logging.getLogger(__name__)
 

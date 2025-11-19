@@ -68,6 +68,14 @@ resource "aws_s3_bucket" "artifacts" {
   bucket = "my-etl-artifacts-demo-424570854632"
 }
 
+resource "aws_s3_bucket" "logs" {
+  bucket = "my-etl-logs-demo-424570854632"
+}
+
+resource "aws_s3_bucket" "code" {
+  bucket = "my-etl-code-demo-424570854632"
+}
+
 # Versioning
 resource "aws_s3_bucket_versioning" "data_lake" {
   bucket = aws_s3_bucket.data_lake.id
@@ -78,6 +86,20 @@ resource "aws_s3_bucket_versioning" "data_lake" {
 
 resource "aws_s3_bucket_versioning" "artifacts" {
   bucket = aws_s3_bucket.artifacts.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "logs" {
+  bucket = aws_s3_bucket.logs.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "code" {
+  bucket = aws_s3_bucket.code.id
   versioning_configuration {
     status = "Enabled"
   }
@@ -104,6 +126,26 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
   }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.bucket
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.cmk.arn
+    }
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "code" {
+  bucket = aws_s3_bucket.code.bucket
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.cmk.arn
+    }
+  }
+}
+
 # Block public access
 resource "aws_s3_bucket_public_access_block" "data_lake" {
   bucket                  = aws_s3_bucket.data_lake.id
@@ -115,6 +157,22 @@ resource "aws_s3_bucket_public_access_block" "data_lake" {
 
 resource "aws_s3_bucket_public_access_block" "artifacts" {
   bucket                  = aws_s3_bucket.artifacts.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "logs" {
+  bucket                  = aws_s3_bucket.logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "code" {
+  bucket                  = aws_s3_bucket.code.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -221,7 +279,11 @@ resource "aws_iam_role_policy" "emr_exec" {
           aws_s3_bucket.data_lake.arn,
           "${aws_s3_bucket.data_lake.arn}/*",
           aws_s3_bucket.artifacts.arn,
-          "${aws_s3_bucket.artifacts.arn}/*"
+          "${aws_s3_bucket.artifacts.arn}/*",
+          aws_s3_bucket.logs.arn,
+          "${aws_s3_bucket.logs.arn}/*",
+          aws_s3_bucket.code.arn,
+          "${aws_s3_bucket.code.arn}/*"
         ]
       },
       {

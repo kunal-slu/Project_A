@@ -53,7 +53,7 @@ def read_watermark(
                 return None
     else:
         # Use state store (S3/local)
-        from pyspark_interview_project.utils.state_store import get_state_store
+        from project_a.utils.state_store import get_state_store
         
         state_store = get_state_store(config)
         watermark = state_store.get_watermark(key)
@@ -100,7 +100,7 @@ def write_watermark(
     
     if not use_ssm:
         # Use state store (S3/local)
-        from pyspark_interview_project.utils.state_store import get_state_store
+        from project_a.utils.state_store import get_state_store
         
         state_store = get_state_store(config)
         state_store.set_watermark(key, iso_value)

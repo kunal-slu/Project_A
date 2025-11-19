@@ -62,6 +62,144 @@ python src/pyspark_interview_project/pipeline_core.py config/config-dev.yaml
 
 See [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) for complete deployment instructions.
 
+## Phase 4 — EMR Spark Execution (Bronze → Silver → Gold)
+
+This phase runs the ETL pipeline on AWS EMR on EC2 using spark-submit.
+
+### Prerequisites
+
+- EMR cluster running (e.g., `j-3N2JXYADSENNU`)
+- AWS CLI configured with appropriate profile
+- S3 bucket for artifacts: `my-etl-artifacts-demo-424570854632`
+- Delta Lake JARs uploaded to S3
+
+### Step 1: Build Wheel
+
+```bash
+# Clean and build
+rm -rf build dist src/*.egg-info
+python3 -m build
+
+# Verify wheel created
+ls -lh dist/project_a-0.1.0-py3-none-any.whl
+```
+
+### Step 2: Upload Artifacts to S3
+
+**Option A: Use sync script (recommended)**
+```bash
+chmod +x sync_artifacts_to_s3.sh
+./sync_artifacts_to_s3.sh
+```
+
+**Option B: Manual upload**
+```bash
+# Upload wheel
+aws s3 cp dist/project_a-0.1.0-py3-none-any.whl \
+  s3://my-etl-artifacts-demo-424570854632/packages/ \
+  --profile kunal21 --region us-east-1
+
+# Upload job scripts
+aws s3 sync jobs/transform \
+  s3://my-etl-artifacts-demo-424570854632/jobs/transform/ \
+  --exclude "*" --include "*.py" \
+  --profile kunal21 --region us-east-1
+```
+
+**Verify Delta JARs exist:**
+```bash
+aws s3 ls s3://my-etl-artifacts-demo-424570854632/packages/delta-*.jar \
+  --profile kunal21 --region us-east-1
+```
+
+If missing, download and upload:
+- `delta-spark_2.12-3.2.0.jar`: https://repo1.maven.org/maven2/io/delta/delta-spark_2.12/3.2.0/
+- `delta-storage-3.2.0.jar`: https://repo1.maven.org/maven2/io/delta/delta-storage/3.2.0/
+
+### Step 3: Submit EMR Steps
+
+**Option A: Use submission script (recommended)**
+```bash
+chmod +x run_emr_steps.sh
+export EMR_CLUSTER_ID=j-3N2JXYADSENNU
+./run_emr_steps.sh both  # or 'bronze' or 'silver'
+```
+
+**Option B: Manual submission**
+
+Bronze→Silver:
+```bash
+aws emr add-steps \
+  --cluster-id j-3N2JXYADSENNU \
+  --steps file://steps_bronze_to_silver.json \
+  --profile kunal21 \
+  --region us-east-1
+```
+
+Silver→Gold:
+```bash
+aws emr add-steps \
+  --cluster-id j-3N2JXYADSENNU \
+  --steps file://steps_silver_to_gold.json \
+  --profile kunal21 \
+  --region us-east-1
+```
+
+### Step 4: Monitor Steps
+
+```bash
+# List all steps
+aws emr list-steps \
+  --cluster-id j-3N2JXYADSENNU \
+  --region us-east-1 \
+  --profile kunal21 \
+  --output table
+
+# Check specific step status
+aws emr describe-step \
+  --cluster-id j-3N2JXYADSENNU \
+  --step-id s-XXXXXXXXXXXXX \
+  --profile kunal21 \
+  --region us-east-1
+```
+
+### Step 5: Verify Output in S3
+
+```bash
+export LAKE_BUCKET=my-etl-lake-demo-424570854632
+
+# Check Silver layer
+aws s3 ls "s3://${LAKE_BUCKET}/silver/" --recursive \
+  --profile kunal21 --region us-east-1 | head -20
+
+# Check Gold layer
+aws s3 ls "s3://${LAKE_BUCKET}/gold/" --recursive \
+  --profile kunal21 --region us-east-1 | head -20
+```
+
+### Step 6: Terminate EMR Cluster (when done)
+
+```bash
+aws emr terminate-clusters \
+  --cluster-ids j-3N2JXYADSENNU \
+  --profile kunal21 \
+  --region us-east-1
+```
+
+### Troubleshooting
+
+**Import errors:**
+- Verify wheel is uploaded: `aws s3 ls s3://my-etl-artifacts-demo-424570854632/packages/project_a-0.1.0-py3-none-any.whl`
+- Check job scripts use canonical imports: `from project_a.pyspark_interview_project.*`
+
+**Delta Lake errors:**
+- Verify JARs are uploaded and paths match in step JSON
+- Check Spark config includes Delta extensions
+
+**Step failures:**
+- Check CloudWatch logs: EMR cluster logs in S3
+- Review step stderr/stdout in EMR console
+
 ## 📊 Data Sources
 
 1. **HubSpot CRM** - Contacts and deals

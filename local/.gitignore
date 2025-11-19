@@ -1,0 +1,34 @@
+# Local development artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Local data (S3 is source of truth)
+data/
+*.parquet
+*.delta
+
+# Local Spark artifacts
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Local logs
+*.log
+logs/
+
+# Local test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+

@@ -25,9 +25,9 @@ from pyspark.sql.types import StringType
 # Add project root to path
 sys.path.append('/opt/airflow/dags/src')
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.io import read_delta, write_delta
-from pyspark_interview_project.utils.config import load_config
+from project_a.utils.spark_session import build_spark
+from project_a.utils.io import read_delta, write_delta
+from project_a.utils.config import load_config
 
 logger = logging.getLogger(__name__)
 

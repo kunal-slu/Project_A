@@ -66,3 +66,7 @@ dist/emr_deps_pyyaml.zip
 # Terraform plan files
 *.tfplan
 *.tfstate*
+
+# Junk files
+*.pyc
+# Runtime logs

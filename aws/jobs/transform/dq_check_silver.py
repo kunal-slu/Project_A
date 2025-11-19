@@ -10,10 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pyspark_interview_project.utils import build_spark
-from pyspark_interview_project.config_loader import load_config_resolved
-from pyspark_interview_project.dq.dq_runner import run_dq_suite
-from pyspark_interview_project.utils.path_resolver import silver_path
+from project_a.utils import build_spark
+from project_a.config_loader import load_config_resolved
+from project_a.dq.dq_runner import run_dq_suite
+from project_a.utils.path_resolver import silver_path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch
 import hashlib
 
-from pyspark_interview_project.utils.pii_utils import (
+from project_a.utils.pii_utils import (
     mask_email, mask_phone, hash_value, mask_name, apply_pii_masking
 )
 

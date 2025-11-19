@@ -4,7 +4,7 @@ Tests for Spark session utilities.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from pyspark_interview_project.utils.spark_session import build_spark
+from project_a.utils.spark_session import build_spark
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def mock_config():
     }
 
 
-@patch('pyspark_interview_project.utils.spark_session.SparkSession')
+@patch('project_a.utils.spark_session.SparkSession')
 def test_build_spark_success(mock_spark_session, mock_config):
     """Test successful Spark session creation."""
     mock_builder = Mock()

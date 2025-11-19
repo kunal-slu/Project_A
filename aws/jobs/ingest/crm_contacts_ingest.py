@@ -8,11 +8,11 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from pyspark.sql import SparkSession, functions as F
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.metrics import track_job_start, track_job_complete, track_records_processed
-from pyspark_interview_project.utils.schema_validator import validate_bronze_ingestion
-from pyspark_interview_project.dq.runner import run_suite
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_conf
+from project_a.utils.metrics import track_job_start, track_job_complete, track_records_processed
+from project_a.utils.schema_validator import validate_bronze_ingestion
+from project_a.dq.runner import run_suite
 sys.path.insert(0, os.path.dirname(__file__))
 from emit_lineage_and_metrics import emit_pipeline_lineage, log_table_operation
 import logging

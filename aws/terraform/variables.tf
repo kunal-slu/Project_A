@@ -84,6 +84,12 @@ variable "tags" {
   default     = {}
 }
 
+variable "alarm_email" {
+  description = "Email address for CloudWatch alarms"
+  type        = string
+  default     = ""
+}
+
 variable "enable_external_access" {
   description = "Enable external analytics access"
   type        = bool

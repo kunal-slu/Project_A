@@ -6,7 +6,7 @@ Quick proof of correctness for bronze to silver transforms.
 import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
-from src.pyspark_interview_project.transforms.bronze_to_silver import transform_orders_bronze_to_silver
+from src.project_a.transforms.bronze_to_silver import transform_orders_bronze_to_silver
 
 
 @pytest.fixture

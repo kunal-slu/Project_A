@@ -4,7 +4,7 @@ Tests for lineage emitter.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from pyspark_interview_project.monitoring.lineage_emitter import (
+from project_a.monitoring.lineage_emitter import (
     emit_lineage_event, emit_start, emit_complete, emit_fail
 )
 
@@ -21,7 +21,7 @@ def mock_config():
     }
 
 
-@patch('pyspark_interview_project.monitoring.lineage_emitter.requests.post')
+@patch('project_a.monitoring.lineage_emitter.requests.post')
 def test_emit_lineage_event_success(mock_post, mock_config):
     """Test successful lineage event emission."""
     mock_post.return_value.raise_for_status = Mock()
@@ -68,7 +68,7 @@ def test_emit_lineage_event_no_url(mock_config):
     assert result is False
 
 
-@patch('pyspark_interview_project.monitoring.lineage_emitter.requests.post')
+@patch('project_a.monitoring.lineage_emitter.requests.post')
 def test_emit_start(mock_post, mock_config):
     """Test emit_start convenience function."""
     mock_post.return_value.raise_for_status = Mock()
@@ -83,7 +83,7 @@ def test_emit_start(mock_post, mock_config):
     assert result is True
 
 
-@patch('pyspark_interview_project.monitoring.lineage_emitter.requests.post')
+@patch('project_a.monitoring.lineage_emitter.requests.post')
 def test_emit_complete(mock_post, mock_config):
     """Test emit_complete convenience function."""
     mock_post.return_value.raise_for_status = Mock()
@@ -99,7 +99,7 @@ def test_emit_complete(mock_post, mock_config):
     assert result is True
 
 
-@patch('pyspark_interview_project.monitoring.lineage_emitter.requests.post')
+@patch('project_a.monitoring.lineage_emitter.requests.post')
 def test_emit_fail(mock_post, mock_config):
     """Test emit_fail convenience function."""
     mock_post.return_value.raise_for_status = Mock()

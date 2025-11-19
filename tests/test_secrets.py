@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import os
 
-from pyspark_interview_project.utils.secrets import (
+from project_a.utils.secrets import (
     get_secret_from_manager,
     get_parameter_from_ssm,
     get_snowflake_credentials,
@@ -42,7 +42,7 @@ def mock_config():
     }
 
 
-@patch('pyspark_interview_project.utils.secrets.boto3')
+@patch('project_a.utils.secrets.boto3')
 def test_get_secret_from_manager_success(mock_boto3, mock_config):
     """Test successful secret retrieval from Secrets Manager."""
     mock_client = Mock()
@@ -57,7 +57,7 @@ def test_get_secret_from_manager_success(mock_boto3, mock_config):
     assert result["password"] == "test_pass"
 
 
-@patch('pyspark_interview_project.utils.secrets.boto3')
+@patch('project_a.utils.secrets.boto3')
 def test_get_secret_from_manager_not_found(mock_boto3):
     """Test secret retrieval when secret not found."""
     mock_client = Mock()
@@ -74,7 +74,7 @@ def test_get_secret_from_manager_not_found(mock_boto3):
         assert isinstance(result, dict)
 
 
-@patch('pyspark_interview_project.utils.secrets.get_secret_from_manager')
+@patch('project_a.utils.secrets.get_secret_from_manager')
 def test_get_snowflake_credentials_from_secrets(mock_get_secret, mock_config):
     """Test getting Snowflake credentials from Secrets Manager."""
     mock_get_secret.return_value = {
@@ -101,7 +101,7 @@ def test_get_snowflake_credentials_from_config(mock_config):
     assert result["user"] == "test_user"
 
 
-@patch('pyspark_interview_project.utils.secrets.get_secret_from_manager')
+@patch('project_a.utils.secrets.get_secret_from_manager')
 def test_get_redshift_credentials_from_secrets(mock_get_secret, mock_config):
     """Test getting Redshift credentials from Secrets Manager."""
     mock_get_secret.return_value = {

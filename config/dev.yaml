@@ -95,6 +95,20 @@ dq:
   fail_on_error: true
   alert_on_warning: true
 
+sinks:
+  redshift:
+    jdbc_url: "jdbc:redshift://HOST:5439/DB"
+    user: "redshift_user"
+    password: "******"
+  snowflake:
+    url: "account.snowflakecomputing.com"
+    user: "SF_USER"
+    password: "******"
+    database: "ANALYTICS"
+    schema: "PUBLIC"
+    warehouse: "COMPUTE_WH"
+    role: "SYSADMIN"
+
 lineage:
   enabled: true
   backend: "openlineage"

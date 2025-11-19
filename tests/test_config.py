@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch, MagicMock
 import yaml
 from pathlib import Path
 
-from pyspark_interview_project.utils.config import load_conf
+from project_a.utils.config import load_conf
 
 
 @pytest.fixture

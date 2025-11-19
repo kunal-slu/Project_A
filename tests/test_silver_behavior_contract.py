@@ -9,8 +9,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import TimestampType, StringType
 from pyspark.sql.functions import col
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_conf
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_conf
 
 
 @pytest.fixture

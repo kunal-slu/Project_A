@@ -9,9 +9,9 @@ import pytest
 from pathlib import Path
 import json
 from pyspark.sql import SparkSession
-from pyspark_interview_project.dq.runner import run_suite
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.spark_session import build_spark
+from project_a.dq.runner import run_suite
+from project_a.utils.config import load_conf
+from project_a.utils.spark_session import build_spark
 
 
 class TestQualityGate:

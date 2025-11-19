@@ -15,7 +15,7 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pyspark_interview_project.utils.safe_writer import SafeDeltaWriter
+from project_a.utils.safe_writer import SafeDeltaWriter
 
 
 @pytest.fixture(scope="module")

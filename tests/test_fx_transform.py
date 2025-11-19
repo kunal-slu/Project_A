@@ -7,7 +7,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, DateType
 
-from pyspark_interview_project.jobs.fx_bronze_to_silver import (
+from project_a.jobs.fx_bronze_to_silver import (
     deduplicate_fx_rates,
     add_rate_categories,
     validate_fx_rates

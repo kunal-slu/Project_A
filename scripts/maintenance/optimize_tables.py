@@ -16,9 +16,9 @@ from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.path_resolver import resolve_path
-from pyspark_interview_project.config_loader import load_config_resolved
+from project_a.utils.spark_session import build_spark
+from project_a.utils.path_resolver import resolve_path
+from project_a.config_loader import load_config_resolved
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

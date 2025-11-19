@@ -245,7 +245,7 @@ resource "aws_cloudwatch_log_group" "mwaa_scheduler" {
   retention_in_days = 7
 
   tags = merge(
-    var.common_tags,
+    var.tags,
     {
       Name = "airflow-${var.mwaa_environment_name}-Scheduler"
     }
@@ -258,7 +258,7 @@ resource "aws_cloudwatch_log_group" "mwaa_worker" {
   retention_in_days = 7
 
   tags = merge(
-    var.common_tags,
+    var.tags,
     {
       Name = "airflow-${var.mwaa_environment_name}-Worker"
     }
@@ -271,7 +271,7 @@ resource "aws_cloudwatch_log_group" "mwaa_webserver" {
   retention_in_days = 7
 
   tags = merge(
-    var.common_tags,
+    var.tags,
     {
       Name = "airflow-${var.mwaa_environment_name}-Webserver"
     }

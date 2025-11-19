@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 
-from pyspark_interview_project.utils.watermark_utils import (
+from project_a.utils.watermark_utils import (
     get_watermark, upsert_watermark, get_latest_timestamp_from_df
 )
 
@@ -54,7 +54,7 @@ def test_get_latest_timestamp_from_df(spark):
     assert result is None or isinstance(result, datetime)
 
 
-@patch('pyspark_interview_project.utils.watermark_utils.os.path.exists')
+@patch('project_a.utils.watermark_utils.os.path.exists')
 def test_upsert_watermark(mock_exists, spark, mock_config, tmp_path):
     """Test upserting watermark."""
     mock_exists.return_value = False  # First write

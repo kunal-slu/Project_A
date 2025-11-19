@@ -21,9 +21,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit, current_timestamp, col, to_timestamp, to_date
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType, IntegerType
 
-from pyspark_interview_project.utils.spark import get_spark_session
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.logging import setup_json_logging
+from project_a.utils.spark import get_spark_session
+from project_a.utils.config import load_conf
+from project_a.utils.logging import setup_json_logging
 
 logger = logging.getLogger(__name__)
 

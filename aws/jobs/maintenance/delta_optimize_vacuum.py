@@ -17,8 +17,8 @@ from pyspark.sql import SparkSession
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..', 'src'))
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_config
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_config
 
 logger = logging.getLogger(__name__)
 

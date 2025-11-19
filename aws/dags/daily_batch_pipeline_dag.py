@@ -161,13 +161,13 @@ dq_check_silver >> silver_to_gold
 
 reconcile_snowflake = BashOperator(
     task_id='reconcile_snowflake_to_s3',
-    bash_command='python -m pyspark_interview_project.jobs.reconciliation_job --source snowflake --target s3://$S3_LAKE_BUCKET/bronze/snowflake/orders',
+    bash_command='python -m project_a.jobs.reconciliation_job --source snowflake --target s3://$S3_LAKE_BUCKET/bronze/snowflake/orders',
     dag=dag,
 )
 
 reconcile_redshift = BashOperator(
     task_id='reconcile_redshift_to_s3',
-    bash_command='python -m pyspark_interview_project.jobs.reconciliation_job --source redshift --target s3://$S3_LAKE_BUCKET/bronze/redshift/customer_behavior',
+    bash_command='python -m project_a.jobs.reconciliation_job --source redshift --target s3://$S3_LAKE_BUCKET/bronze/redshift/customer_behavior',
     dag=dag,
 )
 
@@ -177,7 +177,7 @@ reconcile_redshift = BashOperator(
 
 load_to_snowflake = BashOperator(
     task_id='load_gold_to_snowflake',
-    bash_command='python -m pyspark_interview_project.jobs.load_to_snowflake --config config/prod.yaml --tables customer_360 orders_metrics',
+    bash_command='python -m project_a.jobs.load_to_snowflake --config config/prod.yaml --tables customer_360 orders_metrics',
     dag=dag,
 )
 

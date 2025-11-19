@@ -12,11 +12,11 @@ from typing import Dict, Any
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit, current_timestamp, to_date
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.secrets import get_snowflake_credentials
-from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
-from pyspark_interview_project.monitoring.metrics_collector import emit_metrics
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_conf
+from project_a.utils.secrets import get_snowflake_credentials
+from project_a.monitoring.lineage_decorator import lineage_job
+from project_a.monitoring.metrics_collector import emit_metrics
 import time
 import os
 

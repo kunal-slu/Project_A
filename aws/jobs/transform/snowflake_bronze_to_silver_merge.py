@@ -17,9 +17,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit, current_timestamp, when, coalesce
 from delta.tables import DeltaTable
 
-from pyspark_interview_project.utils.spark import get_spark_session
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.utils.logging import setup_json_logging
+from project_a.utils.spark import get_spark_session
+from project_a.utils.config import load_conf
+from project_a.utils.logging import setup_json_logging
 
 logger = logging.getLogger(__name__)
 

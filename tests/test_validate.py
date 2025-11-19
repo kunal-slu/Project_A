@@ -1,5 +1,5 @@
 
-from pyspark_interview_project.validate import ValidateOutput
+from project_a.validate import ValidateOutput
 
 
 def test_validate_parquet(spark, tmp_path):

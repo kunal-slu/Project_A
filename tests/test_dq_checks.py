@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from pyspark_interview_project.dq_checks import DQChecks
+from project_a.dq_checks import DQChecks
 
 
 def test_assert_non_null(spark):

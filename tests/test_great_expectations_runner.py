@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from pyspark_interview_project.dq.great_expectations_runner import GreatExpectationsRunner, run_dq_checkpoint
+from project_a.dq.great_expectations_runner import GreatExpectationsRunner, run_dq_checkpoint
 
 
 def test_ge_runner_init():
@@ -15,8 +15,8 @@ def test_ge_runner_init():
     assert runner.context is None
 
 
-@patch('pyspark_interview_project.dq.great_expectations_runner.Path')
-@patch('pyspark_interview_project.dq.great_expectations_runner.DataContext')
+@patch('project_a.dq.great_expectations_runner.Path')
+@patch('project_a.dq.great_expectations_runner.DataContext')
 def test_ge_runner_init_context_success(mock_data_context, mock_path):
     """Test successful GE context initialization."""
     mock_path_instance = Mock()
@@ -32,7 +32,7 @@ def test_ge_runner_init_context_success(mock_data_context, mock_path):
     assert runner.context is not None
 
 
-@patch('pyspark_interview_project.dq.great_expectations_runner.Path')
+@patch('project_a.dq.great_expectations_runner.Path')
 def test_ge_runner_init_context_missing(mock_path):
     """Test GE context initialization with missing context."""
     mock_path_instance = Mock()
@@ -46,7 +46,7 @@ def test_ge_runner_init_context_missing(mock_path):
     assert runner.context is None
 
 
-@patch('pyspark_interview_project.dq.great_expectations_runner.DataContext')
+@patch('project_a.dq.great_expectations_runner.DataContext')
 def test_ge_runner_run_checkpoint_no_context():
     """Test checkpoint run when context not initialized."""
     runner = GreatExpectationsRunner()
@@ -58,7 +58,7 @@ def test_ge_runner_run_checkpoint_no_context():
     assert result["success"] is True
 
 
-@patch('pyspark_interview_project.dq.great_expectations_runner.DataContext')
+@patch('project_a.dq.great_expectations_runner.DataContext')
 def test_ge_runner_run_checkpoint_success():
     """Test successful checkpoint run."""
     runner = GreatExpectationsRunner()
@@ -76,7 +76,7 @@ def test_ge_runner_run_checkpoint_success():
     assert result["success"] is True
 
 
-@patch('pyspark_interview_project.dq.great_expectations_runner.DataContext')
+@patch('project_a.dq.great_expectations_runner.DataContext')
 def test_ge_runner_run_checkpoint_failure():
     """Test checkpoint run with failure."""
     runner = GreatExpectationsRunner()
@@ -95,7 +95,7 @@ def test_ge_runner_run_checkpoint_failure():
 
 def test_run_dq_checkpoint_convenience():
     """Test convenience function."""
-    with patch('pyspark_interview_project.dq.great_expectations_runner.GreatExpectationsRunner') as mock_runner_class:
+    with patch('project_a.dq.great_expectations_runner.GreatExpectationsRunner') as mock_runner_class:
         mock_runner = Mock()
         mock_runner.init_context.return_value = None
         mock_runner.run_checkpoint.return_value = {"success": True}

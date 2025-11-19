@@ -215,7 +215,7 @@ class GECheckpointRunner:
 def main():
     """Main entry point for GE checkpoint runner."""
     import argparse
-    from pyspark_interview_project.utils.config import load_conf
+    from project_a.utils.config import load_conf
     
     parser = argparse.ArgumentParser(description="Run Great Expectations data quality checks")
     parser.add_argument("--config", required=True, help="Configuration file path")

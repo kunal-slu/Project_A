@@ -16,9 +16,9 @@ from typing import List
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.logging import setup_json_logging
-from pyspark_interview_project.utils.path_resolver import resolve_path
+from project_a.utils.spark_session import build_spark
+from project_a.utils.logging import setup_json_logging
+from project_a.utils.path_resolver import resolve_path
 import yaml
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

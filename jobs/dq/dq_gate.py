@@ -9,9 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from pyspark.sql import SparkSession
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.config_loader import load_config_resolved
-from pyspark_interview_project.dq.gate import DQGate
+from project_a.utils.spark_session import build_spark
+from project_a.config_loader import load_config_resolved
+from project_a.dq.gate import DQGate
 
 
 def main():

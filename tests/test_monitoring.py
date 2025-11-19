@@ -9,7 +9,7 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pyspark_interview_project.monitoring.metrics import (
+from project_a.monitoring.metrics import (
     track_job_execution,
     track_stage_duration,
     record_dq_check,

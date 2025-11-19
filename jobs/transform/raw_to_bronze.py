@@ -12,9 +12,9 @@ from datetime import datetime
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import lit, current_timestamp, to_date
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.utils.config import load_conf
-from pyspark_interview_project.schema_validator import validate_schema
+from project_a.utils.spark_session import build_spark
+from project_a.utils.config import load_conf
+from project_a.schema_validator import validate_schema
 
 logger = logging.getLogger(__name__)
 

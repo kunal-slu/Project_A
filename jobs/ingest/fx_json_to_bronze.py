@@ -27,14 +27,14 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import DateType
 
-from pyspark_interview_project.utils.spark_session import build_spark
-from pyspark_interview_project.config_loader import load_config_resolved
-from pyspark_interview_project.extract.fx_json_reader import read_fx_json
-from pyspark_interview_project.utils.error_lanes import ErrorLaneHandler
-from pyspark_interview_project.utils.logging import setup_json_logging, get_trace_id
-from pyspark_interview_project.utils.run_audit import write_run_audit
-from pyspark_interview_project.monitoring.lineage_decorator import lineage_job
-from pyspark_interview_project.monitoring.metrics_collector import emit_rowcount, emit_duration
+from project_a.utils.spark_session import build_spark
+from project_a.config_loader import load_config_resolved
+from project_a.extract.fx_json_reader import read_fx_json
+from project_a.utils.error_lanes import ErrorLaneHandler
+from project_a.utils.logging import setup_json_logging, get_trace_id
+from project_a.utils.run_audit import write_run_audit
+from project_a.monitoring.lineage_decorator import lineage_job
+from project_a.monitoring.metrics_collector import emit_rowcount, emit_duration
 import time
 
 logging.basicConfig(level=logging.INFO)
