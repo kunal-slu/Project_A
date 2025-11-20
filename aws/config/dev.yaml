@@ -1,5 +1,5 @@
 env: dev
-environment: emr  # Set to 'emr' for EMR Serverless execution
+environment: aws  # Set to 'aws' for AWS/EMR execution
 
 project_name: project-a
 
@@ -15,7 +15,7 @@ buckets:
   code: "my-etl-code-demo-424570854632"
 
 glue:
-  bronze_db: "project-a_bronze_dev"   # actual TF name
+  bronze_db: "project-a_bronze_dev"
   silver_db: "project-a_silver_dev"
   gold_db: "project-a_gold_dev"
 
@@ -29,14 +29,16 @@ emr:
     cores: 2
     memory: "8G"
 
+# AWS S3 paths - matching local structure
 paths:
   bronze_root: "s3://my-etl-lake-demo-424570854632/bronze"
   silver_root: "s3://my-etl-lake-demo-424570854632/silver"
-  gold_root:   "s3://my-etl-lake-demo-424570854632/gold"
+  gold_root: "s3://my-etl-lake-demo-424570854632/gold"
   checkpoints_root: "s3://my-etl-lake-demo-424570854632/_checkpoints"
-  dq_results_root:  "s3://my-etl-lake-demo-424570854632/_dq_results"
+  dq_results_root: "s3://my-etl-lake-demo-424570854632/_dq_results"
 
-# Source file definitions - single source of truth
+# Source file definitions - pointing to S3 bronze data
+# NOTE: S3 uses "snowflakes" (plural) but we'll handle this in the loader
 sources:
   crm:
     base_path: "s3://my-etl-lake-demo-424570854632/bronze/crm"
@@ -51,7 +53,8 @@ sources:
       behavior: "redshift_customer_behavior_50000.csv"
   
   snowflake:
-    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflake"
+    # Note: S3 path is "snowflakes" (plural) but we keep config as "snowflake" for consistency
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes"
     files:
       customers: "snowflake_customers_50000.csv"
       orders: "snowflake_orders_100000.csv"
@@ -60,21 +63,20 @@ sources:
   fx:
     type: json
     base_path: "s3://my-etl-lake-demo-424570854632/bronze/fx"
-    raw_path: "s3://my-etl-lake-demo-424570854632/bronze/fx/json/"
-    bronze_path: "s3://my-etl-lake-demo-424570854632/bronze/fx/delta/"
-    silver_path: "s3://my-etl-lake-demo-424570854632/silver/fx/"
+    raw_path: "s3://my-etl-lake-demo-424570854632/bronze/fx"
+    bronze_path: "s3://my-etl-lake-demo-424570854632/bronze/fx/delta"
+    silver_path: "s3://my-etl-lake-demo-424570854632/silver/fx"
     files:
       daily_rates: "fx_rates_historical_730_days.csv"
-      daily_rates_json: "fx_rates_historical.json"  # JSON Lines format
+      daily_rates_json: "fx_rates_historical.json"
     base_currency: "USD"
     expected_currencies: ["USD", "EUR", "GBP", "JPY", "INR", "CHF", "CAD", "AUD", "CNY"]
   
   kafka:
-    local_bootstrap_servers: "localhost:9092"  # Not used on AWS, but kept for consistency
-    msk_bootstrap_servers: "${ENV:MSK_BOOTSTRAP_SERVERS}"  # Set via environment variable
+    local_bootstrap_servers: "localhost:9092"
+    msk_bootstrap_servers: "${ENV:MSK_BOOTSTRAP_SERVERS}"
     topic: "orders_events"
     consumer_group: "project-a-etl-consumer"
-    # Seed file location (for reference, not used in production)
     seed_file: "s3://my-etl-lake-demo-424570854632/bronze/kafka/stream_kafka_events_100000.csv"
   
   kafka_sim:
@@ -83,6 +85,7 @@ sources:
       orders_seed: "stream_kafka_events_100000.csv"
 
 # Table name definitions for Silver and Gold layers
+# MUST match local config exactly
 tables:
   silver:
     customers: "customers_silver"
@@ -96,10 +99,12 @@ tables:
     fact_orders: "fact_orders"
     dim_customer: "dim_customer"
     dim_product: "dim_product"
-    fact_customer_24m: "fact_customer_24m"
+    dim_date: "dim_date"
+    customer_360: "customer_360"
+    product_performance: "product_performance"
 
 dq:
-  mode: "strict"           # stop pipeline on critical failures
+  mode: "strict"
   fail_on_error: true
   alert_on_warning: true
 
@@ -120,7 +125,7 @@ sinks:
 lineage:
   enabled: true
   backend: "openlineage"
-  endpoint: "http://marquez:5000"   # placeholder
+  endpoint: "http://marquez:5000"
   namespace: "project-a-dev"
 
 sla:
@@ -128,41 +133,27 @@ sla:
   silver_ready_by: "03:15"
   gold_ready_by: "04:00"
 
-# Legacy source connection configs (for live connections)
 source_connections:
   snowflake:
     secret_name: "project-a-dev/snowflake/conn"
     default_warehouse: "DEV_WH"
     default_database: "CUSTOMER_DB"
     default_schema: "PUBLIC"
-
   redshift:
     secret_name: "project-a-dev/redshift/conn"
-
   kafka:
     secret_name: "project-a-dev/kafka/conn"
-
   salesforce:
     secret_name: "project-a-dev/salesforce/conn"
-
   fx_api:
     secret_name: "project-a-dev/fx/conn"
 
-# Sink configurations (dual sink: S3 + Snowflake)
-sinks:
-  snowflake:
-    enabled: true
-    account: "${SNOWFLAKE_ACCOUNT}"  # e.g., "xy12345.us-east-1"
-    user: "PROJECT_A_INGEST"
-    password_secret_name: "/project-a/dev/snowflake/password"  # AWS Secrets Manager
-    role: "DATA_ENG_ROLE"
-    warehouse: "WH_DATA_ENG"
-    database: "PROJECT_A"
-    schema: "ANALYTICS"
-    tables:
-      fact_orders: "FACT_ORDERS_DAILY"
-      dim_customer: "DIM_CUSTOMER"
-      dim_product: "DIM_PRODUCT"
-      customer_360: "CUSTOMER_360"
-    # Snowflake Spark connector options
-    connector_jar: "net.snowflake:snowflake-jdbc:3.13.29,net.snowflake:spark-snowflake_2.12:2.12.0-spark_3.3"
+# Spark configuration for AWS/EMR
+spark:
+  enable_delta: true  # Enable Delta Lake for AWS
+  extra_conf:
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
+    spark.eventLog.enabled: "true"
+    spark.eventLog.dir: "s3://my-etl-lake-demo-424570854632/logs/spark-events/"
+

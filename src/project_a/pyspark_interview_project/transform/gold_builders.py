@@ -15,43 +15,99 @@ logger = logging.getLogger(__name__)
 
 def build_dim_date(spark: SparkSession, orders_df: DataFrame) -> DataFrame:
     """
-    Build date dimension table from order dates.
+    Build date dimension table with full calendar range.
+    
+    Generates a date dimension covering the range from min(order_date) to max(order_date)
+    in orders_df, with a minimum of 2 years (730 days) if orders_df is empty or has limited dates.
     
     Args:
         spark: SparkSession
-        orders_df: Orders DataFrame with order_date column
+        orders_df: Orders DataFrame with order_date column (used to determine date range)
         
     Returns:
-        Date dimension DataFrame
+        Date dimension DataFrame with columns: date_sk, date, year, quarter, month, day_of_week, is_weekend
     """
     logger.info("🔧 Building dim_date...")
     
-    # Extract date column
-    date_col = None
-    for col in ["order_date", "event_ts", "date", "created_at"]:
-        if col in orders_df.columns:
-            date_col = col
-            break
-    
-    if date_col:
-        dim_date = orders_df.select(F.col(date_col).alias("date")).distinct()
-    else:
-        # Fallback: create date range
+    # Determine date range from orders or use default range
+    try:
+        # Extract min and max dates from orders
+        date_col = None
+        for col in ["order_date", "event_ts", "date", "created_at"]:
+            if col in orders_df.columns:
+                date_col = col
+                break
+        
+        if date_col and orders_df.count() > 0:
+            min_max = orders_df.agg(
+                F.min(F.col(date_col)).alias("min_date"),
+                F.max(F.col(date_col)).alias("max_date")
+            ).collect()[0]
+            
+            start_date = min_max["min_date"]
+            end_date = min_max["max_date"]
+            
+            # Ensure we have at least 2 years of dates
+            from datetime import date, timedelta
+            if start_date is None or end_date is None:
+                end_date = date.today()
+                start_date = end_date - timedelta(days=730)
+            else:
+                # Convert to date if timestamp
+                if hasattr(start_date, 'date'):
+                    start_date = start_date.date()
+                if hasattr(end_date, 'date'):
+                    end_date = end_date.date()
+                
+                # Extend range to at least 730 days
+                days_diff = (end_date - start_date).days
+                if days_diff < 730:
+                    # Center the range around the data
+                    center = start_date + timedelta(days=days_diff // 2)
+                    start_date = center - timedelta(days=365)
+                    end_date = center + timedelta(days=365)
+        else:
+            # Fallback: create 2-year range ending today
+            from datetime import date, timedelta
+            end_date = date.today()
+            start_date = end_date - timedelta(days=730)
+    except Exception as e:
+        logger.warning(f"Could not determine date range from orders: {e}, using default 2-year range")
         from datetime import date, timedelta
-        dates = [(date.today() - timedelta(days=x),) for x in range(730, 0, -1)]
-        dim_date = spark.createDataFrame(dates, ["date"])
+        end_date = date.today()
+        start_date = end_date - timedelta(days=730)
     
-    dim_date = dim_date.filter(F.col("date").isNotNull()) \
-                       .withColumn("date_sk", F.date_format("date", "yyyyMMdd").cast("int")) \
-                       .withColumn("year", F.year("date")) \
-                       .withColumn("quarter", F.quarter("date")) \
-                       .withColumn("month", F.month("date")) \
-                       .withColumn("day_of_week", F.dayofweek("date")) \
-                       .withColumn("is_weekend", F.when(F.dayofweek("date").isin([1, 7]), True).otherwise(False)) \
-                       .select("date_sk", "date", "year", "quarter", "month", "day_of_week", "is_weekend")
+    # Generate date range using Spark SQL
+    # Calculate number of days
+    from datetime import date as dt_date
+    if isinstance(start_date, dt_date) and isinstance(end_date, dt_date):
+        num_days = (end_date - start_date).days + 1
+        start_date_str = start_date.strftime("%Y-%m-%d")
+    else:
+        # Fallback
+        num_days = 731
+        start_date_str = "2023-01-01"
+    
+    # Create date range using Spark range and date_add
+    # Cast id to INT because date_add requires INT, not BIGINT
+    dim_date = (
+        spark.range(0, num_days)
+        .withColumn("date", F.expr(f"date_add('{start_date_str}', cast(id as int))"))
+        .select("date")
+        .filter(F.col("date").isNotNull())
+        .withColumn("date_sk", F.date_format("date", "yyyyMMdd").cast("int"))
+        .withColumn("year", F.year("date"))
+        .withColumn("quarter", F.quarter("date"))
+        .withColumn("month", F.month("date"))
+        .withColumn("day_of_week", F.dayofweek("date"))
+        .withColumn("is_weekend", F.when(F.col("day_of_week").isin([1, 7]), True).otherwise(False))
+        .select("date_sk", "date", "year", "quarter", "month", "day_of_week", "is_weekend")
+        .orderBy("date")
+    )
     
     try:
-        logger.info(f"✅ dim_date: {dim_date.count():,} rows")
+        count = dim_date.count()
+        logger.info(f"✅ dim_date: {count:,} rows (from {start_date_str} to {end_date})")
     except Exception as e:
         logger.warning(f"Could not count dim_date: {e}")
     
@@ -236,6 +292,8 @@ def build_fact_orders(
     
     # Join with dimensions to get surrogate keys
     # Add row numbers as surrogate keys (in production, use proper SCD2 logic)
+    # NOTE: Using monotonically_increasing_id() for surrogate keys is fine for demos,
+    # but in production, use proper SCD2 logic with stable surrogate keys.
     dim_customer_with_sk = dim_customer.withColumn(
         "customer_sk",
         F.monotonically_increasing_id().cast("long")
@@ -247,6 +305,8 @@ def build_fact_orders(
     )
     
     # Join orders with dimensions
+    # NOTE: These are left joins, so missing dimensions will result in -1 surrogate keys.
+    # This is intentional to handle orphan orders. The validation script checks for high rates of -1 values.
     fact = orders.join(
         dim_customer_with_sk.select("customer_id", "customer_sk"),
         "customer_id",

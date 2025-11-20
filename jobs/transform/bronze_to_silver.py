@@ -60,24 +60,57 @@ logger = logging.getLogger(__name__)
 
 
 def build_fx_silver(df_fx):
-    """Build FX silver table."""
+    """Build FX silver table with explicit schema.
+    
+    Expected schema:
+    - trade_date: DateType
+    - base_ccy: StringType
+    - counter_ccy: StringType
+    - rate: DoubleType
+    """
     from pyspark.sql import functions as F
+    from pyspark.sql.types import StructType, StructField, DateType, StringType, DoubleType
     
     logger.info("🔧 Building silver.fx_rates...")
     
-    # FX DataFrame has trade_date or date, not rate_date
+    # Define expected schema
+    FX_RATES_SCHEMA = StructType([
+        StructField("trade_date", DateType(), True),
+        StructField("base_ccy", StringType(), True),
+        StructField("counter_ccy", StringType(), True),
+        StructField("rate", DoubleType(), True),
+    ])
+    
+    # Check if input is empty
+    try:
+        if df_fx.rdd.isEmpty():
+            logger.warning("⚠️  silver.fx_rates source is empty; creating empty DataFrame with fixed schema")
+            return df_fx.sparkSession.createDataFrame([], FX_RATES_SCHEMA)
+    except Exception:
+        # If we can't check emptiness, try to build normally
+        pass
+    
+    # Map columns to expected schema
+    # FX DataFrame from read_fx_rates_from_bronze has: base_ccy, quote_ccy, rate, date, bid_rate, ask_rate
+    # Map to: trade_date, base_ccy, counter_ccy, rate
     fx_silver = df_fx.select(
-        F.col("base_currency"),
-        F.col("target_currency"),
         F.coalesce(F.to_date("trade_date"), F.to_date("date")).alias("trade_date"),
-        F.col("exchange_rate"),
-        F.col("bid_rate"),
-        F.col("ask_rate"),
-        F.col("source")
+        F.coalesce(F.col("base_ccy"), F.col("base_currency")).alias("base_ccy"),
+        F.coalesce(F.col("quote_ccy"), F.col("target_currency")).alias("counter_ccy"),  # Fixed: removed non-existent counter_ccy
+        F.coalesce(F.col("rate"), F.col("exchange_rate"), F.col("fx_rate")).cast("double").alias("rate")
+    )
+    
+    # Ensure schema matches exactly
+    fx_silver = fx_silver.select(
+        F.col("trade_date").cast("date").alias("trade_date"),
+        F.col("base_ccy").cast("string").alias("base_ccy"),
+        F.col("counter_ccy").cast("string").alias("counter_ccy"),
+        F.col("rate").cast("double").alias("rate")
     )
     
     try:
-        logger.info(f"✅ silver.fx_rates: {fx_silver.count():,} rows")
+        row_count = fx_silver.count()
+        logger.info(f"✅ silver.fx_rates: {row_count:,} rows")
     except Exception:
         pass
     
@@ -192,11 +225,29 @@ def bronze_to_silver_complete(
         df_accounts, df_contacts, df_opps = load_crm_bronze_data(spark, config)
         df_customers, df_orders, df_products = load_snowflake_bronze_data(spark, config)
         df_behavior = load_redshift_behavior_bronze_data(spark, config)
-        df_fx = read_fx_rates_from_bronze(spark, resolve_data_path(config, "bronze"))
+        # For local execution, read FX from source path; for AWS, read from bronze
+        environment = config.get("environment", config.get("env", "local"))
+        if environment in ("local", "dev_local"):
+            # Local: read directly from source files
+            from pathlib import Path
+            fx_cfg = config.get("sources", {}).get("fx", {})
+            base_path = fx_cfg.get("raw_path", fx_cfg.get("base_path", ""))
+            # Construct path - for local, use the source path directly
+            if not base_path.startswith(("s3://", "file://")):
+                project_root = Path(__file__).parent.parent.parent
+                fx_base = str(project_root / base_path)
+            else:
+                fx_base = base_path
+            # Pass the base path (without /fx suffix) so function can construct fx/fx_rates_historical.json
+            df_fx = read_fx_rates_from_bronze(spark, fx_base)
+        else:
+            # AWS: read from bronze layer
+            bronze_root = resolve_data_path(config, "bronze")
+            df_fx = read_fx_rates_from_bronze(spark, bronze_root)
         df_kafka = load_kafka_bronze_data(spark, config)
         
         # 2. Build silver tables
-        customers_silver = build_customers_silver(df_accounts, df_contacts, df_opps, df_behavior)
+        customers_silver = build_customers_silver(df_customers, df_accounts, df_contacts, df_opps, df_behavior)
         orders_silver = build_orders_silver(df_orders, df_customers, df_products, df_fx)
         products_silver = build_products_silver(df_products)
         behavior_silver = build_behavior_silver(df_behavior)

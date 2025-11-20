@@ -7,7 +7,8 @@ This directory contains all project documentation organized by category.
 - **[QUICK_START.md](QUICK_START.md)** - Get started in 10 minutes
 - **[COMMANDS_REFERENCE.md](COMMANDS_REFERENCE.md)** - Quick command reference
 - **[AWS_DEPLOYMENT_CHECKLIST.md](AWS_DEPLOYMENT_CHECKLIST.md)** - AWS deployment guide
-- **[REFACTORING_REVIEW.md](REFACTORING_REVIEW.md)** - Latest refactoring status
+- **[LOCAL_ETL_VALIDATION.md](LOCAL_ETL_VALIDATION.md)** - Validate local ETL pipeline
+- **[RUN_FULL_ETL.md](RUN_FULL_ETL.md)** - Run complete ETL pipeline
 
 ## 📁 Directory Structure
 
@@ -16,6 +17,16 @@ This directory contains all project documentation organized by category.
 - `COMMANDS_REFERENCE.md` - Command reference
 - `PROJECT_OVERVIEW.md` - Project overview
 - `PRODUCTION_READINESS.md` - Production readiness checklist
+- `LOCAL_ETL_VALIDATION.md` - Local ETL validation guide
+- `RUN_FULL_ETL.md` - Full ETL pipeline execution
+- `DATA_MODEL.md` - Data model documentation
+- `DATA_PROFILE.md` - Data profiling results
+- `DATA_QUALITY_FRAMEWORK.md` - Data quality framework
+- `DATA_QUALITY_CHECK_GUIDE.md` - Data quality check guide
+- `DATA_CONTRACTS.md` - Data contracts documentation
+- `SCHEMA_CATALOG.md` - Schema catalog
+- `ENTERPRISE_ETL_ARCHITECTURE.md` - Enterprise architecture
+- `REFACTORING_REVIEW.md` - Latest refactoring status
 
 ### Guides (`guides/`)
 - `PLATFORM_OVERVIEW.md` - Platform architecture

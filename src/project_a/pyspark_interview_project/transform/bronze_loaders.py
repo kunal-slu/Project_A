@@ -66,11 +66,9 @@ def load_with_fallback(
             else:
                 df = spark.read.json(path)
         else:
-            # CSV
-            if schema:
-                df = spark.read.schema(schema).option("header", "true").csv(path)
-            else:
-                df = spark.read.option("header", "true").csv(path)
+            # CSV - read without schema to avoid column misalignment
+            # Schema will be applied later via explicit column selection
+            df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
         
         logger.info(f"Loaded from {format_hint or 'CSV'}: {path}")
         return df

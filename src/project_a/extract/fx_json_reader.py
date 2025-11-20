@@ -7,7 +7,8 @@ Reads JSON Lines (NDJSON) from S3, enforces schema, cleans nulls, and normalizes
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Optional, Union
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -108,7 +109,7 @@ def read_fx_json(
     return df_clean
 
 
-def read_fx_rates_from_bronze(spark: SparkSession, bronze_root: str) -> DataFrame:
+def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> DataFrame:
     """
     Read FX rates from Bronze layer (CSV / JSON / Delta) and normalize columns.
 
@@ -119,21 +120,46 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root: str) -> DataFram
     Expected layout:
       - s3://.../bronze/fx/fx_rates_historical.json
       - s3://.../bronze/fx/fx_rates_historical.csv
+      - data/samples/fx/fx_rates_historical.json (local)
 
     Args:
         spark: SparkSession instance
-        bronze_root: Root path to the Bronze layer (e.g. s3://.../bronze)
+        bronze_root_or_config: Either:
+            - Root path to the Bronze layer (e.g. s3://.../bronze or data/samples/fx)
+            - Config dictionary (for backward compatibility)
 
     Returns:
         DataFrame containing normalized FX rates.
     """
     from project_a.schemas.bronze_schemas import FX_RATES_SCHEMA
+    
+    # Handle both config dict and string path
+    if isinstance(bronze_root_or_config, dict):
+        # Backward compatibility: extract path from config
+        from project_a.utils.path_resolver import resolve_data_path
+        config = bronze_root_or_config
+        fx_cfg = config.get("sources", {}).get("fx", {})
+        bronze_root = fx_cfg.get("raw_path", fx_cfg.get("base_path", ""))
+        if not bronze_root:
+            bronze_root = resolve_data_path(config, "bronze")
+    else:
+        bronze_root = bronze_root_or_config
 
-    fx_base = f"{bronze_root.rstrip('/')}/fx"
+    # Handle both bronze paths (s3://.../bronze) and source paths (local file paths)
+    if "/fx/" in bronze_root or bronze_root.endswith("/fx"):
+        # Already includes /fx, use as-is
+        fx_base = bronze_root.rstrip('/')
+    elif bronze_root.endswith(".json") or bronze_root.endswith(".csv"):
+        # Direct file path, use as-is
+        fx_base = str(Path(bronze_root).parent)
+    else:
+        # Add /fx suffix
+        fx_base = f"{bronze_root.rstrip('/')}/fx"
+    
     # Try multiple possible JSON locations
     json_paths = [
         f"{fx_base}/json/fx_rates_historical.json",  # Actual location
-        f"{fx_base}/fx_rates_historical.json",  # Alternative
+        f"{fx_base}/fx_rates_historical.json",  # Alternative (most common for local)
     ]
     csv_path = f"{fx_base}/fx_rates_historical.csv"
 

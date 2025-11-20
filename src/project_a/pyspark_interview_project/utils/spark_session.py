@@ -29,8 +29,15 @@ def build_spark(
         .config("spark.eventLog.enabled", "false")
     )
 
-    # Optional: support enabling delta if specified in config
-    if cfg.get("enable_delta", True):
+    # Determine if Delta should be enabled
+    # Default: False for local, True for AWS/EMR
+    environment = (config or {}).get("environment") or (config or {}).get("env", "local")
+    is_local = environment in ("local", "dev_local")
+    
+    # Enable Delta only if explicitly requested OR if not local
+    enable_delta = cfg.get("enable_delta", not is_local)
+    
+    if enable_delta:
         builder = (
             builder
             .config(
@@ -42,6 +49,9 @@ def build_spark(
                 "org.apache.spark.sql.delta.catalog.DeltaCatalog",
             )
         )
+        logger.info("Delta Lake extensions enabled")
+    else:
+        logger.info("Delta Lake extensions disabled for local execution (using Parquet)")
 
     # Apply any extra configs from YAML (spark.extra_conf)
     extra_conf: Dict[str, str] = cfg.get("extra_conf", {}) if cfg else {}

@@ -54,13 +54,54 @@ pip install -r requirements.txt
 # Run tests
 pytest tests/
 
-# Run pipeline locally
-python src/pyspark_interview_project/pipeline_core.py config/config-dev.yaml
+# Run ETL pipeline locally
+python jobs/transform/bronze_to_silver.py --env local --config local/config/local.yaml
+python jobs/transform/silver_to_gold.py --env local --config local/config/local.yaml
+
+# Validate ETL output
+python tools/validate_local_etl.py --env local --config local/config/local.yaml
 ```
+
+See [Local ETL Validation Guide](local/docs/LOCAL_ETL_VALIDATION.md) for detailed validation instructions.
 
 ### AWS Deployment
 
-See [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) for complete deployment instructions.
+1. **Deploy artifacts to S3:**
+   ```bash
+   export ARTIFACTS_BUCKET="my-etl-artifacts-demo-424570854632"
+   export AWS_REGION="us-east-1"
+   bash aws/scripts/deploy_to_aws.sh
+   ```
+
+2. **Run ETL jobs on EMR:**
+   ```bash
+   # Submit Bronze → Silver job
+   aws emr-serverless start-job-run \
+     --application-id <APP_ID> \
+     --execution-role-arn <ROLE_ARN> \
+     --job-driver '{"sparkSubmit": {"entryPoint": "s3://.../jobs/transform/bronze_to_silver.py", ...}}'
+   
+   # Submit Silver → Gold job
+   aws emr-serverless start-job-run \
+     --application-id <APP_ID> \
+     --execution-role-arn <ROLE_ARN> \
+     --job-driver '{"sparkSubmit": {"entryPoint": "s3://.../jobs/transform/silver_to_gold.py", ...}}'
+   ```
+
+3. **Validate AWS pipeline:**
+   ```bash
+   # ⚠️ IMPORTANT: This script MUST run on EMR Serverless, not locally
+   # Local execution will fail because S3 filesystem support is not available
+   
+   # Run on EMR Serverless (via Airflow DAG or EMR job):
+   python tools/validate_aws_etl.py --config s3://my-etl-artifacts-demo-424570854632/config/aws/config/dev.yaml
+   
+   # For local testing, use validate_local_etl.py instead:
+   python tools/validate_local_etl.py --env local --config local/config/local.yaml
+   ```
+
+See [AWS Validation Guide](aws/docs/AWS_VALIDATION.md) for detailed validation instructions and troubleshooting.
+See [AWS Validation Local Execution](docs/AWS_VALIDATION_LOCAL_EXECUTION.md) for why local execution fails and how to work around it.
 
 ## Phase 4 — EMR Spark Execution (Bronze → Silver → Gold)
 

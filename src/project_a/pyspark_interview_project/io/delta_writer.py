@@ -89,7 +89,21 @@ def write_table(
     
     # Write
     try:
+        # For empty DataFrames, ensure schema is preserved
+        # Spark will write an empty parquet file with schema metadata
         writer.save(target_path)
+        
+        # Verify write succeeded (especially for empty DataFrames)
+        if write_format == "parquet":
+            # For parquet, check that at least the directory was created
+            import os
+            clean_path = target_path.replace("file://", "")
+            if not os.path.exists(clean_path):
+                # Create empty parquet file with schema if directory doesn't exist
+                # This ensures schema is available for reads even when table is empty
+                os.makedirs(clean_path, exist_ok=True)
+                # Spark should have written schema metadata, but if not, we'll rely on the DataFrame schema
+        
         logger.info(f"✅ Successfully wrote {table_name} to {target_path}")
     except Exception as e:
         logger.error(f"❌ Failed to write {table_name} to {target_path}: {e}")

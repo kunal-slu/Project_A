@@ -29,31 +29,30 @@ emr:
     cores: 2
     memory: "8G"
 
-# Local file paths - use relative paths that work on any machine
-# These resolve to PROJECT_ROOT/data/{layer}/
+# Local file paths (use file:// for local execution)
 paths:
-  bronze_root: "data/bronze"
-  silver_root: "data/silver"
-  gold_root: "data/gold"
-  checkpoints_root: "data/checkpoints"
-  dq_results_root: "data/_dq_results"
+  bronze_root: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze"
+  silver_root: "file:///Users/kunal/IdeaProjects/Project_A/data/silver"
+  gold_root: "file:///Users/kunal/IdeaProjects/Project_A/data/gold"
+  checkpoints_root: "file:///Users/kunal/IdeaProjects/Project_A/data/checkpoints"
+  dq_results_root: "file:///Users/kunal/IdeaProjects/Project_A/data/_dq_results"
 
-# Source file definitions - pointing to local sample data (relative paths)
+# Source file definitions - pointing to local sample data
 sources:
   crm:
-    base_path: "aws/data/samples/crm"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/crm"
     files:
       accounts: "accounts.csv"
       contacts: "contacts.csv"
       opportunities: "opportunities.csv"
   
   redshift:
-    base_path: "aws/data/samples/redshift"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/redshift"
     files:
       behavior: "redshift_customer_behavior_50000.csv"
   
   snowflake:
-    base_path: "aws/data/samples/snowflake"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/snowflake"
     files:
       customers: "snowflake_customers_50000.csv"
       orders: "snowflake_orders_100000.csv"
@@ -61,26 +60,18 @@ sources:
   
   fx:
     type: json
-    base_path: "aws/data/samples/fx"
-    raw_path: "aws/data/samples/fx"
-    bronze_path: "data/bronze/fx/delta"
-    silver_path: "data/silver/fx"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/fx"
+    raw_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/fx"
+    bronze_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/fx/delta"
+    silver_path: "file:///Users/kunal/IdeaProjects/Project_A/data/silver/fx"
     files:
       daily_rates: "fx_rates_historical_730_days.csv"
       daily_rates_json: "fx_rates_historical.json"
     base_currency: "USD"
     expected_currencies: ["USD", "EUR", "GBP", "JPY", "INR", "CHF", "CAD", "AUD", "CNY"]
   
-  kafka:
-    local_bootstrap_servers: "localhost:9092"
-    msk_bootstrap_servers: ""  # Set via environment variable or config override
-    topic: "orders_events"
-    consumer_group: "project-a-etl-consumer"
-    # Seed file for local simulation
-    seed_file: "aws/data/samples/kafka/stream_kafka_events_100000.csv"
-  
   kafka_sim:
-    base_path: "aws/data/samples/kafka"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/kafka"
     files:
       orders_seed: "stream_kafka_events_100000.csv"
 

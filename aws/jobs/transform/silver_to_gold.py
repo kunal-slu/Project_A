@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Import shared library
 from project_a.utils.spark_session import build_spark
-from project_a.config_loader import load_config_resolved
+from project_a.pyspark_interview_project.utils.config_loader import load_config_resolved
 from project_a.utils.logging import setup_json_logging, get_trace_id
 
 import argparse
@@ -47,13 +47,63 @@ def main():
     spark = build_spark(config=config)
     
     try:
-        # Import the actual transformation function from the canonical job file
+        # Import and run the actual transformation from shared library
+        # All business logic is in src/project_a/pyspark_interview_project/transform/
         # This ensures AWS and local use the exact same code
-        from jobs.transform.silver_to_gold import silver_to_gold_complete
+        from project_a.pyspark_interview_project.transform.gold_builders import (
+            build_dim_date,
+            build_dim_customer,
+            build_dim_product,
+            build_fact_orders,
+            build_customer_360,
+            build_product_performance
+        )
+        from project_a.pyspark_interview_project.io.delta_writer import write_table, optimize_table
+        from project_a.utils.path_resolver import resolve_data_path
         from datetime import datetime
         
+        # Run the transformation (same logic as jobs/transform/silver_to_gold.py)
         run_date = datetime.utcnow().strftime("%Y-%m-%d")
-        results = silver_to_gold_complete(spark=spark, config=config, run_date=run_date)
+        
+        # Read silver tables
+        silver_root = resolve_data_path(config, "silver")
+        gold_root = resolve_data_path(config, "gold")
+        tables_config = config.get("tables", {})
+        silver_tables = tables_config.get("silver", {})
+        gold_tables = tables_config.get("gold", {})
+        
+        # Read silver data
+        df_customers_silver = spark.read.format("delta").load(f"{silver_root}/{silver_tables.get('customers', 'customers_silver')}")
+        df_orders_silver = spark.read.format("delta").load(f"{silver_root}/{silver_tables.get('orders', 'orders_silver')}")
+        df_products_silver = spark.read.format("delta").load(f"{silver_root}/{silver_tables.get('products', 'products_silver')}")
+        
+        # Build gold tables
+        df_dim_date = build_dim_date(spark, df_orders_silver)
+        df_dim_customer = build_dim_customer(df_customers_silver, spark)
+        df_dim_product = build_dim_product(df_products_silver, spark)
+        df_fact_orders = build_fact_orders(df_orders_silver, df_dim_customer, df_dim_product, df_dim_date, spark)
+        df_customer_360 = build_customer_360(df_customers_silver, df_orders_silver, spark)
+        df_product_performance = build_product_performance(df_products_silver, df_orders_silver, spark)
+        
+        # Write gold tables
+        write_table(df_dim_date, gold_root, gold_tables.get('dim_date', 'dim_date'), config, partition_by=None)
+        write_table(df_dim_customer, gold_root, gold_tables.get('dim_customer', 'dim_customer'), config, partition_by=["country"])
+        write_table(df_dim_product, gold_root, gold_tables.get('dim_product', 'dim_product'), config, partition_by=None)
+        write_table(df_fact_orders, gold_root, gold_tables.get('fact_orders', 'fact_orders'), config, partition_by=["order_date"])
+        write_table(df_customer_360, gold_root, gold_tables.get('customer_360', 'customer_360'), config, partition_by=["country"])
+        write_table(df_product_performance, gold_root, gold_tables.get('product_performance', 'product_performance'), config, partition_by=None)
+        
+        # Optimize large fact tables
+        optimize_table(spark, gold_root, gold_tables.get('fact_orders', 'fact_orders'), config, z_order_by=["order_date", "customer_sk"])
+        
+        results = {
+            "dim_date": df_dim_date,
+            "dim_customer": df_dim_customer,
+            "dim_product": df_dim_product,
+            "fact_orders": df_fact_orders,
+            "customer_360": df_customer_360,
+            "product_performance": df_product_performance
+        }
         
         logger.info("✅ EMR Silver→Gold transformation completed successfully")
         logger.info(f"   Results: {list(results.keys())}")

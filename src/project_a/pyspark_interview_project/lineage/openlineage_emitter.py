@@ -96,7 +96,7 @@ def emit_silver_to_gold(cfg: dict, table: str, run_id: str) -> None:
         job_name=f"silver_to_gold_{table}",
         # Use config-based paths (caller should provide full paths)
         inputs=[f"silver/{table}"],  # Logical path - caller resolves to physical
-        outputs=[f"gold/{table}"]  # Logical path - caller resolves to physical
+        outputs=[f"gold/{table}"],  # Logical path - caller resolves to physical
         event_type="COMPLETE",
         run_id=run_id,
     )
