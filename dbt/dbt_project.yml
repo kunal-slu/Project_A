@@ -1,0 +1,50 @@
+name: 'project_a'
+version: '1.0.0'
+profile: 'spark'
+
+config-version: 2
+
+# Model paths
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Spark/Delta Lake configuration
+models:
+  project_a:
+    +file_format: delta
+    +location_root: /user/hive/warehouse
+    
+    staging:
+      +materialized: view
+      +schema: silver
+      +tags: ['staging', 'silver']
+    
+    marts:
+      +materialized: table
+      +schema: gold
+      +tags: ['marts', 'gold']
+      
+      dimensions:
+        +materialized: table
+        +tags: ['dimension']
+      
+      facts:
+        +materialized: incremental
+        +incremental_strategy: merge
+        +tags: ['fact', 'incremental']
+
+# Seeds (reference data)
+seeds:
+  project_a:
+    +schema: gold
+    +quote_columns: false
+

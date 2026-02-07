@@ -1,0 +1,79 @@
+{
+  "type": "record",
+  "name": "OrdersEvent",
+  "namespace": "com.company.dataplatform.events",
+  "doc": "Avro schema for Kafka orders streaming events",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique event identifier"
+    },
+    {
+      "name": "event_type",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": ["ORDER_CREATED", "ORDER_UPDATED", "ORDER_CANCELLED", "ORDER_FULFILLED"]
+      },
+      "doc": "Type of order event"
+    },
+    {
+      "name": "order_id",
+      "type": "string",
+      "doc": "Order identifier"
+    },
+    {
+      "name": "customer_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Customer identifier"
+    },
+    {
+      "name": "product_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Product identifier"
+    },
+    {
+      "name": "quantity",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Order quantity"
+    },
+    {
+      "name": "amount",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Order amount in USD"
+    },
+    {
+      "name": "currency",
+      "type": {
+        "type": "enum",
+        "name": "Currency",
+        "symbols": ["USD", "EUR", "GBP", "JPY", "CAD"]
+      },
+      "default": "USD",
+      "doc": "Currency code"
+    },
+    {
+      "name": "event_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Event timestamp in milliseconds since epoch"
+    },
+    {
+      "name": "metadata",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Additional event metadata"
+    }
+  ]
+}
+

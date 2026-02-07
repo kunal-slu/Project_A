@@ -1,0 +1,49 @@
+# Data Quality Rules Configuration
+# Defines DQ checks for each table/layer
+
+tables:
+  bronze.fx_rates:
+    critical:
+      - "NOT_NULL: [date, base_ccy, quote_ccy, rate]"
+      - "RANGE: rate BETWEEN 0.0001 AND 1000"
+      - "POSITIVE: rate > 0"
+    warning:
+      - "IN_SET: base_ccy IN ['USD','EUR','GBP','JPY','INR','CHF','CAD','AUD','CNY']"
+      - "IN_SET: quote_ccy IN ['USD','EUR','GBP','JPY','INR','CHF','CAD','AUD','CNY']"
+  
+  bronze.crm_accounts:
+    critical:
+      - "NOT_NULL: [account_id]"
+    warning:
+      - "UNIQUE: account_id"
+  
+  bronze.snowflake_orders:
+    critical:
+      - "NOT_NULL: [order_id]"
+      - "RANGE: amount >= 0"
+    warning:
+      - "UNIQUE: order_id"
+  
+  silver.orders_silver:
+    critical:
+      - "NOT_NULL: [order_id, customer_id, order_date]"
+      - "RANGE: amount_usd >= 0"
+    warning:
+      - "UNIQUE: order_id"
+      - "REFERENCE: customer_id EXISTS IN silver.customers_silver"
+  
+  silver.customers_silver:
+    critical:
+      - "NOT_NULL: [customer_id]"
+    warning:
+      - "UNIQUE: customer_id"
+  
+  gold.fact_orders:
+    critical:
+      - "NOT_NULL: [order_id, customer_sk, product_sk, date_sk]"
+      - "RANGE: sales_amount >= 0"
+    warning:
+      - "UNIQUE: order_id"
+      - "REFERENCE: customer_sk EXISTS IN gold.dim_customer"
+      - "REFERENCE: product_sk EXISTS IN gold.dim_product"
+

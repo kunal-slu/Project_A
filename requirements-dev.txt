@@ -1,38 +1,35 @@
-# Development dependencies with pinned versions
+# Development dependencies
 -r requirements.txt
 
-# Testing and Development Tools
-pytest==7.4.0
-pytest-spark==0.6.0
-pytest-cov==4.1.0
-pytest-mock==3.11.1
-pytest-xdist==3.3.1
+# Code quality and linting
+ruff>=0.6.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.0.0
+yamllint>=1.35.0
+sqlfluff>=3.1.0
+detect-secrets>=1.5.0
 
-# Code Quality and Linting
-black==24.4.2
-isort==5.13.2
-flake8==7.1.1
-mypy==1.5.1
-ruff==0.1.6
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-xdist>=3.0.0
 
-# Security Scanning
-detect-secrets==1.5.0
-bandit==1.7.5
+# Pre-commit
+pre-commit>=3.0.0
+
+# Security scanning
+safety>=3.0.0
+bandit>=1.7.0
 
 # Documentation
-sphinx==7.2.6
-sphinx-rtd-theme==1.3.0
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0
+mkdocstrings[python]>=0.20.0
 
-# Development Utilities
-ipython==8.15.0
-jupyter==1.0.0
-notebook==7.0.2
-
-# Performance and Profiling
-memory-profiler==0.61.0
-line-profiler==4.1.2
-
-# Type Checking
-types-PyYAML==6.0.12.12
-types-requests==2.31.0.10
-
+# Jupyter
+jupyter>=1.0.0
+ipykernel>=6.0.0
+matplotlib>=3.6.0
+seaborn>=0.12.0

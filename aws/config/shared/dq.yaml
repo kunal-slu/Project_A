@@ -1,0 +1,236 @@
+# Data Quality Configuration - Global Thresholds
+
+# Global DQ settings
+dq:
+  enabled: true
+  strict_mode: true  # Enable strict mode for production
+  on_failure:
+    action: "fail"  # log, alert, fail - fail for critical checks
+    
+# Quality Gates - thresholds that block deployment/DAG execution
+quality_gates:
+  min_pass_rate: 0.95  # 95% of checks must pass
+  critical_checks:
+    - not_null_keys
+    - referential_integrity
+    - freshness
+    - volume
+  
+  # Table-specific thresholds
+  thresholds:
+    silver.orders:
+      min_pass_rate: 0.98
+      critical_checks: ["not_null_keys", "referential_integrity"]
+    silver.fx_rates:
+      min_pass_rate: 0.95
+      critical_checks: ["not_null_keys"]
+    gold.fact_revenue:
+      min_pass_rate: 0.99
+      critical_checks: ["not_null_keys", "referential_integrity"]
+    
+# Validation rules configuration
+validation_rules:
+  - name: "not_null"
+    enabled: true
+    severity: "warning"
+    
+  - name: "unique"
+    enabled: true
+    severity: "error"
+    
+  - name: "range"
+    enabled: true
+    severity: "warning"
+    
+  - name: "regex"
+    enabled: false
+    severity: "info"
+
+# Multi-layer Data Quality Expectations
+
+# Bronze Layer DQ (Source-level)
+bronze:
+  behavior:
+    level: bronze
+    checks:
+      - type: columns_exist
+        columns: [event_id, customer_id, event_name, event_ts]
+        action: fail_fast
+      - type: min_row_count
+        value: 1
+        action: alert
+      - type: file_present
+        action: fail_fast
+  
+  snowflake_orders:
+    level: bronze
+    checks:
+      - type: columns_exist
+        columns: [order_id, customer_id, order_date, total_amount]
+        action: fail_fast
+      - type: min_row_count
+        value: 1
+        action: alert
+
+# Silver Layer DQ (Business rules) - P2-9 Format
+silver:
+  orders:
+    critical:
+      - expect_column_values_to_not_be_null:
+          column: order_id
+      - expect_compound_columns_to_be_unique:
+          columns: [order_id]
+      - expect_column_values_to_be_between:
+          column: amount_usd
+          min_value: 0
+      - expect_column_to_exist:
+          column: customer_id
+    warn:
+      - expect_table_row_count_to_be_between:
+          min_value: 100
+      - expect_column_values_to_not_be_null:
+          column: customer_id
+  
+  behavior:
+    critical:
+      - expect_column_values_to_not_be_null:
+          column: event_id
+      - expect_column_values_to_not_be_null:
+          column: customer_id
+      - expect_column_values_to_not_be_null:
+          column: event_ts
+    warn:
+      - expect_column_values_to_be_in_set:
+          column: event_name
+          value_set: [email_open, email_click, page_view, add_to_cart, purchase, login, signup]
+      - expect_table_row_count_to_be_between:
+          min_value: 1000
+  
+  customers:
+    critical:
+      - expect_column_values_to_not_be_null:
+          column: customer_id
+      - expect_compound_columns_to_be_unique:
+          columns: [customer_id]
+    warn:
+      - expect_table_row_count_to_be_between:
+          min_value: 100
+  
+  fx_rates:
+    level: silver
+    checks:
+      - type: expect_column_to_exist
+        column: ccy
+      - type: expect_column_values_to_be_in_set
+        column: ccy
+        value_set: [USD, EUR, GBP, JPY, CNY, AUD, CAD, CHF]
+        action: quarantine
+
+# Gold Layer DQ (Business ranges, freshness) - P2-9 Format
+gold:
+  fact_sales:
+    critical:
+      - expect_column_values_to_not_be_null:
+          column: order_id
+      - expect_compound_columns_to_be_unique:
+          columns: [order_id]
+      - expect_column_values_to_be_between:
+          column: amount_usd
+          min_value: 0
+          max_value: 1000000  # Business range
+      - expect_column_values_to_be_of_type:
+          column: customer_sk
+          type: "long"
+    warn:
+      - expect_table_row_count_to_be_between:
+          min_value: 1000
+      - expect_table_columns_to_match_ordered_list:
+          columns: [customer_sk, product_sk, date_sk, order_id, amount_usd]
+  
+  dim_customer:
+    critical:
+      - expect_column_values_to_not_be_null:
+          column: customer_id
+      - expect_column_values_to_not_be_null:
+          column: customer_sk
+      - expect_column_values_to_be_between:
+          column: customer_sk
+          min_value: 1
+    warn:
+      - expect_table_row_count_to_be_between:
+          min_value: 100
+  
+  fact_behavior:
+    critical:
+      - expect_column_values_to_not_be_null:
+          column: event_id
+      - expect_column_values_to_be_between:
+          column: customer_sk
+          min_value: 1
+    warn:
+      - expect_table_row_count_to_be_between:
+          min_value: 1000
+  
+  product_perf_daily:
+    level: gold
+    checks:
+      - type: pk_unique
+        columns: [date, product_id]
+        action: fail
+      - type: fk_exists
+        column: product_id
+        reference_table: silver.snowflake_products
+        reference_column: product_id
+        action: fail
+
+# Legacy expectations (kept for backward compatibility)
+expectations:
+  silver:
+    orders:
+      - expectation_type: "expect_column_to_exist"
+        kwargs:
+          column: "order_id"
+      - expectation_type: "expect_column_values_to_not_be_null"
+        kwargs:
+          column: "order_id"
+      
+    fx_rates:
+      - expectation_type: "expect_column_to_exist"
+        kwargs:
+          column: "ccy"
+      - expectation_type: "expect_column_values_to_be_in_set"
+        kwargs:
+          column: "ccy"
+          value_set: ["USD", "EUR", "GBP", "JPY"]
+        
+  gold:
+    revenue:
+      - expectation_type: "expect_column_to_exist"
+        kwargs:
+          column: "revenue_amount"
+      - expectation_type: "expect_column_values_to_be_of_type"
+        kwargs:
+          column: "revenue_amount"
+          type: "float"
+
+# Alerting configuration
+alerts:
+  enabled: true
+  channels:
+    - type: "slack"
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+    - type: "email"
+      recipients: ["data-team@company.com"]
+      
+  conditions:
+    - metric: "dq_failure_rate"
+      threshold: 0.10
+      action: "alert"
+      
+# Reporting configuration
+reporting:
+  enabled: true
+  output_format: "json"
+  output_path: "s3://lake/gold/quality/"
+  frequency: "daily"
+

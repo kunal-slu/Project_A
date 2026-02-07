@@ -1,6 +1,6 @@
 import os
 
-from pyspark_interview_project.load import (write_avro, write_json,
+from project_a.load import (write_avro, write_json,
                                             write_parquet)
 
 

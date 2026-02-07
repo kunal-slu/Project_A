@@ -1,0 +1,54 @@
+# Data Quality Suite for Silver Orders Table
+
+dataset_name: silver.orders
+ge_cloud_mode: false
+
+expectations:
+  - expect_column_to_exist: order_id
+  - expect_column_to_exist: customer_id
+  - expect_column_to_exist: product_id
+  - expect_column_to_exist: total_amount
+  - expect_column_to_exist: order_date
+  
+  - expect_column_values_to_not_be_null:
+      column: order_id
+      mostly: 1.0
+      
+  - expect_column_values_to_not_be_null:
+      column: customer_id
+      mostly: 0.95
+      
+  - expect_column_values_to_be_unique: order_id
+  
+  - expect_column_max_to_be_between:
+      column: total_amount
+      min_value: 0
+      max_value: 1000000
+      
+  - expect_column_min_to_be_between:
+      column: total_amount
+      min_value: 0
+      max_value: 1000000
+      
+  - expect_column_values_to_be_of_type:
+      column: order_id
+      type_: string
+      
+  - expect_column_values_to_be_of_type:
+      column: total_amount
+      type_: numeric
+      
+  - expect_column_values_to_match_regex:
+      column: order_id
+      regex: ^ORD_[0-9]+$
+      
+  - expect_column_values_to_match_strftime_format:
+      column: order_date
+      strftime_format: "%Y-%m-%d"
+
+# Metadata
+meta:
+  notes: "Silver orders table DQ checks"
+  version: 1.0.0
+  owner: data-engineering-team
+

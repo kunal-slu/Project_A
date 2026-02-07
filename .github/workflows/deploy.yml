@@ -1,0 +1,118 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main, feature/aws-production]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run tests
+        run: |
+          export PYTHONPATH=$PWD/src:$PYTHONPATH
+          python -m pytest tests/ -v
+      
+      - name: Validate Terraform
+        run: |
+          cd aws/terraform
+          terraform init -backend=false
+          terraform validate
+      
+      - name: Test DAG imports
+        run: |
+          export PYTHONPATH=$PWD/src:$PYTHONPATH
+          python aws/tests/test_dag_imports.py
+      
+      - name: Validate config contracts
+        run: |
+          python aws/tests/test_prod_config_contract.py
+          python aws/tests/test_schema_contracts.py
+
+  deploy-dev:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/feature/aws-production'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Deploy infrastructure
+        run: |
+          cd aws/terraform
+          terraform init
+          terraform plan -var-file="terraform.tfvars" -var="environment=dev"
+          terraform apply -auto-approve -var-file="terraform.tfvars" -var="environment=dev"
+      
+      - name: Build and upload code
+        run: |
+          cd aws/scripts
+          chmod +x build_zip.sh
+          ./build_zip.sh
+      
+      - name: Sync Airflow DAGs
+        run: |
+          cd aws/scripts
+          chmod +x sync_airflow_dags.sh
+          ./sync_airflow_dags.sh
+
+  deploy-prod:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: us-east-1
+      
+      - name: Deploy infrastructure
+        run: |
+          cd aws/terraform
+          terraform init
+          terraform plan -var-file="terraform.tfvars" -var="environment=prod"
+          terraform apply -auto-approve -var-file="terraform.tfvars" -var="environment=prod"
+      
+      - name: Build and upload code
+        run: |
+          cd aws/scripts
+          chmod +x build_zip.sh
+          ./build_zip.sh
+      
+      - name: Sync Airflow DAGs
+        run: |
+          cd aws/scripts
+          chmod +x sync_airflow_dags.sh
+          ./sync_airflow_dags.sh
+      
+      - name: Run smoke tests
+        run: |
+          cd aws/scripts
+          chmod +x run_smoke_tests.sh
+          ./run_smoke_tests.sh

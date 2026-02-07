@@ -1,0 +1,162 @@
+# Production Configuration - AWS
+# Single source of truth for production deployment
+
+env: prod
+cloud: aws
+
+# AWS Configuration
+aws:
+  region: us-east-1
+  lake_bucket: my-etl-lake-demo
+  code_bucket: my-etl-code-demo
+  glue_catalog_db: silver  # Production uses silver as Glue catalog
+  s3:
+    data_lake_bucket: company-data-lake-123456789012
+    backup_bucket: company-backups-123456789012
+    logs_bucket: company-logs-123456789012
+    artifacts_bucket: company-artifacts-123456789012
+
+# Redshift Configuration (enabled for production)
+redshift:
+  enabled: true
+  database: dev
+  schema: raw
+  iam_role: arn:aws:iam::424570854632:role/service-role/AmazonRedshift-CommandsAccessRole-20251029T220446
+
+# Snowflake Configuration (enabled for production)
+snowflake:
+  enabled: true
+  warehouse: COMPUTE_WH
+  database: ETL_PROJECT_DB
+  schema: RAW
+
+# Unified Paths - S3 locations in production
+paths:
+  bronze: s3a://my-etl-lake-demo/bronze
+  silver: s3a://my-etl-lake-demo/silver
+  gold: s3a://my-etl-lake-demo/gold
+
+# DQ Configuration
+dq:
+  config_file: config/dq.yaml
+  enabled: true
+  strict_mode: true  # Strict for production
+
+# Lineage Configuration
+lineage:
+  config_file: config/lineage.yaml
+  enabled: true
+  url: ${OPENLINEAGE_URL:-http://marquez:5000}
+  namespace: company-data-platform
+
+# Spark Runtime Configuration
+spark:
+  app_name: company_production_etl
+  shuffle_partitions: 200
+  enable_aqe: true
+  executor_instances: 5
+  executor_memory: 8g
+  executor_cores: 4
+
+# Storage Configuration
+storage:
+  warehouse: s3://my-etl-lake-demo
+  format: iceberg  # iceberg | delta | parquet
+  catalog: glue_catalog
+
+# Data Lake Paths
+data_lake:
+  bronze_prefix: bronze
+  silver_prefix: silver
+  gold_prefix: gold
+  checkpoint_prefix: checkpoints
+  metrics_prefix: metrics
+
+# EMR Serverless Configuration
+emr:
+  mode: serverless
+  application_id: ${EMR_APPLICATION_ID}
+  execution_role_arn: arn:aws:iam::${AWS_ACCOUNT}:role/EmrServerlessJobExecutionRole
+  spark_submit_defaults:
+    spark.sql.extensions: io.delta.sql.DeltaSparkSessionExtension
+    spark.sql.catalog.spark_catalog: org.apache.spark.sql.delta.catalog.DeltaCatalog
+    spark.sql.shuffle.partitions: 200
+
+# Secrets Configuration
+secrets:
+  snowflake: snowflake/etl/prod
+  redshift: redshift/etl_user/prod
+  salesforce: salesforce/api_token/prod
+  kafka: kafka/orders_stream/prod
+
+# Streaming Configuration
+streaming:
+  enabled: true
+  source: kafka
+  checkpoint_prefix: checkpoints/streaming/orders
+  trigger_interval: 5 minutes
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  metrics_export: cloudwatch
+  log_level: INFO
+  pipeline_metrics: true
+
+# SLA Configuration
+sla:
+  bronze_ingestion_hours: 2
+  silver_transformation_hours: 2.5
+  gold_business_logic_hours: 3
+  streaming_delay_minutes: 5
+
+# Security Configuration
+security:
+  encryption_enabled: true
+  audit_logging: true
+  data_masking: true
+
+# Performance Configuration
+performance:
+  cache_enabled: true
+  partition_size_mb: 128
+  max_partitions: 200
+  broadcast_threshold_mb: 10
+
+# Data Sources
+data_sources:
+  crm:
+    enabled: true
+    source_type: api
+  snowflake:
+    enabled: true
+    source_type: database
+  redshift:
+    enabled: true
+    source_type: database
+  kafka:
+    enabled: true
+    source_type: streaming
+  fx_vendor:
+    enabled: true
+    source_type: api
+
+# Source-specific ingestion configuration (P0)
+sources:
+  snowflake_orders:
+    load_type: incremental
+    watermark_column: updated_at
+    watermark_state_key: snowflake_orders_max_ts
+    schema_contract: config/schema_definitions/snowflake_orders_bronze.json
+  
+  redshift_behavior:
+    load_type: incremental
+    watermark_column: event_ts
+    watermark_state_key: redshift_behavior_max_ts
+    schema_contract: config/schema_definitions/redshift_behavior_bronze.json
+  
+  snowflake_customers:
+    load_type: incremental
+    watermark_column: last_modified_ts
+    watermark_state_key: snowflake_customers_max_ts
+    schema_contract: config/schema_definitions/customers_bronze.json

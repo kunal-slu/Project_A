@@ -1,44 +1,46 @@
-FROM python:3.11-slim
+# Dockerfile for PySpark ETL Jobs
+# Supports running Spark jobs in containerized environments (ECS, Kubernetes, etc.)
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+FROM amazoncorretto:17-alpine AS base
 
-# Set working directory
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    python3-dev \
+    py3-pip \
+    curl \
+    bash \
+    && ln -sf python3 /usr/bin/python
+
 WORKDIR /app
 
-# Install system dependencies and clean up in one layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openjdk-17-jre-headless \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
+# Copy requirements
 COPY requirements.txt requirements-dev.txt ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Create non-root user
-RUN useradd -ms /bin/bash appuser
+RUN pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install --no-cache-dir -r requirements-dev.txt
 
 # Copy application code
-COPY . .
+COPY src/ ./src/
+COPY config/ ./config/
+COPY scripts/ ./scripts/
+COPY aws/ ./aws/
 
-# Change ownership to appuser
-RUN chown -R appuser:appuser /app
+# Set Python path
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+ENV SPARK_HOME=/opt/spark
 
-# Switch to non-root user
-USER appuser
+# Install Spark (lightweight version for container)
+ARG SPARK_VERSION=3.5.0
+ARG HADOOP_VERSION=3
 
-# Expose port for metrics
-EXPOSE 8000
+RUN curl -sSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" | \
+    tar -xz -C /opt && \
+    ln -s /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} ${SPARK_HOME}
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -fsS http://localhost:8000/metrics || exit 1
+# Add Spark to PATH
+ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:$PATH
 
 # Default command
-ENTRYPOINT ["python", "-m", "src.pyspark_interview_project.pipeline"]
+CMD ["python3", "-m", "pyspark_interview_project.pipeline.run_pipeline"]

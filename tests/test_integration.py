@@ -14,7 +14,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from pyspark_interview_project import (
+from project_a import (
     build_spark,
     load_config_resolved,
     extract_customers,

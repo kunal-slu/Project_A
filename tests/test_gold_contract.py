@@ -9,7 +9,7 @@ from pathlib import Path
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
 
-from pyspark_interview_project.schema.validator import SchemaValidator
+from project_a.schema.validator import SchemaValidator
 
 
 @pytest.fixture

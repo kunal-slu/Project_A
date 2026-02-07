@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from pyspark_interview_project import (
+from project_a import (
     build_spark,
     load_config_resolved,
     extract_customers,
@@ -29,12 +29,12 @@ from pyspark_interview_project import (
     write_parquet
 )
 
-from pyspark_interview_project.ingestion_pipeline import IngestionPipeline
-from pyspark_interview_project.metrics_collector import MetricsCollector
-from pyspark_interview_project.data_quality_suite import DataQualitySuite
-from pyspark_interview_project.disaster_recovery import DisasterRecoveryExecutor
-from pyspark_interview_project.data_contracts import DataContractManager
-from pyspark_interview_project.performance_optimizer import PerformanceOptimizer
+from project_a.ingestion_pipeline import IngestionPipeline
+from project_a.metrics_collector import MetricsCollector
+from project_a.data_quality_suite import DataQualitySuite
+from project_a.disaster_recovery import DisasterRecoveryExecutor
+from project_a.data_contracts import DataContractManager
+from project_a.performance_optimizer import PerformanceOptimizer
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

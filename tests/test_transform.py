@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 
 from pyspark.sql import Row
 
-from pyspark_interview_project.transform import (broadcast_join_demo,
+from project_a.transform import (broadcast_join_demo,
                                                  build_customers_scd2,
                                                  build_fact_orders,
                                                  data_cleaning_examples,

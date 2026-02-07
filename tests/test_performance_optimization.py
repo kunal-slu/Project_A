@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 from pyspark.sql import SparkSession
 from pyspark.sql import DataFrame
 
-from pyspark_interview_project.performance_optimizer import (
+from project_a.performance_optimizer import (
     PerformanceOptimizer,
     CacheManager,
     PerformanceBenchmark,

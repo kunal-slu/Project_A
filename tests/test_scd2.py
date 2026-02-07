@@ -10,7 +10,7 @@ from datetime import datetime
 from pyspark.sql import SparkSession, functions as F
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 
-from pyspark_interview_project.common.scd2 import apply_scd2, SCD2Config, validate_scd2_table
+from project_a.common.scd2 import apply_scd2, SCD2Config, validate_scd2_table
 
 
 class TestSCD2Standardized:

@@ -1,0 +1,85 @@
+# Lineage Configuration for OpenLineage/Marquez
+# This configures data lineage tracking for the ETL pipeline
+
+# Enable/disable lineage emission
+enabled: true
+
+# Backend type: "marquez" or "openlineage"
+backend: "openlineage"
+
+# Backend URL (replace with your actual Marquez/OpenLineage URL)
+# For local testing: http://localhost:5000
+# For production: https://your-marquez-instance.com
+url: "${OPENLINEAGE_URL:-http://localhost:5000}"
+
+# Namespace for lineage events
+namespace: "project_a_dev"
+
+# Optional API key for secured backends
+api_key: "${OPENLINEAGE_API_KEY:-}"
+
+# Dataset registry (optional - for reference)
+datasets:
+  # Bronze layer
+  - name: bronze.crm.accounts
+    location: s3://my-etl-lake-demo-424570854632/bronze/crm/accounts
+    layer: bronze
+    source: crm
+    
+  - name: bronze.snowflake.customers
+    location: s3://my-etl-lake-demo-424570854632/bronze/snowflakes/customers
+    layer: bronze
+    source: snowflake
+    
+  - name: bronze.snowflake.orders
+    location: s3://my-etl-lake-demo-424570854632/bronze/snowflakes/orders
+    layer: bronze
+    source: snowflake
+    
+  - name: bronze.redshift.behavior
+    location: s3://my-etl-lake-demo-424570854632/bronze/redshift/behavior
+    layer: bronze
+    source: redshift
+    
+  - name: bronze.fx.rates
+    location: s3://my-etl-lake-demo-424570854632/bronze/fx/delta
+    layer: bronze
+    source: fx
+    
+  # Silver layer
+  - name: silver.customers
+    location: s3://my-etl-lake-demo-424570854632/silver/customers_silver
+    layer: silver
+    
+  - name: silver.orders
+    location: s3://my-etl-lake-demo-424570854632/silver/orders_silver
+    layer: silver
+    
+  - name: silver.products
+    location: s3://my-etl-lake-demo-424570854632/silver/products_silver
+    layer: silver
+    
+  - name: silver.behavior
+    location: s3://my-etl-lake-demo-424570854632/silver/customer_behavior_silver
+    layer: silver
+    
+  - name: silver.fx_rates
+    location: s3://my-etl-lake-demo-424570854632/silver/fx_rates_silver
+    layer: silver
+    
+  # Gold layer
+  - name: gold.fact_orders
+    location: s3://my-etl-lake-demo-424570854632/gold/fact_orders
+    layer: gold
+    
+  - name: gold.dim_customer
+    location: s3://my-etl-lake-demo-424570854632/gold/dim_customer
+    layer: gold
+    
+  - name: gold.dim_product
+    location: s3://my-etl-lake-demo-424570854632/gold/dim_product
+    layer: gold
+    
+  - name: gold.customer_360
+    location: s3://my-etl-lake-demo-424570854632/gold/customer_360
+    layer: gold

@@ -6,7 +6,7 @@ import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType
 
-from pyspark_interview_project.transforms.bronze_to_silver import (
+from project_a.transforms.bronze_to_silver import (
     transform_customers_bronze_to_silver,
     transform_orders_bronze_to_silver,
     transform_products_bronze_to_silver

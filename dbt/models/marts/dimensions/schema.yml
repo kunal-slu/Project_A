@@ -1,0 +1,162 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: |
+      Customer dimension table with Type 1 SCD.
+      
+      **Business Logic:**
+      - One row per customer
+      - Includes lifetime metrics and segmentation
+      - Refreshed daily
+      
+      **Data Contract:**
+      - Primary Key: customer_id
+      - No nullable keys
+      - Segments: VIP, High Value, Regular, New
+      
+      **Owner:** Data Engineering Team
+      **SLA:** Daily by 6 AM UTC
+      **Breaking Changes:** Require 2-week notice
+    
+    columns:
+      - name: customer_id
+        description: "Unique customer identifier (PK)"
+        tests:
+          - unique
+          - not_null
+      
+      - name: first_name
+        description: "Customer first name (PII - handle with care)"
+        meta:
+          pii: true
+          masking_required: true
+      
+      - name: last_name
+        description: "Customer last name (PII - handle with care)"
+        meta:
+          pii: true
+          masking_required: true
+      
+      - name: email
+        description: "Customer email address (PII)"
+        tests:
+          - not_null
+        meta:
+          pii: true
+          masking_required: true
+      
+      - name: country
+        description: "Customer country code (ISO 3166-1 alpha-2)"
+      
+      - name: registration_date
+        description: "Date customer registered"
+        tests:
+          - not_null
+      
+      - name: lifetime_orders
+        description: "Total number of orders placed by customer"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      
+      - name: lifetime_value
+        description: "Total revenue from customer (USD)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      
+      - name: first_order_date
+        description: "Date of customer's first order"
+      
+      - name: last_order_date
+        description: "Date of customer's most recent order"
+      
+      - name: total_events
+        description: "Total behavioral events tracked"
+        tests:
+          - not_null
+      
+      - name: total_sessions
+        description: "Total number of sessions"
+        tests:
+          - not_null
+      
+      - name: customer_segment
+        description: "Customer value segment"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['VIP', 'High Value', 'Regular', 'New']
+      
+      - name: dbt_updated_at
+        description: "Timestamp when record was last updated by dbt"
+        tests:
+          - not_null
+
+  - name: dim_product
+    description: |
+      Product dimension table with Type 1 SCD.
+      
+      **Business Logic:**
+      - One row per product
+      - Includes performance metrics
+      - Refreshed daily
+      
+      **Data Contract:**
+      - Primary Key: product_id
+      - No nullable keys
+      
+      **Owner:** Data Engineering Team
+      **SLA:** Daily by 6 AM UTC
+    
+    columns:
+      - name: product_id
+        description: "Unique product identifier (PK)"
+        tests:
+          - unique
+          - not_null
+      
+      - name: product_name
+        description: "Product display name"
+        tests:
+          - not_null
+      
+      - name: category
+        description: "Product category"
+      
+      - name: price
+        description: "Current product price (USD)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      
+      - name: total_orders
+        description: "Lifetime orders for this product"
+        tests:
+          - not_null
+      
+      - name: total_revenue
+        description: "Lifetime revenue for this product (USD)"
+        tests:
+          - not_null
+      
+      - name: unique_customers
+        description: "Number of unique customers who bought this product"
+        tests:
+          - not_null
+      
+      - name: performance_tier
+        description: "Product performance classification"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Top Performer', 'Strong Performer', 'Average Performer', 'Low Performer']
+      
+      - name: dbt_updated_at
+        description: "Timestamp when record was last updated by dbt"
+        tests:
+          - not_null

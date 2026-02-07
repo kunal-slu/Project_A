@@ -30,6 +30,9 @@ venv/
 spark-warehouse/
 metastore_db/
 derby.log
+emr_logs*/
+*.stderr.gz
+steps_*.json
 
 # Data
 data/
@@ -42,9 +45,32 @@ data/
 *.tmp
 *.temp
 *.log
+*.gz
 
 # Secrets
 *.pem
 *.key
 *.crt
 secrets/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars.bak
+main.tf.bak
+main.tf.fixed
+
+# Build artifacts (should be uploaded to S3, not committed)
+dependencies.zip
+.emr_deps/
+dist/emr_deps_pyyaml.zip
+
+# Terraform plan files
+*.tfplan
+*.tfstate*
+
+# Junk files
+*.pyc
+# Runtime logs
