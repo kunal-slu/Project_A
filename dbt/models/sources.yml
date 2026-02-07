@@ -1,13 +1,86 @@
 version: 2
 
 sources:
-  - name: raw
-    description: "Raw data sources in Snowflake"
-    schema: raw
+  - name: silver
+    description: "Silver layer - cleaned and validated data from Spark ETL"
+    database: project_a
+    schema: silver
     
     tables:
-      - name: customer_behavior
-        description: "Raw customer behavior events from Redshift"
+      - name: customers_silver
+        description: "Cleaned customer master data from Snowflake"
+        columns:
+          - name: customer_id
+            description: "Unique customer identifier"
+            tests:
+              - unique
+              - not_null
+          - name: email
+            description: "Customer email address (PII)"
+            tests:
+              - not_null
+          - name: first_name
+            description: "Customer first name (PII)"
+          - name: last_name
+            description: "Customer last name (PII)"
+          - name: country
+            description: "Customer country code"
+          - name: registration_date
+            description: "Date customer registered"
+            tests:
+              - not_null
+      
+      - name: orders_silver
+        description: "Cleaned orders data from Snowflake"
+        columns:
+          - name: order_id
+            description: "Unique order identifier"
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            description: "FK to customers"
+            tests:
+              - not_null
+              - relationships:
+                  to: source('silver', 'customers_silver')
+                  field: customer_id
+          - name: order_date
+            description: "Date order was placed"
+            tests:
+              - not_null
+          - name: total_amount
+            description: "Order total in USD"
+            tests:
+              - not_null
+          - name: product_id
+            description: "FK to products"
+      
+      - name: products_silver
+        description: "Cleaned product catalog from Snowflake"
+        columns:
+          - name: product_id
+            description: "Unique product identifier"
+            tests:
+              - unique
+              - not_null
+          - name: product_name
+            description: "Product name"
+            tests:
+              - not_null
+          - name: category
+            description: "Product category"
+          - name: price
+            description: "Product price in USD"
+            tests:
+              - not_null
+      
+      - name: customer_behavior_silver
+        description: "Cleaned customer behavior events from Redshift"
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: event_ts
         columns:
           - name: event_id
             description: "Unique event identifier"
@@ -15,33 +88,41 @@ sources:
               - unique
               - not_null
           - name: customer_id
-            description: "Customer identifier"
+            description: "Customer who triggered event"
             tests:
               - not_null
-          - name: event_name
-            description: "Type of event"
+          - name: event_type
+            description: "Type of event (page_view, purchase, etc)"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['page_view', 'product_view', 'add_to_cart', 'purchase', 'email_open', 'email_click']
           - name: event_ts
             description: "Event timestamp"
             tests:
               - not_null
           - name: session_id
-            description: "Session identifier"
-          - name: revenue
-            description: "Transaction revenue if purchase event"
-        
-      - name: orders
-        description: "Raw orders data from Snowflake"
+            description: "User session identifier"
+          - name: time_spent_seconds
+            description: "Time spent on page/action"
+      
+      - name: fx_rates_silver
+        description: "FX exchange rates for multi-currency support"
         columns:
-          - name: order_id
-            tests:
-              - unique
-              - not_null
-          - name: customer_id
+          - name: trade_date
+            description: "Date of FX rate"
             tests:
               - not_null
-          - name: order_date
+          - name: base_ccy
+            description: "Base currency code"
             tests:
               - not_null
-          - name: total_amount
-            description: "Order total in USD"
+          - name: counter_ccy
+            description: "Counter currency code"
+            tests:
+              - not_null
+          - name: rate
+            description: "Exchange rate"
+            tests:
+              - not_null
 

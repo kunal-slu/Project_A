@@ -1,16 +1,155 @@
-# PySpark Data Engineering Project
+# Project_A: Production Data Engineering Platform
 
-Comprehensive AWS Production ETL Pipeline with Delta Lake
+**Enterprise-grade data lakehouse with medallion architecture, incremental processing, and data quality automation**
 
-## 🎯 Project Overview
+## 🎯 What This Project Solves
 
-This is a production-ready data engineering project that demonstrates best practices for:
-- Multi-source data ingestion (HubSpot, Snowflake, Redshift, Kafka, FX Rates)
-- Bronze → Silver → Gold data lakehouse architecture
-- Incremental loading with SCD2 support
-- Data quality validation
-- AWS EMR Serverless deployment
-- Delta Lake for ACID transactions
+This is not just another ETL pipeline—it's a **production-ready data platform** that solves real engineering challenges:
+
+- **Late-Arriving Data**: 3-day rolling window with merge strategy ensures corrections don't break reports
+- **Schema Evolution**: Delta Lake + dbt contracts support backward-compatible changes without downtime
+- **Data Quality**: Automated validation gates prevent bad data from poisoning downstream systems
+- **Scalability**: Incremental processing handles growing data volumes efficiently
+- **Observability**: Comprehensive logging, metrics, and lineage tracking for debugging and compliance
+
+## 🏗️ Architecture Overview
+
+```
+Sources (CRM, Snowflake, Redshift, Kafka, FX)
+         ↓
+    Bronze Layer (Raw, Append-Only)
+    - Format: Parquet
+    - Strategy: Full ingestion with watermarking
+    - Purpose: Immutable source of truth
+         ↓
+    Silver Layer (Cleaned, Validated)
+    - Format: Delta Lake  ← ACID + Schema Evolution
+    - Strategy: Incremental with CDC
+    - Purpose: Single source of truth for analytics
+         ↓
+    Gold Layer (Business Logic)
+    - Format: Delta Lake
+    - Strategy: dbt owns this layer  ← Business logic as code
+    - Purpose: Analytics-ready dimensional models
+         ↓
+    BI Tools / ML / Data Products
+```
+
+### Why This Architecture?
+
+**Bronze = Raw Files (Parquet)**
+- Simple, fast ingestion
+- No schema enforcement needed
+- Cheap storage for compliance/auditing
+
+**Silver = Delta Lake**  
+✅ **This is the senior-level signal**
+- ACID guarantees for data consistency
+- Schema evolution without breaking consumers
+- Time travel for debugging and recovery
+- Merge operations for handling late data
+- Interview line: *"We keep Bronze as raw files, but Silver uses Delta Lake to support schema evolution and late-arriving data."*
+
+**Gold = dbt + Delta Lake**
+- Business logic version-controlled as SQL
+- Data contracts enforced at build time
+- Automated testing (not_null, unique, referential integrity)
+- Interview line: *"dbt enforces data contracts and business logic at the Gold layer."*
+
+## 🔑 Key Technical Decisions
+
+### 1. Incremental Processing + Late Data Handling
+
+**Problem**: Orders can be updated after initial load (refunds, corrections)
+
+**Solution**: Rolling 3-day window with merge strategy
+```sql
+-- In dbt model
+{% if is_incremental() %}
+where order_date >= dateadd(day, -3, current_date())
+{% endif %}
+```
+
+**Why This Works:**
+- Reprocesses last 3 days on every run
+- Merge updates existing records
+- Safe for late corrections without full reload
+- Interview line: *"We reprocess a rolling window to safely handle late events."*
+
+### 2. Delta Lake vs Iceberg
+
+**Decision**: Delta Lake for Silver/Gold layers
+
+**Why:**
+- Excellent Spark integration (we're Spark-native)
+- Mature ACID support
+- Meets our needs: schema evolution, time travel, merges
+- Simpler operations (fewer moving parts)
+
+**When to use Iceberg:**
+- Multi-engine access (Trino + Flink + Spark)
+- Hidden partitioning requirements
+- Petabyte-scale metadata management
+
+**Current Scale**: Delta Lake handles our workload efficiently
+
+### 3. dbt for Gold Layer
+
+**Why dbt:**
+- Business logic as version-controlled SQL
+- Built-in testing framework
+- Documentation generation
+- Lineage DAG visualization
+- Industry standard for analytics engineering
+
+**What We Built:**
+- ✅ Dimension tables with SCD Type 1
+- ✅ Incremental fact tables with late-data handling
+- ✅ Comprehensive schema.yml with tests
+- ✅ Data contracts with ownership and SLAs
+
+### 4. Data Quality Strategy
+
+**Layered Approach:**
+
+1. **Spark ETL Layer**: Basic validation (not_null, type checking)
+2. **dbt Tests**: Business rule validation
+   - Uniqueness constraints
+   - Referential integrity
+   - Value range checks
+   - Custom business logic tests
+
+**Fail-Fast Principle:**
+```
+Pipelines fail if:
+- Primary keys are not unique
+- Foreign keys reference non-existent records  
+- Required fields are null
+- Data quality score < threshold
+```
+
+Interview line: *"Pipelines fail fast if data quality checks don't pass."*
+
+### 5. Orchestration
+
+**Current**: EMR Step Functions
+**Future**: Airflow DAGs (prepared but not over-engineered)
+
+**Why this approach:**
+- Start simple (EMR steps work)
+- Add Airflow when complexity demands it
+- Interview line: *"Airflow handles orchestration, EMR handles compute."*
+
+### 6. Observability
+
+**What We Track:**
+- ✅ Row counts at each stage
+- ✅ Job duration and resource usage
+- ✅ Data quality scores
+- ✅ Lineage information
+- ✅ Schema changes
+
+**Mindset**: *"Pipelines are products, not scripts."*
 
 ## 📁 Project Structure
 

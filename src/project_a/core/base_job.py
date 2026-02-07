@@ -13,6 +13,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
+from pyspark.sql import SparkSession
+
 from project_a.core.config import ProjectConfig
 from project_a.core.context import JobContext
 
@@ -78,4 +80,16 @@ class BaseJob(ABC):
         if self.ctx is None or self.ctx.spark is None:
             raise RuntimeError("JobContext not initialized. Call execute() first.")
         return self.ctx.spark
+    
+    def apply_dq_rules(self, df, table_name: str):
+        """Apply data quality rules to a DataFrame."""
+        # Optional DQ integration - can be overridden by subclasses
+        logger.debug(f"DQ check for {table_name} - implement if needed")
+        pass
+    
+    def log_lineage(self, source: str, target: str, records_processed: Dict[str, Any]):
+        """Log data lineage information."""
+        # Optional lineage tracking - can be overridden by subclasses
+        logger.info(f"Lineage: {source} -> {target}, records: {records_processed}")
+        pass
 

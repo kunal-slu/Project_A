@@ -1,81 +1,55 @@
 env: local
-environment: local  # Set to 'local' for local execution
+environment: local
 
-project_name: project-a
+project_name: project-a-local
 
 aws:
   region: us-east-1
-  account_id: "424570854632"
-  kms_key_arn: "arn:aws:kms:us-east-1:424570854632:key/66576e98-a4e4-4b87-8b61-4357c39d0886"
 
-buckets:
-  lake: "my-etl-lake-demo-424570854632"
-  artifacts: "my-etl-artifacts-demo-424570854632"
-  logs: "my-etl-logs-demo-424570854632"
-  code: "my-etl-code-demo-424570854632"
-
-glue:
-  bronze_db: "project-a_bronze_dev"
-  silver_db: "project-a_silver_dev"
-  gold_db: "project-a_gold_dev"
-
-emr:
-  application_id: "00g0tm6kccmdcf09"
-  execution_role_arn: "arn:aws:iam::424570854632:role/project-a-dev-emr-exec"
-  driver:
-    cores: 2
-    memory: "4G"
-  executor:
-    cores: 2
-    memory: "8G"
-
-# Local file paths (use file:// for local execution)
 paths:
   bronze_root: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze"
   silver_root: "file:///Users/kunal/IdeaProjects/Project_A/data/silver"
   gold_root: "file:///Users/kunal/IdeaProjects/Project_A/data/gold"
   checkpoints_root: "file:///Users/kunal/IdeaProjects/Project_A/data/checkpoints"
-  dq_results_root: "file:///Users/kunal/IdeaProjects/Project_A/data/_dq_results"
+  dq_results_root: "file:///Users/kunal/IdeaProjects/Project_A/data/dq_results"
 
-# Source file definitions - pointing to local sample data
 sources:
   crm:
-    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/crm"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm"
     files:
       accounts: "accounts.csv"
       contacts: "contacts.csv"
       opportunities: "opportunities.csv"
-  
+
   redshift:
-    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/redshift"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/redshift"
     files:
       behavior: "redshift_customer_behavior_50000.csv"
-  
+
   snowflake:
-    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/snowflake"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake"
     files:
-      customers: "snowflake_customers_50000.csv"
-      orders: "snowflake_orders_100000.csv"
-      products: "snowflake_products_10000.csv"
-  
+      customers: "customers.csv"
+      orders: "orders.csv"
+      products: "products.csv"
+
   fx:
     type: json
-    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/fx"
-    raw_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/fx"
-    bronze_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/fx/delta"
-    silver_path: "file:///Users/kunal/IdeaProjects/Project_A/data/silver/fx"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/fx"
+    raw_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/fx/json/"
+    bronze_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/fx/delta/"
+    silver_path: "file:///Users/kunal/IdeaProjects/Project_A/data/silver/fx/"
     files:
       daily_rates: "fx_rates_historical_730_days.csv"
       daily_rates_json: "fx_rates_historical.json"
     base_currency: "USD"
     expected_currencies: ["USD", "EUR", "GBP", "JPY", "INR", "CHF", "CAD", "AUD", "CNY"]
-  
+
   kafka_sim:
-    base_path: "file:///Users/kunal/IdeaProjects/Project_A/aws/data/samples/kafka"
+    base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka"
     files:
       orders_seed: "stream_kafka_events_100000.csv"
 
-# Table name definitions for Silver and Gold layers
 tables:
   silver:
     customers: "customers_silver"
@@ -84,7 +58,7 @@ tables:
     behavior: "customer_behavior_silver"
     fx_rates: "fx_rates_silver"
     order_events: "order_events_silver"
-  
+
   gold:
     fact_orders: "fact_orders"
     dim_customer: "dim_customer"
@@ -96,42 +70,18 @@ dq:
   fail_on_error: true
   alert_on_warning: true
 
-sinks:
-  redshift:
-    jdbc_url: "jdbc:redshift://HOST:5439/DB"
-    user: "redshift_user"
-    password: "******"
-  snowflake:
-    url: "account.snowflakecomputing.com"
-    user: "SF_USER"
-    password: "******"
-    database: "ANALYTICS"
-    schema: "PUBLIC"
-    warehouse: "COMPUTE_WH"
-    role: "SYSADMIN"
-
 lineage:
   enabled: false  # Disable for local
   backend: "openlineage"
-  endpoint: "http://marquez:5000"
-  namespace: "project-a-dev"
+  endpoint: "http://localhost:5000"
+  namespace: "project-a-local"
 
-sla:
-  bronze_ready_by: "02:30"
-  silver_ready_by: "03:15"
-  gold_ready_by: "04:00"
-
-source_connections:
-  snowflake:
-    secret_name: "project-a-dev/snowflake/conn"
-    default_warehouse: "DEV_WH"
-    default_database: "CUSTOMER_DB"
-    default_schema: "PUBLIC"
-  redshift:
-    secret_name: "project-a-dev/redshift/conn"
-  kafka:
-    secret_name: "project-a-dev/kafka/conn"
-  salesforce:
-    secret_name: "project-a-dev/salesforce/conn"
-  fx_api:
-    secret_name: "project-a-dev/fx/conn"
+spark:
+  master: "local[*]"
+  driver_memory: "2g"
+  executor_memory: "2g"
+  shuffle_partitions: 200
+  enable_aqe: true
+  enable_adaptive_join: true
+  adaptive_coalesce_partitions: true
+  broadcast_join_threshold: "64MB"

@@ -1,7 +1,7 @@
 """
 Project A Data Quality Modules
 
-DQ gates and validation utilities.
+DQ gates, validation utilities, and automation.
 """
 
 from .gate import (
@@ -12,6 +12,12 @@ from .gate import (
     run_uniqueness_check,
     write_dq_result,
 )
+from .automation import (
+    DataQualityProfiler,
+    DataQualityChecker,
+    get_dq_profiler,
+    get_dq_checker
+)
 
 __all__ = [
     "DQCheckResult",
@@ -20,4 +26,8 @@ __all__ = [
     "run_range_check",
     "write_dq_result",
     "run_dq_gate",
+    "DataQualityProfiler",
+    "DataQualityChecker",
+    "get_dq_profiler",
+    "get_dq_checker"
 ]

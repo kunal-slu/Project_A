@@ -1,0 +1,319 @@
+tests/delta_test.py: 1
+tests/test_bronze_to_silver_orders.py: 3
+tests/test_contracts.py: 1
+tests/test_contracts_customers.py: 3
+tests/test_dag_imports.py: 3
+tests/test_dq_policies.py: 5
+tests/test_extract.py: 6
+tests/test_glue_catalog_contract.py: 6
+tests/test_module_imports.py: 5
+tests/test_pipeline_integration.py: 1
+tests/test_scd2_validation.py: 11
+tests/test_schema_validator.py: 2
+tests/test_spark_session.py: 2
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting tests/test_bronze_to_silver.py ________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_bronze_to_silver.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_bronze_to_silver.py:9: in <module>
+    from project_a.transforms.bronze_to_silver import (
+E   ModuleNotFoundError: No module named 'project_a.transforms'
+___________ ERROR collecting tests/test_bronze_to_silver_behavior.py ___________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_bronze_to_silver_behavior.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_bronze_to_silver_behavior.py:9: in <module>
+    from jobs.bronze_to_silver_behavior import transform_bronze_to_silver_behavior
+E   ModuleNotFoundError: No module named 'jobs.bronze_to_silver_behavior'
+______________ ERROR collecting tests/test_collect_run_summary.py ______________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_collect_run_summary.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_collect_run_summary.py:8: in <module>
+    from jobs.collect_run_summary import collect_run_summary
+E   ModuleNotFoundError: No module named 'jobs.collect_run_summary'
+____________________ ERROR collecting tests/test_config.py _____________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_config.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_config.py:9: in <module>
+    from project_a.utils.config import load_conf
+E   ImportError: cannot import name 'load_conf' from 'project_a.utils.config' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/utils/config.py)
+_______________ ERROR collecting tests/test_config_validation.py _______________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_config_validation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_config_validation.py:10: in <module>
+    from project_a.utils.config import load_conf
+E   ImportError: cannot import name 'load_conf' from 'project_a.utils.config' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/utils/config.py)
+___________________ ERROR collecting tests/test_dq_checks.py ___________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_dq_checks.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_dq_checks.py:6: in <module>
+    from project_a.dq_checks import DQChecks
+E   ModuleNotFoundError: No module named 'project_a.dq_checks'
+_________________ ERROR collecting tests/test_fx_transform.py __________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_fx_transform.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_fx_transform.py:10: in <module>
+    from project_a.jobs.fx_bronze_to_silver import (
+src/project_a/jobs/__init__.py:7: in <module>
+    from . import (
+E   ImportError: cannot import name 'bronze_to_silver' from partially initialized module 'project_a.jobs' (most likely due to a circular import) (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/jobs/__init__.py)
+_________________ ERROR collecting tests/test_gold_contract.py _________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_gold_contract.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_gold_contract.py:12: in <module>
+    from project_a.schema.validator import SchemaValidator
+E   ModuleNotFoundError: No module named 'project_a.schema'
+___________ ERROR collecting tests/test_great_expectations_runner.py ___________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_great_expectations_runner.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_great_expectations_runner.py:8: in <module>
+    from project_a.dq.great_expectations_runner import GreatExpectationsRunner, run_dq_checkpoint
+E   ModuleNotFoundError: No module named 'project_a.dq.great_expectations_runner'
+__________________ ERROR collecting tests/test_integration.py __________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_integration.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_integration.py:17: in <module>
+    from project_a import (
+E   ImportError: cannot import name 'build_spark' from 'project_a' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/__init__.py)
+___________ ERROR collecting tests/test_integration_comprehensive.py ___________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_integration_comprehensive.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_integration_comprehensive.py:19: in <module>
+    from project_a import (
+E   ImportError: cannot import name 'build_spark' from 'project_a' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/__init__.py)
+________________ ERROR collecting tests/test_lineage_emitter.py ________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_lineage_emitter.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_lineage_emitter.py:7: in <module>
+    from project_a.monitoring.lineage_emitter import (
+E   ImportError: cannot import name 'emit_lineage_event' from 'project_a.monitoring.lineage_emitter' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/monitoring/lineage_emitter.py)
+_____________________ ERROR collecting tests/test_load.py ______________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_load.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_load.py:3: in <module>
+    from project_a.load import (write_avro, write_json,
+E   ModuleNotFoundError: No module named 'project_a.load'
+_______________ ERROR collecting tests/test_metrics_collector.py _______________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_metrics_collector.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_metrics_collector.py:7: in <module>
+    from project_a.monitoring.metrics_collector import (
+E   ModuleNotFoundError: No module named 'project_a.monitoring.metrics_collector'
+__________________ ERROR collecting tests/test_monitoring.py ___________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_monitoring.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_monitoring.py:12: in <module>
+    from project_a.monitoring.metrics import (
+E   ModuleNotFoundError: No module named 'project_a.monitoring.metrics'
+_______________ ERROR collecting tests/test_orders_transform.py ________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_orders_transform.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_orders_transform.py:9: in <module>
+    from src.project_a.transforms.bronze_to_silver import transform_orders_bronze_to_silver
+E   ModuleNotFoundError: No module named 'src.project_a.transforms'
+___________ ERROR collecting tests/test_performance_optimization.py ____________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_performance_optimization.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_performance_optimization.py:19: in <module>
+    from project_a.performance_optimizer import (
+E   ModuleNotFoundError: No module named 'project_a.performance_optimizer'
+___________________ ERROR collecting tests/test_pii_utils.py ___________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_pii_utils.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_pii_utils.py:8: in <module>
+    from project_a.utils.pii_utils import (
+E   ModuleNotFoundError: No module named 'project_a.utils.pii_utils'
+______________ ERROR collecting tests/test_pipeline_components.py ______________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_pipeline_components.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_pipeline_components.py:15: in <module>
+    from project_a.pipeline_stages.bronze_to_silver import run as b2s_run
+E   ModuleNotFoundError: No module named 'project_a.pipeline_stages'
+___________ ERROR collecting tests/test_publish_gold_to_snowflake.py ___________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_publish_gold_to_snowflake.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_publish_gold_to_snowflake.py:9: in <module>
+    from jobs.publish_gold_to_snowflake import load_customer_360_to_snowflake
+E   ModuleNotFoundError: No module named 'jobs.publish_gold_to_snowflake'
+_________________ ERROR collecting tests/test_quality_gate.py __________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_quality_gate.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_quality_gate.py:12: in <module>
+    from project_a.dq.runner import run_suite
+E   ModuleNotFoundError: No module named 'project_a.dq.runner'
+__________________ ERROR collecting tests/test_safe_writer.py __________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_safe_writer.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_safe_writer.py:18: in <module>
+    from project_a.utils.safe_writer import SafeDeltaWriter
+E   ModuleNotFoundError: No module named 'project_a.utils.safe_writer'
+_____________________ ERROR collecting tests/test_scd2.py ______________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_scd2.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_scd2.py:13: in <module>
+    from project_a.common.scd2 import apply_scd2, SCD2Config, validate_scd2_table
+E   ModuleNotFoundError: No module named 'project_a.common'
+____________________ ERROR collecting tests/test_schemas.py ____________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_schemas.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_schemas.py:14: in <module>
+    from project_a.schemas.production_schemas import (
+E   ModuleNotFoundError: No module named 'project_a.schemas.production_schemas'
+____________________ ERROR collecting tests/test_secrets.py ____________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_secrets.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_secrets.py:8: in <module>
+    from project_a.utils.secrets import (
+E   ModuleNotFoundError: No module named 'project_a.utils.secrets'
+___________ ERROR collecting tests/test_silver_behavior_contract.py ____________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_silver_behavior_contract.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_silver_behavior_contract.py:13: in <module>
+    from project_a.utils.config import load_conf
+E   ImportError: cannot import name 'load_conf' from 'project_a.utils.config' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/utils/config.py)
+___________ ERROR collecting tests/test_silver_build_customer_360.py ___________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_silver_build_customer_360.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_silver_build_customer_360.py:9: in <module>
+    from jobs.silver_build_customer_360 import build_customer_360
+E   ModuleNotFoundError: No module named 'jobs.silver_build_customer_360'
+___________________ ERROR collecting tests/test_transform.py ___________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_transform.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_transform.py:10: in <module>
+    from project_a.transform import (broadcast_join_demo,
+E   ImportError: cannot import name 'broadcast_join_demo' from 'project_a.transform' (/Users/kunal/IdeaProjects/Project_A/tests/../src/project_a/transform/__init__.py)
+___________________ ERROR collecting tests/test_validate.py ____________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_validate.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_validate.py:2: in <module>
+    from project_a.validate import ValidateOutput
+E   ModuleNotFoundError: No module named 'project_a.validate'
+________________ ERROR collecting tests/test_watermark_utils.py ________________
+ImportError while importing test module '/Users/kunal/IdeaProjects/Project_A/tests/test_watermark_utils.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.14_1/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/test_watermark_utils.py:10: in <module>
+    from project_a.utils.watermark_utils import (
+E   ModuleNotFoundError: No module named 'project_a.utils.watermark_utils'
+=========================== short test summary info ============================
+ERROR tests/test_bronze_to_silver.py
+ERROR tests/test_bronze_to_silver_behavior.py
+ERROR tests/test_collect_run_summary.py
+ERROR tests/test_config.py
+ERROR tests/test_config_validation.py
+ERROR tests/test_dq_checks.py
+ERROR tests/test_fx_transform.py
+ERROR tests/test_gold_contract.py
+ERROR tests/test_great_expectations_runner.py
+ERROR tests/test_integration.py
+ERROR tests/test_integration_comprehensive.py
+ERROR tests/test_lineage_emitter.py
+ERROR tests/test_load.py
+ERROR tests/test_metrics_collector.py
+ERROR tests/test_monitoring.py
+ERROR tests/test_orders_transform.py
+ERROR tests/test_performance_optimization.py
+ERROR tests/test_pii_utils.py
+ERROR tests/test_pipeline_components.py
+ERROR tests/test_publish_gold_to_snowflake.py
+ERROR tests/test_quality_gate.py
+ERROR tests/test_safe_writer.py
+ERROR tests/test_scd2.py
+ERROR tests/test_schemas.py
+ERROR tests/test_secrets.py
+ERROR tests/test_silver_behavior_contract.py
+ERROR tests/test_silver_build_customer_360.py
+ERROR tests/test_transform.py
+ERROR tests/test_validate.py
+ERROR tests/test_watermark_utils.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 30 errors during collection !!!!!!!!!!!!!!!!!!!

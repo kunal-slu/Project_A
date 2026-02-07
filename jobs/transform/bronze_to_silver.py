@@ -1,393 +1,300 @@
-#!/usr/bin/env python3
 """
-Bronze to Silver Transformation - Refactored
+Bronze to Silver Transformation Job
 
-Clean, production-grade ETL job using shared utilities.
+Transforms data from Bronze layer to Silver layer with cleaning and standardization.
 """
-
-import sys
-import argparse
 import logging
-import uuid
-import time
-from pathlib import Path
 from typing import Dict, Any
-from datetime import datetime
+from project_a.core.base_job import BaseJob
+from project_a.core.config import ProjectConfig
 
-# Add src to path for local execution
-project_root = Path(__file__).parent.parent.parent
-src_path = project_root / "src"
-if src_path.exists() and str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
 
-from pyspark.sql import SparkSession
-
-# Core utilities
-from project_a.utils.spark_session import build_spark
-from project_a.pyspark_interview_project.utils.config_loader import load_config_resolved
-from project_a.utils.logging import setup_json_logging, get_trace_id
-from project_a.utils.run_audit import write_run_audit
-from project_a.utils.path_resolver import resolve_data_path
-
-# Monitoring
-from project_a.pyspark_interview_project.monitoring.lineage_decorator import lineage_job
-from project_a.pyspark_interview_project.monitoring.metrics_collector import emit_rowcount, emit_duration
-
-# Bronze loaders
-from project_a.pyspark_interview_project.transform.bronze_loaders import (
-    load_crm_bronze_data,
-    load_snowflake_bronze_data,
-    load_redshift_behavior_bronze_data,
-    load_kafka_bronze_data
-)
-
-# Silver builders
-from project_a.pyspark_interview_project.transform.silver_builders import (
-    build_customers_silver,
-    build_orders_silver,
-    build_products_silver,
-    build_behavior_silver
-)
-
-# FX loader
-from project_a.extract.fx_json_reader import read_fx_rates_from_bronze
-
-# Writer
-from project_a.pyspark_interview_project.io.delta_writer import write_table
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def build_fx_silver(df_fx):
-    """Build FX silver table with explicit schema.
+class BronzeToSilverJob(BaseJob):
+    """Job to transform data from Bronze to Silver layer."""
     
-    Expected schema:
-    - trade_date: DateType
-    - base_ccy: StringType
-    - counter_ccy: StringType
-    - rate: DoubleType
-    """
-    from pyspark.sql import functions as F
-    from pyspark.sql.types import StructType, StructField, DateType, StringType, DoubleType
+    def __init__(self, config: ProjectConfig):
+        super().__init__(config)
+        self.job_name = "bronze_to_silver"
     
-    logger.info("🔧 Building silver.fx_rates...")
-    
-    # Define expected schema
-    FX_RATES_SCHEMA = StructType([
-        StructField("trade_date", DateType(), True),
-        StructField("base_ccy", StringType(), True),
-        StructField("counter_ccy", StringType(), True),
-        StructField("rate", DoubleType(), True),
-    ])
-    
-    # Check if input is empty
-    try:
-        if df_fx.rdd.isEmpty():
-            logger.warning("⚠️  silver.fx_rates source is empty; creating empty DataFrame with fixed schema")
-            return df_fx.sparkSession.createDataFrame([], FX_RATES_SCHEMA)
-    except Exception:
-        # If we can't check emptiness, try to build normally
-        pass
-    
-    # Map columns to expected schema
-    # FX DataFrame from read_fx_rates_from_bronze has: base_ccy, quote_ccy, rate, date, bid_rate, ask_rate
-    # Map to: trade_date, base_ccy, counter_ccy, rate
-    fx_silver = df_fx.select(
-        F.coalesce(F.to_date("trade_date"), F.to_date("date")).alias("trade_date"),
-        F.coalesce(F.col("base_ccy"), F.col("base_currency")).alias("base_ccy"),
-        F.coalesce(F.col("quote_ccy"), F.col("target_currency")).alias("counter_ccy"),  # Fixed: removed non-existent counter_ccy
-        F.coalesce(F.col("rate"), F.col("exchange_rate"), F.col("fx_rate")).cast("double").alias("rate")
-    )
-    
-    # Ensure schema matches exactly
-    fx_silver = fx_silver.select(
-        F.col("trade_date").cast("date").alias("trade_date"),
-        F.col("base_ccy").cast("string").alias("base_ccy"),
-        F.col("counter_ccy").cast("string").alias("counter_ccy"),
-        F.col("rate").cast("double").alias("rate")
-    )
-    
-    try:
-        row_count = fx_silver.count()
-        logger.info(f"✅ silver.fx_rates: {row_count:,} rows")
-    except Exception:
-        pass
-    
-    return fx_silver
-
-
-def build_order_events_silver(df_kafka, df_orders):
-    """Build order events silver from Kafka data."""
-    from pyspark.sql import functions as F
-    from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DoubleType
-    
-    logger.info("🔧 Building silver.order_events...")
-    
-    # Check if Kafka data has direct columns or JSON in value column
-    if "order_id" in df_kafka.columns:
-        # Direct columns (from CSV seed)
-        order_events = df_kafka.select(
-            F.col("event_id"),
-            F.col("order_id"),
-            F.col("event_type"),
-            F.to_timestamp("event_ts").alias("event_timestamp"),
-            F.col("amount"),
-            F.col("currency"),
-            F.col("channel")
-        )
-    elif "value" in df_kafka.columns:
-        # JSON in value column (from actual Kafka stream)
-        event_schema = StructType([
-            StructField("order_id", StringType(), True),
-            StructField("event_type", StringType(), True),
-            StructField("event_ts", TimestampType(), True),
-            StructField("amount", DoubleType(), True),
-            StructField("currency", StringType(), True),
-            StructField("channel", StringType(), True),
-        ])
+    def run(self, ctx) -> Dict[str, Any]:
+        """Execute the Bronze to Silver transformation."""
+        logger.info("Starting Bronze to Silver transformation...")
         
-        order_events = df_kafka.withColumn(
-            "parsed_value",
-            F.from_json(F.col("value"), event_schema)
-        ).select(
-            F.col("event_id"),
-            F.col("parsed_value.order_id").alias("order_id"),
-            F.col("parsed_value.event_type").alias("event_type"),
-            F.col("parsed_value.event_ts").alias("event_timestamp"),
-            F.col("parsed_value.amount").alias("amount"),
-            F.col("parsed_value.currency").alias("currency"),
-            F.col("parsed_value.channel").alias("channel")
-        )
-    else:
-        # Create empty DataFrame
-        logger.warning("Kafka data has no recognizable structure, creating empty DataFrame")
-        schema = StructType([
-            StructField("event_id", StringType(), True),
-            StructField("order_id", StringType(), True),
-            StructField("event_type", StringType(), True),
-            StructField("event_timestamp", TimestampType(), True),
-            StructField("amount", DoubleType(), True),
-            StructField("currency", StringType(), True),
-            StructField("channel", StringType(), True),
-        ])
-        return df_kafka.sparkSession.createDataFrame([], schema)
-    
-    try:
-        logger.info(f"✅ silver.order_events: {order_events.count():,} rows")
-    except Exception:
-        pass
-    
-    return order_events
-
-
-@lineage_job(
-    name="bronze_to_silver",
-    inputs=["bronze"],
-    outputs=["silver"]
-)
-def bronze_to_silver_complete(
-    spark: SparkSession,
-    config: Dict[str, Any],
-    run_date: str = None
-) -> Dict[str, Any]:
-    """
-    Complete bronze to silver transformation.
-    
-    Args:
-        spark: SparkSession
-        config: Configuration dictionary
-        run_date: Processing date YYYY-MM-DD
-        
-    Returns:
-        Dictionary with silver DataFrames and metadata
-    """
-    if run_date is None:
-        run_date = datetime.utcnow().strftime("%Y-%m-%d")
-    
-    logger.info(f"🚀 Starting bronze to silver transformation (run_date={run_date})")
-    start_time = time.time()
-    
-    # Get paths
-    silver_root = resolve_data_path(config, "silver")
-    tables_config = config.get("tables", {}).get("silver", {})
-    tables = {
-        "customers": tables_config.get("customers", "customers_silver"),
-        "orders": tables_config.get("orders", "orders_silver"),
-        "products": tables_config.get("products", "products_silver"),
-        "behavior": tables_config.get("behavior", "customer_behavior_silver"),
-        "fx_rates": tables_config.get("fx_rates", "fx_rates_silver"),
-        "order_events": tables_config.get("order_events", "order_events_silver")
-    }
-    
-    try:
-        # 1. Load bronze data
-        df_accounts, df_contacts, df_opps = load_crm_bronze_data(spark, config)
-        df_customers, df_orders, df_products = load_snowflake_bronze_data(spark, config)
-        df_behavior = load_redshift_behavior_bronze_data(spark, config)
-        # For local execution, read FX from source path; for AWS, read from bronze
-        environment = config.get("environment", config.get("env", "local"))
-        if environment in ("local", "dev_local"):
-            # Local: read directly from source files
-            from pathlib import Path
-            fx_cfg = config.get("sources", {}).get("fx", {})
-            base_path = fx_cfg.get("raw_path", fx_cfg.get("base_path", ""))
-            # Construct path - for local, use the source path directly
-            if not base_path.startswith(("s3://", "file://")):
-                project_root = Path(__file__).parent.parent.parent
-                fx_base = str(project_root / base_path)
-            else:
-                fx_base = base_path
-            # Pass the base path (without /fx suffix) so function can construct fx/fx_rates_historical.json
-            df_fx = read_fx_rates_from_bronze(spark, fx_base)
-        else:
-            # AWS: read from bronze layer
-            bronze_root = resolve_data_path(config, "bronze")
-            df_fx = read_fx_rates_from_bronze(spark, bronze_root)
-        df_kafka = load_kafka_bronze_data(spark, config)
-        
-        # 2. Build silver tables
-        customers_silver = build_customers_silver(df_customers, df_accounts, df_contacts, df_opps, df_behavior)
-        orders_silver = build_orders_silver(df_orders, df_customers, df_products, df_fx)
-        products_silver = build_products_silver(df_products)
-        behavior_silver = build_behavior_silver(df_behavior)
-        fx_silver = build_fx_silver(df_fx)
-        order_events_silver = build_order_events_silver(df_kafka, orders_silver)
-        
-        # 3. Write silver tables
-        write_table(customers_silver, silver_root, tables["customers"], config, partition_by=["country"])
-        write_table(orders_silver, silver_root, tables["orders"], config, partition_by=["order_date"])
-        write_table(products_silver, silver_root, tables["products"], config)
-        write_table(behavior_silver, silver_root, tables["behavior"], config, partition_by=["event_date"])
-        write_table(fx_silver, silver_root, tables["fx_rates"], config, partition_by=["trade_date"])
-        write_table(order_events_silver, silver_root, tables["order_events"], config, partition_by=["event_timestamp"])
-        
-        # 4. Emit metrics
-        duration_ms = (time.time() - start_time) * 1000
         try:
-            emit_rowcount("silver_customers_total", customers_silver.count(), {"layer": "silver"}, config)
-            emit_rowcount("silver_orders_total", orders_silver.count(), {"layer": "silver"}, config)
-            emit_duration("silver_transformation_duration", duration_ms, {"stage": "bronze_to_silver"}, config)
+            # Get Spark session from context
+            spark = ctx.spark
+            
+            # Get bronze and silver paths from config
+            bronze_path = self.config.get('paths', {}).get('bronze_root', 'data/bronze')
+            silver_path = self.config.get('paths', {}).get('silver_root', 'data/silver')
+            
+            # Transform CRM data
+            logger.info("Transforming CRM data...")
+            self.transform_crm_data(spark, bronze_path, silver_path)
+            
+            # Transform Snowflake data
+            logger.info("Transforming Snowflake data...")
+            self.transform_snowflake_data(spark, bronze_path, silver_path)
+            
+            # Transform Redshift data
+            logger.info("Transforming Redshift data...")
+            self.transform_redshift_data(spark, bronze_path, silver_path)
+            
+            # Transform FX data
+            logger.info("Transforming FX data...")
+            self.transform_fx_data(spark, bronze_path, silver_path)
+            
+            # Transform Kafka events
+            logger.info("Transforming Kafka events...")
+            self.transform_kafka_events(spark, bronze_path, silver_path)
+            
+            # Apply data quality checks
+            logger.info("Applying data quality checks...")
+            self.apply_dq_rules(None, "silver.layer")
+            
+            # Log lineage
+            self.log_lineage(
+                source="bronze",
+                target="silver",
+                records_processed={}
+            )
+            
+            result = {
+                "status": "success",
+                "output_path": silver_path,
+                "layers_processed": ["crm", "snowflake", "redshift", "fx", "kafka"]
+            }
+            
+            logger.info(f"Bronze to Silver transformation completed: {result}")
+            return result
+            
+        except FileNotFoundError as e:
+            logger.error(f"Required input data missing: {e}")
+            raise
+        except ValueError as e:
+            logger.error(f"Data quality check failed: {e}")
+            raise
         except Exception as e:
-            logger.warning(f"Could not emit metrics: {e}")
+            logger.error(f"Bronze to Silver transformation failed: {e}", exc_info=True)
+            raise
+    
+    def transform_crm_data(self, spark, bronze_path: str, silver_path: str):
+        """Transform CRM data from bronze to silver."""
+        from pyspark.sql.utils import AnalysisException
+        from pyspark.sql.functions import trim, lower, col
         
-        logger.info(f"✅ Bronze to Silver completed in {duration_ms:.0f}ms")
-        
-        return {
-            "customers": customers_silver,
-            "orders": orders_silver,
-            "products": products_silver,
-            "behavior": behavior_silver,
-            "fx_rates": fx_silver,
-            "order_events": order_events_silver
+        # Validate input paths exist
+        paths = {
+            "accounts": f"{bronze_path}/crm/accounts",
+            "contacts": f"{bronze_path}/crm/contacts",
+            "opportunities": f"{bronze_path}/crm/opportunities"
         }
         
-    except Exception as e:
-        logger.error(f"❌ Silver transformation failed: {e}", exc_info=True)
-        raise
-
-
-def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="Bronze to Silver transformation")
-    parser.add_argument("--env", default="dev", help="Environment (dev/local/prod)")
-    parser.add_argument("--config", help="Config file path (local or s3://...)")
-    args = parser.parse_args()
-    
-    # Setup logging
-    trace_id = get_trace_id()
-    setup_json_logging(level="INFO", include_trace_id=True)
-    logger.info(f"Job started (trace_id={trace_id}, env={args.env})")
-    
-    # Load config
-    if args.config:
-        config_path = args.config
-    else:
-        # Default config resolution
-        env = args.env
-        if env == "local":
-            config_path = "local/config/local.yaml"
-        else:
-            config_path = f"config/{env}.yaml"
-    
-    try:
-        config = load_config_resolved(config_path, env=args.env)
-    except Exception as e:
-        logger.error(f"Failed to load config: {e}")
-        raise
-    
-    # Set environment if not set
-    if not config.get("environment"):
-        config["environment"] = args.env
-    
-    run_id = str(uuid.uuid4())
-    start_time = time.time()
-    spark = build_spark(app_name="bronze_to_silver", config=config)
-    
-    try:
-        run_date = datetime.utcnow().strftime("%Y-%m-%d")
-        results = bronze_to_silver_complete(spark, config, run_date=run_date)
-        
-        duration_ms = (time.time() - start_time) * 1000
-        
-        logger.info("✅ Bronze to Silver transformation completed")
-        try:
-            logger.info(f"  - Customers: {results['customers'].count():,} rows")
-            logger.info(f"  - Orders: {results['orders'].count():,} rows")
-            logger.info(f"  - Products: {results['products'].count():,} rows")
-            logger.info(f"  - Behavior: {results['behavior'].count():,} rows")
-            logger.info(f"  - FX Rates: {results['fx_rates'].count():,} rows")
-            logger.info(f"  - Order Events: {results['order_events'].count():,} rows")
-        except Exception as e:
-            logger.warning(f"Could not log row counts: {e}")
-        
-        # Write run audit
-        lake_bucket = config.get("buckets", {}).get("lake", "")
-        if lake_bucket:
+        for name, path in paths.items():
             try:
-                write_run_audit(
-                    bucket=lake_bucket,
-                    job_name="bronze_to_silver",
-                    env=config.get("environment", "dev"),
-                    source=resolve_data_path(config, "bronze"),
-                    target=resolve_data_path(config, "silver"),
-                    rows_in=0,  # Could be calculated if needed
-                    rows_out=sum([r.count() for r in results.values()]) if results else 0,
-                    status="SUCCESS",
-                    run_id=run_id,
-                    duration_ms=duration_ms,
-                    config=config
-                )
-            except Exception as e:
-                logger.warning(f"⚠️  Failed to write run audit: {e}")
+                test_df = spark.read.parquet(path)
+                count = test_df.count()
+                if count == 0:
+                    logger.warning(f"CRM {name} is empty at {path}")
+            except AnalysisException:
+                raise FileNotFoundError(f"Required CRM input not found: {path}")
         
-    except Exception as e:
-        logger.error(f"❌ Transformation failed: {e}", exc_info=True)
+        # Read bronze CRM data
+        accounts_df = spark.read.parquet(paths["accounts"])
+        contacts_df = spark.read.parquet(paths["contacts"])
+        opportunities_df = spark.read.parquet(paths["opportunities"])
         
-        # Write failure audit
-        lake_bucket = config.get("buckets", {}).get("lake", "")
-        if lake_bucket:
+        # Clean and standardize
+        # Clean accounts
+        accounts_clean = accounts_df.select(
+            "account_id",
+            trim(lower("account_name")).alias("account_name"),
+            "industry",
+            "created_date"
+        )
+        
+        # Validate no null primary keys
+        null_pks = accounts_clean.filter(col("account_id").isNull()).count()
+        if null_pks > 0:
+            raise ValueError(f"CRM accounts: Found {null_pks} null account_ids - cannot proceed")
+        
+        # Clean contacts
+        contacts_clean = contacts_df.select(
+            "contact_id",
+            "account_id",
+            trim(lower("first_name")).alias("first_name"),
+            trim(lower("last_name")).alias("last_name"),
+            lower("email").alias("email"),
+            "phone"
+        )
+        
+        # Validate no null primary keys
+        null_pks = contacts_clean.filter(col("contact_id").isNull()).count()
+        if null_pks > 0:
+            raise ValueError(f"CRM contacts: Found {null_pks} null contact_ids - cannot proceed")
+        
+        # Clean opportunities
+        opportunities_clean = opportunities_df.select(
+            "opportunity_id",
+            "account_id",
+            "contact_id",
+            "opportunity_name",
+            "amount",
+            "stage",
+            "close_date"
+        )
+        
+        # Validate no null primary keys
+        null_pks = opportunities_clean.filter(col("opportunity_id").isNull()).count()
+        if null_pks > 0:
+            raise ValueError(f"CRM opportunities: Found {null_pks} null opportunity_ids - cannot proceed")
+        
+        # Write to silver
+        accounts_clean.write.mode("overwrite").parquet(f"{silver_path}/accounts_silver")
+        contacts_clean.write.mode("overwrite").parquet(f"{silver_path}/contacts_silver")
+        opportunities_clean.write.mode("overwrite").parquet(f"{silver_path}/opportunities_silver")
+    
+    def transform_snowflake_data(self, spark, bronze_path: str, silver_path: str):
+        """Transform Snowflake data from bronze to silver."""
+        from pyspark.sql.utils import AnalysisException
+        from pyspark.sql.functions import trim, lower, col
+        
+        # Validate input paths exist
+        paths = {
+            "customers": f"{bronze_path}/snowflake/customers",
+            "orders": f"{bronze_path}/snowflake/orders",
+            "products": f"{bronze_path}/snowflake/products"
+        }
+        
+        for name, path in paths.items():
             try:
-                write_run_audit(
-                    bucket=lake_bucket,
-                    job_name="bronze_to_silver",
-                    env=config.get("environment", "dev"),
-                    source=config.get("paths", {}).get("bronze_root", ""),
-                    target=config.get("paths", {}).get("silver_root", ""),
-                    rows_in=0,
-                    rows_out=0,
-                    status="FAILED",
-                    run_id=run_id,
-                    error_message=str(e),
-                    config=config
-                )
-            except Exception:
-                pass
-        raise
-    finally:
-        spark.stop()
-
-
-if __name__ == "__main__":
-    main()
-
+                test_df = spark.read.parquet(path)
+                if test_df.count() == 0:
+                    logger.warning(f"Snowflake {name} is empty at {path}")
+            except AnalysisException:
+                raise FileNotFoundError(f"Required Snowflake input not found: {path}")
+        
+        # Read bronze Snowflake data
+        customers_df = spark.read.parquet(paths["customers"])
+        orders_df = spark.read.parquet(paths["orders"])
+        products_df = spark.read.parquet(paths["products"])
+        
+        # Clean and standardize
+        # Clean customers
+        customers_clean = customers_df.select(
+            "customer_id",
+            trim(lower("first_name")).alias("first_name"),
+            trim(lower("last_name")).alias("last_name"),
+            lower("email").alias("email"),
+            "country",
+            "registration_date"
+        )
+        
+        # Validate no null primary keys
+        null_pks = customers_clean.filter(col("customer_id").isNull()).count()
+        if null_pks > 0:
+            raise ValueError(f"Snowflake customers: Found {null_pks} null customer_ids - cannot proceed")
+        
+        # Clean orders
+        # Note: Bronze source has 'total_amount' column (from CSV)
+        # We keep it as 'total_amount' for Silver (matches dbt schema)
+        orders_clean = orders_df.select(
+            "order_id",
+            "customer_id",
+            "product_id",
+            "order_date",
+            "total_amount",  # Source column name (from Snowflake CSV)
+            "quantity",
+            "status",
+            "updated_at"
+        )
+        
+        # Validate no null primary keys
+        null_pks = orders_clean.filter(col("order_id").isNull()).count()
+        if null_pks > 0:
+            raise ValueError(f"Snowflake orders: Found {null_pks} null order_ids - cannot proceed")
+        
+        # Validate no null foreign keys
+        null_fks = orders_clean.filter(col("customer_id").isNull()).count()
+        if null_fks > 0:
+            logger.warning(f"Snowflake orders: Found {null_fks} null customer_ids (orphaned orders)")
+        
+        # Clean products
+        products_clean = products_df.select(
+            "product_id",
+            "product_name",
+            "category",
+            "price_usd",
+            "cost_usd",
+            "supplier_id"
+        )
+        
+        # Validate no null primary keys
+        null_pks = products_clean.filter(col("product_id").isNull()).count()
+        if null_pks > 0:
+            raise ValueError(f"Snowflake products: Found {null_pks} null product_ids - cannot proceed")
+        
+        # Write to silver
+        customers_clean.write.mode("overwrite").parquet(f"{silver_path}/customers_silver")
+        orders_clean.write.mode("overwrite").parquet(f"{silver_path}/orders_silver")
+        products_clean.write.mode("overwrite").parquet(f"{silver_path}/products_silver")
+    
+    def transform_redshift_data(self, spark, bronze_path: str, silver_path: str):
+        """Transform Redshift data from bronze to silver."""
+        # Read bronze Redshift data
+        behavior_df = spark.read.parquet(f"{bronze_path}/redshift/customer_behavior")
+        
+        # Clean and standardize
+        from pyspark.sql.functions import trim, lower, regexp_replace
+        
+        behavior_clean = behavior_df.select(
+            "customer_id",
+            "session_id",
+            "page_viewed",
+            "time_spent_seconds",
+            "event_type",
+            "event_date",
+            "device_type",
+            "browser"
+        )
+        
+        # Write to silver
+        behavior_clean.write.mode("overwrite").parquet(f"{silver_path}/customer_behavior_silver")
+    
+    def transform_fx_data(self, spark, bronze_path: str, silver_path: str):
+        """Transform FX data from bronze to silver."""
+        # Read bronze FX data
+        fx_df = spark.read.parquet(f"{bronze_path}/fx/fx_rates")
+        
+        # Clean and standardize
+        fx_clean = fx_df.select(
+            "trade_date",
+            "base_ccy",
+            "counter_ccy",
+            "rate"
+        )
+        
+        # Write to silver
+        fx_clean.write.mode("overwrite").parquet(f"{silver_path}/fx_rates_silver")
+    
+    def transform_kafka_events(self, spark, bronze_path: str, silver_path: str):
+        """Transform Kafka events from bronze to silver."""
+        # Read bronze Kafka data
+        events_df = spark.read.parquet(f"{bronze_path}/kafka/events")
+        
+        # Clean and standardize
+        events_clean = events_df.select(
+            "event_id",
+            "order_id",
+            "event_type",
+            "event_ts",
+            "amount",
+            "currency",
+            "channel"
+        )
+        
+        # Write to silver
+        events_clean.write.mode("overwrite").parquet(f"{silver_path}/order_events_silver")

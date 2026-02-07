@@ -83,28 +83,28 @@ def main():
     
     try:
         if job_name == "bronze_to_silver":
-            from project_a.transform.bronze_to_silver import BronzeToSilverJob
+            from jobs.transform.bronze_to_silver import BronzeToSilverJob
             job = BronzeToSilverJob(config)
         elif job_name == "silver_to_gold":
-            from project_a.transform.silver_to_gold import SilverToGoldJob
+            from jobs.transform.silver_to_gold import SilverToGoldJob
             job = SilverToGoldJob(config)
         elif job_name == "snowflake_to_bronze":
-            from project_a.ingest.snowflake_to_bronze import SnowflakeToBronzeJob
+            from jobs.ingest.snowflake_to_bronze import SnowflakeToBronzeJob
             job = SnowflakeToBronzeJob(config)
         elif job_name == "redshift_to_bronze":
-            from project_a.ingest.redshift_to_bronze import RedshiftToBronzeJob
+            from jobs.ingest.redshift_to_bronze import RedshiftToBronzeJob
             job = RedshiftToBronzeJob(config)
         elif job_name == "crm_to_bronze":
-            from project_a.ingest.crm_to_bronze import CrmToBronzeJob
+            from jobs.ingest.crm_to_bronze import CrmToBronzeJob
             job = CrmToBronzeJob(config)
         elif job_name == "fx_to_bronze":
-            from project_a.ingest.fx_to_bronze import FxToBronzeJob
+            from jobs.ingest.fx_to_bronze import FxToBronzeJob
             job = FxToBronzeJob(config)
         elif job_name == "kafka_events_to_bronze":
-            from project_a.ingest.kafka_events_to_bronze import KafkaEventsToBronzeJob
+            from jobs.ingest.kafka_events_to_bronze import KafkaEventsToBronzeJob
             job = KafkaEventsToBronzeJob(config)
         elif job_name == "kafka_producer":
-            from project_a.streaming.kafka_producer import KafkaProducerJob
+            from jobs.streaming.kafka_producer import KafkaProducerJob
             job = KafkaProducerJob(config)
         else:
             logger.error(f"❌ Unknown job: {job_name}")

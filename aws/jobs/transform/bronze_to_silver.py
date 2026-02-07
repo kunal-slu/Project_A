@@ -120,4 +120,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        print("Job completed successfully")  # shows up in logs
+        sys.exit(0)  # ✅ tell EMR this step SUCCEEDED
+    except Exception as e:
+        # this will show a real stack trace in logs
+        import traceback
+        print("ERROR in job:", e)
+        traceback.print_exc()
+        sys.exit(1)  # ❌ only fail step if we really hit an exception

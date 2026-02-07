@@ -10,6 +10,7 @@ from .error_lanes import ErrorLaneHandler
 from .logging import get_trace_id, setup_json_logging
 from .run_audit import read_run_audit, write_run_audit
 from .spark_session import build_spark, get_spark
+from .schema_validator import SchemaValidator
 
 __all__ = [
     "build_spark",
@@ -24,4 +25,5 @@ __all__ = [
     "emit_job_failure",
     "put_metric",
     "ErrorLaneHandler",
+    "SchemaValidator",
 ]

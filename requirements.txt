@@ -1,6 +1,7 @@
 # Core dependencies
 pyspark==3.5.1
 delta-spark==3.2.0
+pyiceberg[pyarrow,s3fs]==0.6.1
 pyarrow==17.0.0
 pandas>=2.0.0
 numpy>=1.24.0

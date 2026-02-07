@@ -1,9 +1,14 @@
-"""
-Project A Monitoring Modules
+"""Monitoring Module"""
+from .metrics import (
+    MetricsCollector,
+    PipelineMonitor,
+    get_metrics_collector,
+    get_pipeline_monitor
+)
 
-Monitoring, lineage, and observability utilities.
-"""
-
-from .lineage_emitter import LineageEmitter, load_lineage_config
-
-__all__ = ["LineageEmitter", "load_lineage_config"]
+__all__ = [
+    'MetricsCollector',
+    'PipelineMonitor',
+    'get_metrics_collector',
+    'get_pipeline_monitor'
+]

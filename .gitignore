@@ -30,6 +30,9 @@ venv/
 spark-warehouse/
 metastore_db/
 derby.log
+emr_logs*/
+*.stderr.gz
+steps_*.json
 
 # Data
 data/
@@ -42,6 +45,7 @@ data/
 *.tmp
 *.temp
 *.log
+*.gz
 
 # Secrets
 *.pem

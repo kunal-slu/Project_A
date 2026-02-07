@@ -118,12 +118,13 @@ def load_config_resolved(config_path: Optional[str] = None, env: Optional[str] =
         Configuration dictionary
     """
     if config_path is None:
-        env = env or os.environ.get("APP_ENV", "dev")
+        env = env or os.environ.get("APP_ENV") or os.environ.get("ENV", "dev")
         candidates = {
             "dev": "config/dev.yaml",
+            "local": "local/config/local.yaml",
             "staging": "config/staging.yaml",
             "prod": "config/prod.yaml",
         }
         config_path = candidates.get(env, "config/dev.yaml")
 
-    return load_config(config_path, env)
+    return load_config(config_path, env or "dev")
