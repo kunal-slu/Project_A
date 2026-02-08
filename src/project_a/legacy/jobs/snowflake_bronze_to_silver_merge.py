@@ -361,14 +361,16 @@ def main():
         config = load_conf(args.config)
         
         # Create Spark session with Delta support
-        spark = get_spark_session(
-            "SnowflakeBronzeToSilverMerge",
-            extra_conf={
-                "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
-                "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-                "spark.delta.logStore.class": "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"
-            }
-        )
+        extra_conf = {
+            "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
+            "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+            "spark.delta.logStore.class": "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore",
+        }
+        spark_config = dict(config)
+        spark_settings = dict(spark_config.get("spark", {}))
+        spark_settings.update(extra_conf)
+        spark_config["spark"] = spark_settings
+        spark = build_spark(app_name="SnowflakeBronzeToSilverMerge", config=spark_config)
         
         # Process Snowflake merge
         process_snowflake_merge(spark, config)

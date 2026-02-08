@@ -106,6 +106,20 @@ def load_config(config_path: str, env: str = "dev") -> Dict[str, Any]:
     return cfg
 
 
+def load_conf(config_path: str, env: str = "dev") -> Dict[str, Any]:
+    """
+    Backwards-compatible alias for load_config.
+
+    Args:
+        config_path: Path to config file (local or s3://...)
+        env: Environment name (dev/staging/prod)
+
+    Returns:
+        Configuration dictionary
+    """
+    return load_config(config_path, env)
+
+
 def load_config_resolved(config_path: Optional[str] = None, env: Optional[str] = None) -> Dict[str, Any]:
     """
     Load config from a path, or pick by environment if path not provided.
