@@ -10,7 +10,6 @@ Handles reading from:
 """
 
 import logging
-from typing import Optional, Dict, Any
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType
@@ -26,15 +25,15 @@ def read_bronze_table(
 ) -> DataFrame:
     """
     Read a bronze table with automatic format detection.
-    
+
     Tries: Delta -> Parquet -> CSV -> JSON
-    
+
     Args:
         spark: SparkSession
         path: Path to data (file:// or s3://)
         schema: Expected schema
         format: Force format (delta, parquet, csv, json) or "auto" for detection
-    
+
     Returns:
         DataFrame with schema applied
     """
@@ -51,7 +50,7 @@ def read_bronze_table(
                 logger.debug(f"Delta table empty or inaccessible: {path}")
         except Exception as e:
             logger.debug(f"Delta read failed: {e}")
-        
+
         # Try Parquet
         try:
             df = spark.read.format("parquet").schema(schema).load(path)
@@ -63,7 +62,7 @@ def read_bronze_table(
                 logger.debug(f"Parquet table empty: {path}")
         except Exception as e:
             logger.debug(f"Parquet read failed: {e}")
-        
+
         # Try CSV
         try:
             df = read_csv_with_schema(spark, path, schema)
@@ -71,7 +70,7 @@ def read_bronze_table(
             return df
         except Exception as e:
             logger.debug(f"CSV read failed: {e}")
-        
+
         # Try JSON
         try:
             df = read_json_with_schema(spark, path, schema)
@@ -79,11 +78,11 @@ def read_bronze_table(
             return df
         except Exception as e:
             logger.debug(f"JSON read failed: {e}")
-        
+
         # All formats failed - return empty DataFrame with schema
         logger.warning(f"⚠️ All read attempts failed for {path}, returning empty DataFrame")
         return spark.createDataFrame([], schema)
-    
+
     # Force format
     if format == "delta":
         return read_delta_table(spark, path, schema)
@@ -106,8 +105,7 @@ def read_csv_with_schema(
 ) -> DataFrame:
     """Read CSV with explicit schema."""
     df = (
-        spark.read
-        .option("header", str(header).lower())
+        spark.read.option("header", str(header).lower())
         .option("inferSchema", str(infer_schema).lower())
         .schema(schema)
         .csv(path)
@@ -122,19 +120,14 @@ def read_json_with_schema(
     multi_line: bool = False,
 ) -> DataFrame:
     """Read JSON with explicit schema."""
-    df = (
-        spark.read
-        .option("multiLine", str(multi_line).lower())
-        .schema(schema)
-        .json(path)
-    )
+    df = spark.read.option("multiLine", str(multi_line).lower()).schema(schema).json(path)
     return df
 
 
 def read_delta_table(
     spark: SparkSession,
     path: str,
-    schema: Optional[StructType] = None,
+    schema: StructType | None = None,
 ) -> DataFrame:
     """Read Delta table."""
     if schema:
@@ -142,4 +135,3 @@ def read_delta_table(
     else:
         df = spark.read.format("delta").load(path)
     return df
-

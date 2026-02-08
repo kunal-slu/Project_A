@@ -9,7 +9,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Optional, Dict
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -26,10 +26,10 @@ def write_run_audit(
     rows_in: int,
     rows_out: int,
     status: str,
-    run_id: Optional[str] = None,
-    error_message: Optional[str] = None,
-    duration_ms: Optional[float] = None,
-    config: Optional[Dict[str, Any]] = None,
+    run_id: str | None = None,
+    error_message: str | None = None,
+    duration_ms: float | None = None,
+    config: dict[str, Any] | None = None,
 ) -> str:
     """
     Write run audit record to S3.
@@ -101,9 +101,7 @@ def write_run_audit(
         return ""
 
 
-def read_run_audit(
-    bucket: str, job_name: str, env: str, date: Optional[str] = None
-) -> list:
+def read_run_audit(bucket: str, job_name: str, env: str, date: str | None = None) -> list:
     """
     Read run audit records for a job.
 

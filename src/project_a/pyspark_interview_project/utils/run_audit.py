@@ -4,11 +4,13 @@ Run Audit Trail Utility
 Persists job execution metadata (row counts, status, timestamps) to S3
 for audit and observability without requiring a separate database.
 """
+
 import json
-import uuid
 import logging
+import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -24,14 +26,14 @@ def write_run_audit(
     rows_in: int,
     rows_out: int,
     status: str,
-    run_id: Optional[str] = None,
-    error_message: Optional[str] = None,
-    duration_ms: Optional[float] = None,
-    config: Optional[Dict[str, Any]] = None
+    run_id: str | None = None,
+    error_message: str | None = None,
+    duration_ms: float | None = None,
+    config: dict[str, Any] | None = None,
 ) -> str:
     """
     Write run audit record to S3.
-    
+
     Args:
         bucket: S3 bucket name
         job_name: Name of the job (e.g., "fx_json_to_bronze")
@@ -45,19 +47,19 @@ def write_run_audit(
         error_message: Optional error message if failed
         duration_ms: Optional job duration in milliseconds
         config: Optional config dictionary for reference
-        
+
     Returns:
         S3 key where audit record was written
     """
     if run_id is None:
         run_id = str(uuid.uuid4())
-    
+
     timestamp_utc = datetime.utcnow()
     date_str = timestamp_utc.strftime("%Y-%m-%d")
-    
+
     # S3 key structure: _audit/{env}/{job_name}/{date}/{run_id}.json
     key = f"_audit/{env}/{job_name}/{date_str}/{run_id}.json"
-    
+
     payload = {
         "run_id": run_id,
         "timestamp_utc": timestamp_utc.isoformat(),
@@ -69,27 +71,27 @@ def write_run_audit(
         "rows_out": rows_out,
         "status": status,
     }
-    
+
     if error_message:
         payload["error_message"] = error_message
-    
+
     if duration_ms is not None:
         payload["duration_ms"] = duration_ms
-    
+
     if config:
         # Include relevant config sections (sanitize sensitive data)
         payload["config"] = {
             "environment": config.get("environment"),
             "paths": config.get("paths", {}),
         }
-    
+
     try:
         s3 = boto3.client("s3")
         s3.put_object(
             Bucket=bucket,
             Key=key,
             Body=json.dumps(payload, indent=2).encode("utf-8"),
-            ContentType="application/json"
+            ContentType="application/json",
         )
         logger.info(f"✅ Wrote run audit to s3://{bucket}/{key}")
         return key
@@ -100,32 +102,29 @@ def write_run_audit(
 
 
 def read_run_audit(
-    bucket: str,
-    job_name: str,
-    env: str,
-    date: Optional[str] = None
-) -> List[Dict[str, Any]]:
+    bucket: str, job_name: str, env: str, date: str | None = None
+) -> list[dict[str, Any]]:
     """
     Read run audit records for a job.
-    
+
     Args:
         bucket: S3 bucket name
         job_name: Name of the job
         env: Environment
         date: Optional date (YYYY-MM-DD). Defaults to today.
-        
+
     Returns:
         List of audit records
     """
     if date is None:
         date = datetime.utcnow().strftime("%Y-%m-%d")
-    
+
     prefix = f"_audit/{env}/{job_name}/{date}/"
-    
+
     try:
         s3 = boto3.client("s3")
         response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        
+
         records = []
         if "Contents" in response:
             for obj in response["Contents"]:
@@ -136,9 +135,8 @@ def read_run_audit(
                     records.append(record)
                 except Exception as e:
                     logger.warning(f"Failed to read audit record {obj['Key']}: {e}")
-        
+
         return sorted(records, key=lambda x: x.get("timestamp_utc", ""), reverse=True)
     except ClientError as e:
         logger.error(f"❌ Failed to read run audit: {e}")
         return []
-

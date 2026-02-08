@@ -8,14 +8,15 @@ and alerting capabilities for production PySpark data engineering pipelines.
 import logging
 import threading
 import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import psutil
-import urllib.error
-import urllib.request
 from pyspark.sql import SparkSession
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class PipelineMetrics:
 
     pipeline_name: str
     start_time: datetime
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     status: str = "running"
     total_records_processed: int = 0
     records_per_second: float = 0.0
@@ -35,9 +36,9 @@ class PipelineMetrics:
     cpu_usage_percent: float = 0.0
     error_count: int = 0
     warning_count: int = 0
-    stage_metrics: Dict[str, Any] = field(default_factory=dict)
+    stage_metrics: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         data = asdict(self)
         data["start_time"] = self.start_time.isoformat()
@@ -55,10 +56,10 @@ class Alert:
     message: str
     timestamp: datetime
     source: str
-    context: Dict[str, Any] = None
+    context: dict[str, Any] = None
     acknowledged: bool = False
-    acknowledged_by: Optional[str] = None
-    acknowledged_at: Optional[datetime] = None
+    acknowledged_by: str | None = None
+    acknowledged_at: datetime | None = None
 
     def __post_init__(self):
         if self.context is None:
@@ -70,7 +71,7 @@ class MetricsCollector:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        self.metrics: Dict[str, PipelineMetrics] = {}
+        self.metrics: dict[str, PipelineMetrics] = {}
         self._lock = threading.Lock()
 
     def start_pipeline(self, pipeline_name: str) -> str:
@@ -99,9 +100,7 @@ class MetricsCollector:
                             self.metrics[pipeline_id].total_records_processed / duration
                         )
 
-                logger.info(
-                    f"Completed monitoring pipeline: {pipeline_id} - Status: {status}"
-                )
+                logger.info(f"Completed monitoring pipeline: {pipeline_id} - Status: {status}")
 
     def update_metrics(self, pipeline_id: str, **kwargs):
         """Update pipeline metrics."""
@@ -111,15 +110,15 @@ class MetricsCollector:
                     if hasattr(self.metrics[pipeline_id], key):
                         setattr(self.metrics[pipeline_id], key, value)
 
-    def get_pipeline_metrics(self, pipeline_id: str) -> Optional[PipelineMetrics]:
+    def get_pipeline_metrics(self, pipeline_id: str) -> PipelineMetrics | None:
         """Get metrics for a specific pipeline."""
         return self.metrics.get(pipeline_id)
 
-    def get_all_metrics(self) -> List[PipelineMetrics]:
+    def get_all_metrics(self) -> list[PipelineMetrics]:
         """Get all pipeline metrics."""
         return list(self.metrics.values())
 
-    def collect_system_metrics(self) -> Dict[str, float]:
+    def collect_system_metrics(self) -> dict[str, float]:
         """Collect system-level metrics."""
         try:
             # Spark metrics
@@ -127,13 +126,9 @@ class MetricsCollector:
             if hasattr(self.spark, "sparkContext"):
                 sc = self.spark.sparkContext
                 spark_metrics = {
-                    "executor_count": len(
-                        sc._jsc.sc().statusTracker().getExecutorMetrics()
-                    ),
+                    "executor_count": len(sc._jsc.sc().statusTracker().getExecutorMetrics()),
                     "active_jobs": len(sc._jsc.sc().statusTracker().getActiveJobIds()),
-                    "active_stages": len(
-                        sc._jsc.sc().statusTracker().getActiveStageIds()
-                    ),
+                    "active_stages": len(sc._jsc.sc().statusTracker().getActiveStageIds()),
                 }
 
             # System metrics
@@ -155,7 +150,7 @@ class HealthChecker:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        self.health_checks: Dict[str, Callable] = {}
+        self.health_checks: dict[str, Callable] = {}
         self.register_default_checks()
 
     def register_default_checks(self):
@@ -169,7 +164,7 @@ class HealthChecker:
         """Register a custom health check."""
         self.health_checks[name] = check_function
 
-    def run_health_checks(self) -> Dict[str, Dict[str, Any]]:
+    def run_health_checks(self) -> dict[str, dict[str, Any]]:
         """Run all registered health checks."""
         results = {}
 
@@ -180,9 +175,7 @@ class HealthChecker:
                 duration = time.time() - start_time
 
                 results[name] = {
-                    "status": (
-                        "healthy" if result.get("healthy", False) else "unhealthy"
-                    ),
+                    "status": ("healthy" if result.get("healthy", False) else "unhealthy"),
                     "duration": duration,
                     "details": result,
                 }
@@ -191,7 +184,7 @@ class HealthChecker:
 
         return results
 
-    def _check_spark_session(self) -> Dict[str, Any]:
+    def _check_spark_session(self) -> dict[str, Any]:
         """Check Spark session health."""
         try:
             # Test basic operations
@@ -211,7 +204,7 @@ class HealthChecker:
         except Exception as e:
             return {"healthy": False, "error": str(e)}
 
-    def _check_data_sources(self) -> Dict[str, Any]:
+    def _check_data_sources(self) -> dict[str, Any]:
         """Check data source accessibility."""
         # This would check actual data sources in production
         # For now, return a mock check
@@ -221,7 +214,7 @@ class HealthChecker:
             "message": "Data sources check not implemented in development",
         }
 
-    def _check_data_quality(self) -> Dict[str, Any]:
+    def _check_data_quality(self) -> dict[str, Any]:
         """Check data quality metrics."""
         # This would run actual DQ checks in production
         return {
@@ -230,7 +223,7 @@ class HealthChecker:
             "message": "Data quality check not implemented in development",
         }
 
-    def _check_performance(self) -> Dict[str, Any]:
+    def _check_performance(self) -> dict[str, Any]:
         """Check performance metrics."""
         try:
             system_metrics = {
@@ -242,9 +235,7 @@ class HealthChecker:
             # Define thresholds
             thresholds = {"cpu_percent": 80, "memory_percent": 85, "disk_percent": 90}
 
-            healthy = all(
-                system_metrics[key] < threshold for key, threshold in thresholds.items()
-            )
+            healthy = all(system_metrics[key] < threshold for key, threshold in thresholds.items())
 
             return {
                 "healthy": healthy,
@@ -258,10 +249,10 @@ class HealthChecker:
 class AlertManager:
     """Manages alerts and notifications."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
-        self.alerts: List[Alert] = []
-        self.alert_handlers: Dict[str, Callable] = {}
+        self.alerts: list[Alert] = []
+        self.alert_handlers: dict[str, Callable] = {}
         self._setup_handlers()
 
     def _setup_handlers(self):
@@ -287,7 +278,7 @@ class AlertManager:
         severity: str,
         message: str,
         source: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> Alert:
         """Create a new alert."""
         alert = Alert(
@@ -369,8 +360,8 @@ class AlertManager:
         logger.info(f"Email notification would be sent for alert: {alert.alert_id}")
 
     def get_alerts(
-        self, severity: Optional[str] = None, acknowledged: Optional[bool] = None
-    ) -> List[Alert]:
+        self, severity: str | None = None, acknowledged: bool | None = None
+    ) -> list[Alert]:
         """Get filtered alerts."""
         filtered_alerts = self.alerts
 
@@ -378,9 +369,7 @@ class AlertManager:
             filtered_alerts = [a for a in filtered_alerts if a.severity == severity]
 
         if acknowledged is not None:
-            filtered_alerts = [
-                a for a in filtered_alerts if a.acknowledged == acknowledged
-            ]
+            filtered_alerts = [a for a in filtered_alerts if a.acknowledged == acknowledged]
 
         return filtered_alerts
 
@@ -398,7 +387,7 @@ class AlertManager:
 class PipelineMonitor:
     """Main monitoring orchestrator."""
 
-    def __init__(self, spark: SparkSession, config: Dict[str, Any]):
+    def __init__(self, spark: SparkSession, config: dict[str, Any]):
         self.spark = spark
         self.config = config
         self.metrics_collector = MetricsCollector(spark)
@@ -431,7 +420,7 @@ class PipelineMonitor:
             )
             raise
 
-    def run_health_check(self) -> Dict[str, Any]:
+    def run_health_check(self) -> dict[str, Any]:
         """Run comprehensive health check."""
         if not self.monitoring_enabled:
             return {"status": "monitoring_disabled"}
@@ -441,9 +430,7 @@ class PipelineMonitor:
 
             # Check if any checks failed
             failed_checks = [
-                name
-                for name, result in health_results.items()
-                if result["status"] != "healthy"
+                name for name, result in health_results.items() if result["status"] != "healthy"
             ]
 
             overall_healthy = len(failed_checks) == 0
@@ -476,7 +463,7 @@ class PipelineMonitor:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of all metrics."""
         if not self.monitoring_enabled:
             return {"status": "monitoring_disabled"}
@@ -530,22 +517,16 @@ class PipelineMonitor:
             del self.metrics_collector.metrics[pipeline_id]
 
         # Clean up old alerts
-        old_alerts = [
-            alert
-            for alert in self.alert_manager.alerts
-            if alert.timestamp < cutoff_date
-        ]
+        old_alerts = [alert for alert in self.alert_manager.alerts if alert.timestamp < cutoff_date]
 
         for alert in old_alerts:
             self.alert_manager.alerts.remove(alert)
 
-        logger.info(
-            f"Cleaned up {len(old_metrics)} old metrics and {len(old_alerts)} old alerts"
-        )
+        logger.info(f"Cleaned up {len(old_metrics)} old metrics and {len(old_alerts)} old alerts")
 
 
 # Utility functions for easy monitoring
-def create_monitor(spark: SparkSession, config: Dict[str, Any]) -> PipelineMonitor:
+def create_monitor(spark: SparkSession, config: dict[str, Any]) -> PipelineMonitor:
     """Create a monitoring instance."""
     return PipelineMonitor(spark, config)
 

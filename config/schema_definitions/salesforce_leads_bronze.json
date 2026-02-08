@@ -1,0 +1,41 @@
+{
+  "table": "salesforce_leads_bronze",
+  "primary_key": "lead_id",
+  "columns": {
+    "lead_id": "string",
+    "first_name": "string",
+    "last_name": "string",
+    "email": "string",
+    "phone": "string",
+    "company": "string",
+    "title": "string",
+    "industry": "string",
+    "lead_source": "string",
+    "status": "string",
+    "rating": "string",
+    "created_date": "string",
+    "last_modified_date": "string",
+    "owner_id": "string",
+    "converted": "boolean",
+    "record_source": "string",
+    "record_table": "string",
+    "ingest_timestamp": "timestamp"
+  },
+  "required_non_null": ["lead_id", "first_name", "last_name", "email", "company"],
+  "freshness_column": "created_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": [
+    {
+      "name": "email_format",
+      "rule": "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+    },
+    {
+      "name": "phone_not_empty",
+      "rule": "phone IS NOT NULL AND phone != ''"
+    },
+    {
+      "name": "company_not_empty",
+      "rule": "company IS NOT NULL AND company != ''"
+    }
+  ]
+}

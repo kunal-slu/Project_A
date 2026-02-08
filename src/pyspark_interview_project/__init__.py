@@ -35,7 +35,9 @@ _submodule_names = [
 
 for submodule_name in _submodule_names:
     try:
-        submodule = __import__(f"project_a.pyspark_interview_project.{submodule_name}", fromlist=[submodule_name])
+        submodule = __import__(
+            f"project_a.pyspark_interview_project.{submodule_name}", fromlist=[submodule_name]
+        )
         _submodules[submodule_name] = submodule
         # Make it available at package level
         globals()[submodule_name] = submodule

@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: stg_customer_behavior
+    description: "Staging view for customer behavior events."
+    config:
+      contract:
+        enforced: false
+    meta:
+      owner: data-engineering
+      breaking_change_policy:
+        remove_column: "2_week_notice"
+        type_change: "major_version_bump"
+        add_column: "backward_compatible"
+    columns:
+      - name: event_id
+        description: "Unique event identifier."
+        data_type: string
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: customer_id
+        description: "Customer identifier."
+        data_type: string
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: event_name
+        description: "Event type."
+        data_type: string
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: event_ts
+        description: "Event timestamp."
+        data_type: timestamp
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
+  - name: fct_customer_engagement
+    description: "Gold fact table with customer engagement aggregates."
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    meta:
+      owner: analytics-engineering
+      breaking_change_policy:
+        remove_column: "2_week_notice"
+        type_change: "major_version_bump"
+        add_column: "backward_compatible"
+    columns:
+      - name: customer_id
+        description: "Primary key for engagement facts."
+        data_type: string
+        constraints:
+          - type: not_null
+          - type: unique
+        tests:
+          - not_null
+          - unique
+      - name: total_events
+        description: "Total events for customer."
+        data_type: bigint
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: total_revenue
+        description: "Revenue attributed to customer."
+        data_type: double
+        tests:
+          - not_null
+      - name: engagement_score
+        description: "Derived engagement score (0-100)."
+        data_type: double
+        tests:
+          - not_null

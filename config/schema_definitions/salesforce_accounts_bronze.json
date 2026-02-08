@@ -1,0 +1,33 @@
+{
+  "table": "salesforce_accounts_bronze",
+  "primary_key": "account_id",
+  "columns": {
+    "account_id": "string",
+    "account_name": "string",
+    "account_type": "string",
+    "industry": "string",
+    "billing_street": "string",
+    "billing_city": "string",
+    "billing_state": "string",
+    "billing_country": "string",
+    "billing_postal_code": "string",
+    "phone": "string",
+    "website": "string",
+    "annual_revenue": "double",
+    "number_of_employees": "integer",
+    "created_date": "string",
+    "last_modified_date": "string",
+    "owner_id": "string",
+    "account_source": "string",
+    "rating": "string"
+  },
+  "required_non_null": ["account_id", "account_name", "account_type", "industry", "created_date"],
+  "freshness_column": "last_modified_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "valid_account_type": "account_type IN ('Enterprise', 'Small Business', 'Mid-Market')",
+    "valid_rating": "rating IN ('Hot', 'Warm', 'Cold')",
+    "positive_revenue": "annual_revenue >= 0",
+    "positive_employees": "number_of_employees > 0"
+  }
+}

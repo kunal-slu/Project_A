@@ -1,6 +1,8 @@
 # Runbook: Failure Modes and Recovery
 
 This document outlines common failure modes in the data pipeline and procedures for recovery.
+For **job-by-job troubleshooting steps and rerun commands**, see
+`docs/runbooks/JOB_SPECIFIC_FAILURES.md`.
 
 ## Failure Categories
 
@@ -231,4 +233,3 @@ After recovery, verify:
 **Last Updated**: 2024-01-15  
 **Version**: 1.0.0  
 **Maintained By**: Data Engineering Team
-

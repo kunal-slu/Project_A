@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 import logging
-from typing import Optional, Sequence, Literal
+from collections.abc import Sequence
+from typing import Literal
+
 from pyspark.sql import DataFrame, SparkSession
 
 logger = logging.getLogger(__name__)
@@ -10,6 +13,7 @@ def _delta_supported() -> bool:
     """Check if Delta Lake is available."""
     try:
         import delta  # noqa
+
         return True
     except Exception:
         return False
@@ -19,12 +23,13 @@ def _is_delta_table(spark: SparkSession, path: str) -> bool:
     """Check if path contains a Delta table."""
     try:
         from delta.tables import DeltaTable
+
         return DeltaTable.isDeltaTable(spark, path)
     except Exception:
         try:
             jvm = spark._jvm
             hconf = spark._jsc.hadoopConfiguration()
-            p = jvm.org.apache.hadoop.fs.Path(path.rstrip('/') + '/_delta_log')
+            p = jvm.org.apache.hadoop.fs.Path(path.rstrip("/") + "/_delta_log")
             return p.getFileSystem(hconf).exists(p)
         except Exception:
             return False
@@ -35,7 +40,7 @@ def write_parquet(
     path: str,
     mode: Literal["overwrite", "append"] = "overwrite",
     compression: str = "snappy",
-    partition_by: Optional[Sequence[str]] = None
+    partition_by: Sequence[str] | None = None,
 ) -> None:
     """Write DataFrame to Parquet format with safety checks."""
     w = df.write.mode(mode).format("parquet").option("compression", compression)
@@ -49,9 +54,9 @@ def write_delta(
     df: DataFrame,
     path: str,
     mode: Literal["overwrite", "append"] = "overwrite",
-    partition_by: Optional[Sequence[str]] = None,
+    partition_by: Sequence[str] | None = None,
     merge_schema: bool = True,
-    strict_delta: bool = True
+    strict_delta: bool = True,
 ) -> None:
     """Write DataFrame to Delta format with fallback to Parquet if Delta unavailable."""
     if not _delta_supported():
@@ -66,11 +71,7 @@ def write_delta(
     w.save(path)
 
 
-def read_delta_or_parquet(
-    spark: SparkSession,
-    path: str,
-    strict_delta: bool = False
-) -> DataFrame:
+def read_delta_or_parquet(spark: SparkSession, path: str, strict_delta: bool = False) -> DataFrame:
     """Read from Delta table with fallback to Parquet."""
     if _is_delta_table(spark, path):
         logger.info("Reading Delta <- %s", path)

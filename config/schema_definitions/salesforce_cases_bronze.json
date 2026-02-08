@@ -1,0 +1,24 @@
+{
+  "table": "salesforce_cases_bronze",
+  "primary_key": "case_id",
+  "columns": {
+    "case_id": "string",
+    "account_id": "string",
+    "contact_id": "string",
+    "subject": "string",
+    "description": "string",
+    "priority": "string",
+    "status": "string",
+    "created_date": "string",
+    "last_modified_date": "string",
+    "owner_id": "string"
+  },
+  "required_non_null": ["case_id", "account_id", "subject", "priority", "status"],
+  "freshness_column": "last_modified_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "valid_priority": "priority IN ('High', 'Medium', 'Low', 'Critical')",
+    "valid_status": "status IN ('New', 'Working', 'Escalated', 'Closed', 'Pending')",
+    "case_contact_consistency": "contact_id IS NOT NULL OR account_id IS NOT NULL"
+  }
+}

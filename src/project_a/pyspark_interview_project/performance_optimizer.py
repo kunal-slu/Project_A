@@ -11,15 +11,15 @@ This module provides:
 - Performance metrics collection
 """
 
-import logging
 import json
+import logging
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
+from typing import Any
 
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, broadcast
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import broadcast, col
 from pyspark.storagelevel import StorageLevel
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for a dataset."""
+
     dataset_name: str
     row_count: int
     size_mb: float
@@ -38,7 +39,7 @@ class PerformanceMetrics:
     shuffle_read_mb: float
     shuffle_write_mb: float
     storage_level: str
-    optimization_applied: List[str]
+    optimization_applied: list[str]
     timestamp: str = None
 
     def __post_init__(self):
@@ -51,17 +52,17 @@ class CacheManager:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        self.cached_datasets: Dict[str, DataFrame] = {}
-        self.cache_stats: Dict[str, Dict[str, Any]] = {}
-        self.cache_hits: Dict[str, int] = {}
-        self.cache_misses: Dict[str, int] = {}
+        self.cached_datasets: dict[str, DataFrame] = {}
+        self.cache_stats: dict[str, dict[str, Any]] = {}
+        self.cache_hits: dict[str, int] = {}
+        self.cache_misses: dict[str, int] = {}
 
         # Storage level thresholds (in MB)
         self.storage_thresholds = {
-            "MEMORY_ONLY": 100,      # < 100MB
+            "MEMORY_ONLY": 100,  # < 100MB
             "MEMORY_AND_DISK": 500,  # 100MB - 500MB
-            "DISK_ONLY": 2000,       # 500MB - 2GB
-            "OFF_HEAP": float('inf') # > 2GB
+            "DISK_ONLY": 2000,  # 500MB - 2GB
+            "OFF_HEAP": float("inf"),  # > 2GB
         }
 
     def smart_cache(self, df: DataFrame, dataset_name: str, strategy: str = "auto") -> DataFrame:
@@ -92,14 +93,16 @@ class CacheManager:
                 "size_mb": estimated_size_mb,
                 "storage_level": self._get_storage_level_name(storage_level),
                 "cached_at": datetime.now().isoformat(),
-                "access_count": 0
+                "access_count": 0,
             }
 
             # Initialize hit/miss counters
             self.cache_hits[dataset_name] = 0
             self.cache_misses[dataset_name] = 0
 
-            logger.info(f"Cached dataset {dataset_name} with {storage_level} (estimated size: {estimated_size_mb:.2f}MB)")
+            logger.info(
+                f"Cached dataset {dataset_name} with {storage_level} (estimated size: {estimated_size_mb:.2f}MB)"
+            )
 
             return cached_df
 
@@ -144,7 +147,7 @@ class CacheManager:
         else:
             return str(storage_level)
 
-    def get_cached_dataset(self, dataset_name: str) -> Optional[DataFrame]:
+    def get_cached_dataset(self, dataset_name: str) -> DataFrame | None:
         """Get cached dataset and update access statistics."""
         if dataset_name in self.cached_datasets:
             self.cache_hits[dataset_name] += 1
@@ -181,13 +184,15 @@ class CacheManager:
             self.unpersist_dataset(dataset_name)
         logger.info("Cleared all caches")
 
-    def get_cache_summary(self) -> Dict[str, Any]:
+    def get_cache_summary(self) -> dict[str, Any]:
         """Get summary of cache usage."""
         return {
             "cached_datasets": list(self.cached_datasets.keys()),
             "total_cached_size_mb": sum(stats["size_mb"] for stats in self.cache_stats.values()),
             "cache_stats": self.cache_stats,
-            "hit_ratios": {name: self.get_cache_hit_ratio(name) for name in self.cache_stats.keys()}
+            "hit_ratios": {
+                name: self.get_cache_hit_ratio(name) for name in self.cache_stats.keys()
+            },
         }
 
 
@@ -196,10 +201,11 @@ class PerformanceBenchmark:
 
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        self.benchmark_results: List[PerformanceMetrics] = []
+        self.benchmark_results: list[PerformanceMetrics] = []
 
-    def benchmark_dataset(self, df: DataFrame, dataset_name: str,
-                         operations: List[str] = None) -> PerformanceMetrics:
+    def benchmark_dataset(
+        self, df: DataFrame, dataset_name: str, operations: list[str] = None
+    ) -> PerformanceMetrics:
         """Benchmark dataset performance with specified operations."""
         if operations is None:
             operations = ["count", "filter", "groupBy", "join", "orderBy"]
@@ -236,7 +242,7 @@ class PerformanceBenchmark:
                 shuffle_read_mb=0.0,  # Would need Spark UI metrics
                 shuffle_write_mb=0.0,  # Would need Spark UI metrics
                 storage_level="NONE",
-                optimization_applied=[]
+                optimization_applied=[],
             )
 
             # Store benchmark results
@@ -259,7 +265,7 @@ class PerformanceBenchmark:
                 shuffle_read_mb=0.0,
                 shuffle_write_mb=0.0,
                 storage_level="NONE",
-                optimization_applied=["benchmark_failed"]
+                optimization_applied=["benchmark_failed"],
             )
 
     def _run_benchmark_operation(self, df: DataFrame, operation: str):
@@ -274,7 +280,9 @@ class PerformanceBenchmark:
                     df.groupBy(df.columns[0]).count()
             elif operation == "join":
                 # Self-join for benchmarking
-                df.alias("a").join(df.alias("b"), col("a." + df.columns[0]) == col("b." + df.columns[0])).count()
+                df.alias("a").join(
+                    df.alias("b"), col("a." + df.columns[0]) == col("b." + df.columns[0])
+                ).count()
             elif operation == "orderBy":
                 df.orderBy(df.columns[0]).limit(100).count()
         except Exception as e:
@@ -295,7 +303,7 @@ class PerformanceBenchmark:
         try:
             results = [asdict(metrics) for metrics in self.benchmark_results]
 
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 json.dump(results, f, indent=2, default=str)
 
             logger.info(f"Benchmark results exported to {output_path}")
@@ -307,7 +315,7 @@ class PerformanceBenchmark:
 class PerformanceOptimizer:
     """Main performance optimization orchestrator."""
 
-    def __init__(self, spark: SparkSession, config: Dict[str, Any]):
+    def __init__(self, spark: SparkSession, config: dict[str, Any]):
         self.spark = spark
         self.config = config
         self.cache_manager = CacheManager(spark)
@@ -315,7 +323,9 @@ class PerformanceOptimizer:
 
         # Performance configuration
         self.shuffle_partitions = config.get("spark", {}).get("shuffle_partitions", 200)
-        self.broadcast_threshold = config.get("spark", {}).get("broadcast_threshold", 10485760)  # 10MB
+        self.broadcast_threshold = config.get("spark", {}).get(
+            "broadcast_threshold", 10485760
+        )  # 10MB
 
         # Set Spark configurations
         self._configure_spark()
@@ -387,10 +397,14 @@ class PerformanceOptimizer:
             if current_partitions != optimal_partitions:
                 if current_partitions > optimal_partitions:
                     df = df.coalesce(optimal_partitions)
-                    logger.info(f"Reduced partitions from {current_partitions} to {optimal_partitions}")
+                    logger.info(
+                        f"Reduced partitions from {current_partitions} to {optimal_partitions}"
+                    )
                 else:
                     df = df.repartition(optimal_partitions)
-                    logger.info(f"Increased partitions from {current_partitions} to {optimal_partitions}")
+                    logger.info(
+                        f"Increased partitions from {current_partitions} to {optimal_partitions}"
+                    )
 
             return df
 
@@ -432,7 +446,9 @@ class PerformanceOptimizer:
 
             if current_partitions != optimal_partitions:
                 df = df.repartition(optimal_partitions)
-                logger.info(f"Optimized file compaction: {current_partitions} -> {optimal_partitions} partitions")
+                logger.info(
+                    f"Optimized file compaction: {current_partitions} -> {optimal_partitions} partitions"
+                )
 
             return df
 
@@ -440,8 +456,9 @@ class PerformanceOptimizer:
             logger.warning(f"File compaction optimization failed: {e}")
             return df
 
-    def optimize_broadcast_joins(self, df: DataFrame, join_df: DataFrame,
-                                join_columns: List[str]) -> DataFrame:
+    def optimize_broadcast_joins(
+        self, df: DataFrame, join_df: DataFrame, join_columns: list[str]
+    ) -> DataFrame:
         """Optimize joins using broadcast joins when appropriate."""
         try:
             # Estimate size of join DataFrame
@@ -461,7 +478,9 @@ class PerformanceOptimizer:
             logger.warning(f"Broadcast join optimization failed: {e}")
             return df.join(join_df, join_columns)
 
-    def run_full_optimization_pipeline(self, datasets: Dict[str, DataFrame]) -> Dict[str, DataFrame]:
+    def run_full_optimization_pipeline(
+        self, datasets: dict[str, DataFrame]
+    ) -> dict[str, DataFrame]:
         """Run full optimization pipeline on multiple datasets."""
         logger.info("Starting full optimization pipeline...")
 
@@ -503,7 +522,7 @@ class PerformanceOptimizer:
 
         return optimized_df
 
-    def _run_comprehensive_benchmark(self, datasets: Dict[str, DataFrame]):
+    def _run_comprehensive_benchmark(self, datasets: dict[str, DataFrame]):
         """Run comprehensive benchmark on all datasets."""
         logger.info("Running comprehensive benchmark...")
 
@@ -523,7 +542,7 @@ class PerformanceOptimizer:
         except:
             return 100.0
 
-    def get_performance_summary(self) -> Dict[str, Any]:
+    def get_performance_summary(self) -> dict[str, Any]:
         """Get comprehensive performance summary."""
         cache_summary = self.cache_manager.get_cache_summary()
 
@@ -532,18 +551,25 @@ class PerformanceOptimizer:
             "total_cached_size_mb": cache_summary["total_cached_size_mb"],
             "cache_hit_ratios": cache_summary["hit_ratios"],
             "benchmark_results": len(self.benchmark.benchmark_results),
-            "optimization_applied": list(set([
-                opt for metrics in self.benchmark.benchmark_results
-                for opt in metrics.optimization_applied
-            ])),
+            "optimization_applied": list(
+                {
+
+                        opt
+                        for metrics in self.benchmark.benchmark_results
+                        for opt in metrics.optimization_applied
+
+                }
+            ),
             "spark_config": {
                 "shuffle_partitions": self.shuffle_partitions,
-                "broadcast_threshold_mb": self.broadcast_threshold / (1024 * 1024)
-            }
+                "broadcast_threshold_mb": self.broadcast_threshold / (1024 * 1024),
+            },
         }
 
 
-def create_performance_optimizer(spark: SparkSession, config: Dict[str, Any]) -> PerformanceOptimizer:
+def create_performance_optimizer(
+    spark: SparkSession, config: dict[str, Any]
+) -> PerformanceOptimizer:
     """Factory function to create PerformanceOptimizer."""
     return PerformanceOptimizer(spark, config)
 
@@ -553,19 +579,15 @@ if __name__ == "__main__":
     from pyspark.sql import SparkSession
 
     # Create Spark session
-    spark = SparkSession.builder \
-        .appName("PerformanceOptimizer") \
-        .config("spark.sql.shuffle.partitions", 200) \
-        .config("spark.sql.autoBroadcastJoinThreshold", 10485760) \
+    spark = (
+        SparkSession.builder.appName("PerformanceOptimizer")
+        .config("spark.sql.shuffle.partitions", 200)
+        .config("spark.sql.autoBroadcastJoinThreshold", 10485760)
         .getOrCreate()
+    )
 
     # Configuration
-    config = {
-        "spark": {
-            "shuffle_partitions": 200,
-            "broadcast_threshold": 10485760
-        }
-    }
+    config = {"spark": {"shuffle_partitions": 200, "broadcast_threshold": 10485760}}
 
     # Create optimizer
     optimizer = create_performance_optimizer(spark, config)
@@ -574,10 +596,12 @@ if __name__ == "__main__":
     sample_data = [
         ("R001", "O001", "defective", 100.0, "2021-01-01"),
         ("R002", "O002", "wrong_size", 50.0, "2021-01-02"),
-        ("R003", "O003", "damaged", 75.0, "2021-01-03")
+        ("R003", "O003", "damaged", 75.0, "2021-01-03"),
     ]
 
-    df = spark.createDataFrame(sample_data, ["return_id", "order_id", "return_reason", "amount", "return_date"])
+    df = spark.createDataFrame(
+        sample_data, ["return_id", "order_id", "return_reason", "amount", "return_date"]
+    )
 
     # Optimize dataset
     optimized_df = optimizer.optimize_returns_raw(df)

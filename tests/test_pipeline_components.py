@@ -1,21 +1,24 @@
 """
 Test the new pipeline components integration.
 """
-import pytest
-import tempfile
+
+import os
 import shutil
+import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
-import sys
-import os
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from project_a.config.paths import BRONZE, GOLD, SILVER
+from project_a.logging_setup import get_logger, new_correlation_id
 from project_a.pipeline_stages.bronze_to_silver import run as b2s_run
 from project_a.pipeline_stages.silver_to_gold import run as s2g_run
-from project_a.logging_setup import get_logger, new_correlation_id
-from project_a.config.paths import BRONZE, SILVER, GOLD
+
 
 class TestPipelineComponents:
     """Test the new pipeline components."""
@@ -56,7 +59,7 @@ class TestPipelineComponents:
         assert str(SILVER).endswith("silver")
         assert str(GOLD).endswith("gold")
 
-    @patch('project_a.pipeline_stages.bronze_to_silver.build_spark')
+    @patch("project_a.pipeline_stages.bronze_to_silver.build_spark")
     def test_bronze_to_silver_import(self, mock_build_spark):
         """Test that bronze_to_silver module can be imported and run function exists."""
         mock_spark = Mock()
@@ -65,7 +68,7 @@ class TestPipelineComponents:
         # Test that the function exists and can be called
         assert callable(b2s_run)
 
-    @patch('project_a.pipeline_stages.silver_to_gold.build_spark')
+    @patch("project_a.pipeline_stages.silver_to_gold.build_spark")
     def test_silver_to_gold_import(self, mock_build_spark):
         """Test that silver_to_gold module can be imported and run function exists."""
         mock_spark = Mock()
@@ -73,6 +76,7 @@ class TestPipelineComponents:
 
         # Test that the function exists and can be called
         assert callable(s2g_run)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

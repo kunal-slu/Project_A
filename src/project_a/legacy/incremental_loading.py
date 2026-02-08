@@ -11,11 +11,12 @@ This module provides various incremental loading patterns including:
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from pyspark.sql import DataFrame, SparkSession, functions as F
-from pyspark.sql.types import TimestampType
 from delta.tables import DeltaTable
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.types import TimestampType
 
 logger = logging.getLogger(__name__)
 
@@ -30,47 +31,47 @@ class IncrementalLoader:
         self.spark = spark
         self.watermark_column = watermark_column
 
-    def get_latest_watermark(self, table_path: str) -> Optional[datetime]:
+    def get_latest_watermark(self, table_path: str) -> datetime | None:
         """
         Get the latest watermark from a Delta table.
-        
+
         Args:
             table_path: Path to the Delta table
-            
+
         Returns:
             Latest watermark timestamp or None if table is empty
         """
         try:
             df = self.spark.read.format("delta").load(table_path)
-            
+
             if df.rdd.isEmpty():
                 return None
-                
+
             result = df.agg(F.max(self.watermark_column)).limit(1).first()
             return result[0] if result and result[0] else None
-            
+
         except Exception as e:
             logger.warning(f"Could not get watermark from {table_path}: {e}")
             return None
 
     def filter_incremental_data(
-        self, 
-        source_df: DataFrame, 
-        last_watermark: Optional[datetime] = None
+        self,
+        source_df: DataFrame,
+        last_watermark: datetime | None = None
     ) -> DataFrame:
         """
         Filter source data to only include records newer than the watermark.
-        
+
         Args:
             source_df: Source DataFrame
             last_watermark: Last processed watermark timestamp
-            
+
         Returns:
             Filtered DataFrame with only new records
         """
         if last_watermark is None:
             return source_df
-            
+
         return source_df.filter(F.col(self.watermark_column) > last_watermark)
 
     def apply_scd_type2(
@@ -78,58 +79,58 @@ class IncrementalLoader:
         source_df: DataFrame,
         target_path: str,
         business_key: str,
-        change_columns: List[str],
-        last_watermark: Optional[datetime] = None
-    ) -> Dict[str, Any]:
+        change_columns: list[str],
+        last_watermark: datetime | None = None
+    ) -> dict[str, Any]:
         """
         Apply SCD Type 2 logic to handle slowly changing dimensions.
-        
+
         Args:
             source_df: Source DataFrame with dimension data
             target_path: Path to the target Delta table
             business_key: Column name for the business key
             change_columns: List of columns to monitor for changes
             last_watermark: Last processed watermark timestamp
-            
+
         Returns:
             Dictionary with processing results
         """
         try:
             # Filter for incremental data
             incremental_df = self.filter_incremental_data(source_df, last_watermark)
-            
+
             if incremental_df.rdd.isEmpty():
                 logger.info("No new dimension changes to process")
                 return {
-                    "success": True, 
-                    "records_processed": 0, 
+                    "success": True,
+                    "records_processed": 0,
                     "message": "No new data"
                 }
 
             # Create hash for change detection
             hash_expr = F.sha2(
                 F.concat_ws("||", *[
-                    F.coalesce(F.col(col).cast("string"), F.lit("")) 
+                    F.coalesce(F.col(col).cast("string"), F.lit(""))
                     for col in change_columns
-                ]), 
+                ]),
                 256
             )
 
             # Prepare staged data
             staged_df = incremental_df.withColumn(
-                "effective_from", 
+                "effective_from",
                 F.col(self.watermark_column).cast(TimestampType())
             ).withColumn(
-                "effective_to", 
+                "effective_to",
                 F.lit(None).cast(TimestampType())
             ).withColumn(
-                "is_current", 
+                "is_current",
                 F.lit(True)
             ).withColumn(
-                "hash_diff", 
+                "hash_diff",
                 hash_expr
             ).withColumn(
-                "surrogate_key", 
+                "surrogate_key",
                 F.expr("uuid()")
             )
 
@@ -153,7 +154,7 @@ class IncrementalLoader:
             current_records = target_table.toDF().filter(
                 F.col("is_current").isTrue()
             ).select(
-                business_key, 
+                business_key,
                 "hash_diff"
             ).withColumnRenamed("hash_diff", "t_hash_diff")
 
@@ -163,7 +164,7 @@ class IncrementalLoader:
                 F.col(f"s.{business_key}") == F.col(f"t.{business_key}"),
                 "left"
             ).filter(
-                F.col("t.t_hash_diff").isNull() | 
+                F.col("t.t_hash_diff").isNull() |
                 (F.col("t.t_hash_diff") != F.col("s.hash_diff"))
             ).select("s.*")
 
@@ -177,9 +178,9 @@ class IncrementalLoader:
 
             # Apply MERGE operation
             merge_condition = f"t.{business_key} = s.{business_key} AND t.is_current = true"
-            
+
             target_table.alias("t").merge(
-                changes_df.alias("s"), 
+                changes_df.alias("s"),
                 merge_condition
             ).whenMatchedUpdate(
                 condition="t.hash_diff <> s.hash_diff",
@@ -194,7 +195,7 @@ class IncrementalLoader:
 
             processed_count = changes_df.count()
             logger.info(f"SCD2 updated {processed_count} rows")
-            
+
             return {
                 "success": True,
                 "records_processed": processed_count,
@@ -206,19 +207,19 @@ class IncrementalLoader:
             return {"success": False, "error": str(e)}
 
     def detect_changes(
-        self, 
-        source_df: DataFrame, 
-        target_df: DataFrame, 
-        key_columns: List[str]
-    ) -> Dict[str, DataFrame]:
+        self,
+        source_df: DataFrame,
+        target_df: DataFrame,
+        key_columns: list[str]
+    ) -> dict[str, DataFrame]:
         """
         Detect changes between source and target DataFrames.
-        
+
         Args:
             source_df: Source DataFrame
             target_df: Target DataFrame
             key_columns: Columns to use as keys for comparison
-            
+
         Returns:
             Dictionary with 'inserts', 'updates', and 'deletes' DataFrames
         """
@@ -239,13 +240,13 @@ class IncrementalLoader:
         # Find updates (records in both but with different values)
         # Join on key columns and filter for non-key column differences
         non_key_columns = [col for col in source_df.columns if col not in key_columns]
-        
+
         if non_key_columns:
             update_conditions = [
-                F.col(f"s.{col}") != F.col(f"t.{col}") 
+                F.col(f"s.{col}") != F.col(f"t.{col}")
                 for col in non_key_columns
             ]
-            
+
             updates = source_df.alias("s").join(
                 target_df.alias("t"),
                 [F.col(f"s.{col}") == F.col(f"t.{col}") for col in key_columns],
@@ -265,25 +266,25 @@ class IncrementalLoader:
         self,
         source_df: DataFrame,
         target_path: str,
-        key_columns: List[str],
-        last_watermark: Optional[datetime] = None
-    ) -> Dict[str, Any]:
+        key_columns: list[str],
+        last_watermark: datetime | None = None
+    ) -> dict[str, Any]:
         """
         Apply Change Data Capture (CDC) changes to target table.
-        
+
         Args:
             source_df: Source DataFrame with CDC data
             target_path: Path to target Delta table
             key_columns: Columns to use as keys
             last_watermark: Last processed watermark timestamp
-            
+
         Returns:
             Dictionary with processing results
         """
         try:
             # Filter for incremental data
             incremental_df = self.filter_incremental_data(source_df, last_watermark)
-            
+
             if incremental_df.rdd.isEmpty():
                 return {
                     "success": True,
@@ -306,12 +307,12 @@ class IncrementalLoader:
 
             # Detect changes
             changes = self.detect_changes(incremental_df, target_df, key_columns)
-            
+
             # Apply changes using MERGE
             merge_condition = " AND ".join([
                 f"t.{col} = s.{col}" for col in key_columns
             ])
-            
+
             # Handle inserts and updates
             target_table.alias("t").merge(
                 changes["inserts"].union(changes["updates"]).alias("s"),
@@ -330,16 +331,16 @@ class IncrementalLoader:
                     f"({' AND '.join([f't.{col} = d.{col}' for col in key_columns])})"
                     for row in limited_deletes.collect()
                 ])
-                
+
                 if delete_condition:
                     target_table.delete(delete_condition)
 
             total_processed = (
-                changes["inserts"].count() + 
-                changes["updates"].count() + 
+                changes["inserts"].count() +
+                changes["updates"].count() +
                 changes["deletes"].count()
             )
-            
+
             return {
                 "success": True,
                 "records_processed": total_processed,
@@ -354,18 +355,18 @@ class IncrementalLoader:
         self,
         table_path: str,
         watermark_column: str,
-        partition_columns: Optional[List[str]] = None
+        partition_columns: list[str] | None = None
     ) -> None:
         """
         Create a watermark tracking table for incremental processing.
-        
+
         Args:
             table_path: Path for the watermark table
             watermark_column: Column name for watermark tracking
             partition_columns: Optional partition columns
         """
         schema = self.spark.createDataFrame([], self.spark.read.format("delta").load(table_path).schema)
-        
+
         watermark_df = schema.withColumn(
             watermark_column,
             F.current_timestamp()
@@ -375,21 +376,21 @@ class IncrementalLoader:
         )
 
         write_opts = watermark_df.write.format("delta").mode("overwrite")
-        
+
         if partition_columns:
             write_opts = write_opts.partitionBy(*partition_columns)
-            
+
         write_opts.save(table_path)
 
     def optimize_for_incremental_processing(
         self,
         table_path: str,
-        partition_columns: List[str],
-        z_order_columns: Optional[List[str]] = None
+        partition_columns: list[str],
+        z_order_columns: list[str] | None = None
     ) -> None:
         """
         Optimize Delta table for incremental processing.
-        
+
         Args:
             table_path: Path to the Delta table
             partition_columns: Columns to partition by
@@ -397,19 +398,19 @@ class IncrementalLoader:
         """
         try:
             target_table = DeltaTable.forPath(self.spark, table_path)
-            
+
             # Optimize the table
             target_table.optimize().execute()
-            
+
             # Z-order if specified
             if z_order_columns:
                 target_table.optimize().executeZOrderBy(z_order_columns)
-                
+
             # Vacuum to remove old files
             target_table.vacuum(168)  # Keep 7 days of history
-            
+
             logger.info(f"Optimized table {table_path} for incremental processing")
-            
+
         except Exception as e:
             logger.error(f"Failed to optimize table {table_path}: {e}")
             raise

@@ -5,12 +5,21 @@ This test suite validates the standardized SCD2 helper with golden datasets
 that include updates and late-arriving data scenarios.
 """
 
-import pytest
 from datetime import datetime
-from pyspark.sql import SparkSession, functions as F
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 
-from project_a.common.scd2 import apply_scd2, SCD2Config, validate_scd2_table
+import pytest
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.types import StringType, StructField, StructType, TimestampType
+
+from project_a.common.scd2 import SCD2Config, apply_scd2, validate_scd2_table
+
+
+def _read_table(spark, path: str):
+    try:
+        return spark.read.format("delta").load(path)
+    except Exception:
+        return spark.read.parquet(path)
 
 
 class TestSCD2Standardized:
@@ -19,12 +28,18 @@ class TestSCD2Standardized:
     @pytest.fixture
     def spark(self):
         """Create Spark session for testing."""
-        return (SparkSession.builder
-                .appName("SCD2Test")
+        try:
+            return (
+                SparkSession.builder.appName("SCD2Test")
                 .master("local[2]")
                 .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-                .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-                .getOrCreate())
+                .config(
+                    "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                )
+                .getOrCreate()
+            )
+        except Exception:
+            pytest.skip("Spark unavailable in current environment")
 
     @pytest.fixture
     def scd2_config(self):
@@ -111,7 +126,7 @@ class TestSCD2Standardized:
         assert result["records_processed"] == 3
 
         # Load and verify table
-        df = spark.read.format("delta").load(target_path)
+        df = _read_table(spark, target_path)
 
         # Check required columns exist
         required_cols = [
@@ -122,7 +137,7 @@ class TestSCD2Standardized:
             assert col in df.columns
 
         # Check all records are current
-        current_records = df.filter(F.col("is_current") == True)
+        current_records = df.filter(F.col("is_current"))
         assert current_records.count() == 3
 
         # Check effective_to is null for current records
@@ -144,13 +159,13 @@ class TestSCD2Standardized:
         assert result["records_processed"] == 3  # 2 changes + 1 new
 
         # Load and verify table
-        df = spark.read.format("delta").load(target_path)
+        df = _read_table(spark, target_path)
 
         # Check total records (3 original + 3 new/updated)
         assert df.count() == 6
 
         # Check current records
-        current_records = df.filter(F.col("is_current") == True)
+        current_records = df.filter(F.col("is_current"))
         assert current_records.count() == 4  # 3 original + 1 new
 
         # Verify specific changes
@@ -185,7 +200,7 @@ class TestSCD2Standardized:
         assert result["records_processed"] == 2
 
         # Load and verify table
-        df = spark.read.format("delta").load(target_path)
+        df = _read_table(spark, target_path)
 
         # Check total records
         assert df.count() == 5
@@ -231,7 +246,7 @@ class TestSCD2Standardized:
         assert "No SCD2 changes detected" in result["message"]
 
         # Verify table still has same number of records
-        df = spark.read.format("delta").load(target_path)
+        df = _read_table(spark, target_path)
         assert df.count() == 3  # No new records added
 
     def test_scd2_missing_columns(self, spark, scd2_config, tmp_path):
@@ -309,7 +324,7 @@ class TestSCD2Standardized:
         assert result["records_processed"] == 2
 
         # Verify effective_from uses created_at timestamp
-        result_df = spark.read.format("delta").load(target_path)
+        result_df = _read_table(spark, target_path)
         c001_record = result_df.filter(F.col("customer_id") == "C001").first()
         assert c001_record["effective_from"] == datetime(2024, 1, 1, 10, 0)
 
@@ -361,17 +376,17 @@ class TestSCD2Standardized:
         assert result3["records_processed"] == 2
 
         # Final validation
-        final_df = spark.read.format("delta").load(target_path)
+        final_df = _read_table(spark, target_path)
 
-        # Should have 7 total records:
+        # Should have 6 total records:
         # - C001: 3 records (initial, update, late-arriving)
         # - C002: 1 record (initial)
         # - C003: 1 record (new)
         # - C004: 1 record (late-arriving)
-        assert final_df.count() == 7
+        assert final_df.count() == 6
 
         # Should have 4 current records
-        current_records = final_df.filter(F.col("is_current") == True)
+        current_records = final_df.filter(F.col("is_current"))
         assert current_records.count() == 4
 
         # Validate table integrity

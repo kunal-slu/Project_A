@@ -7,19 +7,23 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 
 from pyspark.sql import Row
 
-from project_a.transform import (broadcast_join_demo,
-                                                 build_customers_scd2,
-                                                 build_fact_orders,
-                                                 data_cleaning_examples,
-                                                 enrich_products,
-                                                 join_examples, join_inventory,
-                                                 join_returns,
-                                                 normalize_currency,
-                                                 partitioning_examples,
-                                                 select_and_filter,
-                                                 skew_mitigation_demo,
-                                                 sql_vs_dsl_demo, udf_examples,
-                                                 window_functions_demo)
+from project_a.transform import (
+    broadcast_join_demo,
+    build_customers_scd2,
+    build_fact_orders,
+    data_cleaning_examples,
+    enrich_products,
+    join_examples,
+    join_inventory,
+    join_returns,
+    normalize_currency,
+    partitioning_examples,
+    select_and_filter,
+    skew_mitigation_demo,
+    sql_vs_dsl_demo,
+    udf_examples,
+    window_functions_demo,
+)
 
 
 def test_select_and_filter(spark):
@@ -235,7 +239,5 @@ def test_build_customers_scd2(spark):
         [Row(customer_id="C1", new_address="addr2", effective_from="2022-01-01")]
     )
     scd2 = build_customers_scd2(customers, changes)
-    assert set(["effective_from", "effective_to", "is_current"]).issubset(
-        set(scd2.columns)
-    )
-    assert scd2.filter(scd2.is_current == True).count() == 1
+    assert {"effective_from", "effective_to", "is_current"}.issubset(set(scd2.columns))
+    assert scd2.filter(scd2.is_current).count() == 1

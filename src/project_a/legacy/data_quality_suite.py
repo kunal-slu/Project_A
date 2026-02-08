@@ -11,9 +11,10 @@ This module provides a complete data quality framework including:
 
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Any
 
-from pyspark.sql import DataFrame, SparkSession, functions as F
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as F
 from pyspark.sql.types import StructType
 from pyspark.sql.window import Window
 
@@ -32,7 +33,7 @@ class DataQualitySuite:
         self.quality_metrics = {}
         self.validation_results = {}
 
-    def validate_schema(self, df: DataFrame, expected_schema: StructType) -> Dict[str, Any]:
+    def validate_schema(self, df: DataFrame, expected_schema: StructType) -> dict[str, Any]:
         """
         Validate DataFrame schema against expected schema.
 
@@ -45,8 +46,8 @@ class DataQualitySuite:
         """
         try:
             actual_schema = df.schema
-            actual_fields = set(field.name for field in actual_schema.fields)
-            expected_fields = set(field.name for field in expected_schema.fields)
+            actual_fields = {field.name for field in actual_schema.fields}
+            expected_fields = {field.name for field in expected_schema.fields}
 
             missing_fields = expected_fields - actual_fields
             extra_fields = actual_fields - expected_fields
@@ -56,7 +57,7 @@ class DataQualitySuite:
                 "missing_fields": list(missing_fields),
                 "extra_fields": list(extra_fields),
                 "total_fields": len(actual_fields),
-                "expected_fields": len(expected_fields)
+                "expected_fields": len(expected_fields),
             }
 
             self.validation_results["schema"] = result
@@ -66,7 +67,9 @@ class DataQualitySuite:
             logger.error(f"Schema validation failed: {e}")
             return {"valid": False, "error": str(e)}
 
-    def check_completeness(self, df: DataFrame, columns: Optional[List[str]] = None) -> Dict[str, Any]:
+    def check_completeness(
+        self, df: DataFrame, columns: list[str] | None = None
+    ) -> dict[str, Any]:
         """
         Check data completeness for specified columns.
 
@@ -89,7 +92,7 @@ class DataQualitySuite:
                     completeness_results[column] = {
                         "completeness": 0.0,
                         "null_count": total_rows,
-                        "total_count": total_rows
+                        "total_count": total_rows,
                     }
                     continue
 
@@ -100,7 +103,7 @@ class DataQualitySuite:
                 completeness_results[column] = {
                     "completeness": completeness,
                     "null_count": null_count,
-                    "total_count": total_rows
+                    "total_count": total_rows,
                 }
 
             self.validation_results["completeness"] = completeness_results
@@ -110,7 +113,7 @@ class DataQualitySuite:
             logger.error(f"Completeness check failed: {e}")
             return {"error": str(e)}
 
-    def check_uniqueness(self, df: DataFrame, columns: List[str]) -> Dict[str, Any]:
+    def check_uniqueness(self, df: DataFrame, columns: list[str]) -> dict[str, Any]:
         """
         Check uniqueness of specified columns.
 
@@ -130,7 +133,7 @@ class DataQualitySuite:
                 "uniqueness": uniqueness,
                 "total_rows": total_rows,
                 "distinct_rows": distinct_rows,
-                "duplicate_rows": total_rows - distinct_rows
+                "duplicate_rows": total_rows - distinct_rows,
             }
 
             self.validation_results["uniqueness"] = result
@@ -140,7 +143,7 @@ class DataQualitySuite:
             logger.error(f"Uniqueness check failed: {e}")
             return {"error": str(e)}
 
-    def check_consistency(self, df: DataFrame, rules: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def check_consistency(self, df: DataFrame, rules: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Check data consistency against defined rules.
 
@@ -174,7 +177,7 @@ class DataQualitySuite:
                     "actual_count": actual_count,
                     "total_count": total_count,
                     "consistency_ratio": consistency_ratio,
-                    "passed": (actual_count > 0) == expected_result
+                    "passed": (actual_count > 0) == expected_result,
                 }
 
             self.validation_results["consistency"] = consistency_results
@@ -184,7 +187,7 @@ class DataQualitySuite:
             logger.error(f"Consistency check failed: {e}")
             return {"error": str(e)}
 
-    def check_accuracy(self, df: DataFrame, accuracy_rules: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def check_accuracy(self, df: DataFrame, accuracy_rules: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Check data accuracy against defined rules.
 
@@ -224,7 +227,11 @@ class DataQualitySuite:
                         max_check = 0
 
                     total_count = df.count()
-                    accuracy = (total_count - min_check - max_check) / total_count if total_count > 0 else 0.0
+                    accuracy = (
+                        (total_count - min_check - max_check) / total_count
+                        if total_count > 0
+                        else 0.0
+                    )
 
                     accuracy_results[rule_name] = {
                         "type": "range",
@@ -233,7 +240,7 @@ class DataQualitySuite:
                         "max": max_val,
                         "min_violations": min_check,
                         "max_violations": max_check,
-                        "accuracy": accuracy
+                        "accuracy": accuracy,
                     }
 
                 elif rule_type == "pattern":
@@ -241,14 +248,18 @@ class DataQualitySuite:
                     if pattern:
                         pattern_violations = df.filter(~F.col(column).rlike(pattern)).count()
                         total_count = df.count()
-                        accuracy = (total_count - pattern_violations) / total_count if total_count > 0 else 0.0
+                        accuracy = (
+                            (total_count - pattern_violations) / total_count
+                            if total_count > 0
+                            else 0.0
+                        )
 
                         accuracy_results[rule_name] = {
                             "type": "pattern",
                             "column": column,
                             "pattern": pattern,
                             "violations": pattern_violations,
-                            "accuracy": accuracy
+                            "accuracy": accuracy,
                         }
 
             self.validation_results["accuracy"] = accuracy_results
@@ -258,8 +269,9 @@ class DataQualitySuite:
             logger.error(f"Accuracy check failed: {e}")
             return {"error": str(e)}
 
-    def check_timeliness(self, df: DataFrame, timestamp_column: str,
-                        max_delay_hours: int = 24) -> Dict[str, Any]:
+    def check_timeliness(
+        self, df: DataFrame, timestamp_column: str, max_delay_hours: int = 24
+    ) -> dict[str, Any]:
         """
         Check data timeliness.
 
@@ -292,7 +304,7 @@ class DataQualitySuite:
                 "total_records": total_count,
                 "timely_records": timely_records,
                 "delayed_records": total_count - timely_records,
-                "max_delay_hours": max_delay_hours
+                "max_delay_hours": max_delay_hours,
             }
 
             self.validation_results["timeliness"] = result
@@ -302,7 +314,9 @@ class DataQualitySuite:
             logger.error(f"Timeliness check failed: {e}")
             return {"error": str(e)}
 
-    def calculate_statistics(self, df: DataFrame, columns: Optional[List[str]] = None) -> Dict[str, Any]:
+    def calculate_statistics(
+        self, df: DataFrame, columns: list[str] | None = None
+    ) -> dict[str, Any]:
         """
         Calculate basic statistics for numeric columns.
 
@@ -317,8 +331,9 @@ class DataQualitySuite:
             if columns is None:
                 # Get numeric columns
                 numeric_columns = [
-                    field.name for field in df.schema.fields
-                    if field.dataType.typeName() in ['integer', 'long', 'float', 'double']
+                    field.name
+                    for field in df.schema.fields
+                    if field.dataType.typeName() in ["integer", "long", "float", "double"]
                 ]
                 columns = numeric_columns
 
@@ -334,7 +349,7 @@ class DataQualitySuite:
                     F.mean(F.col(column)).alias("mean"),
                     F.stddev(F.col(column)).alias("stddev"),
                     F.min(F.col(column)).alias("min"),
-                    F.max(F.col(column)).alias("max")
+                    F.max(F.col(column)).alias("max"),
                 ).limit(1)  # Use limit(1) instead of collect()
 
                 if stats_df.count() > 0:
@@ -344,7 +359,7 @@ class DataQualitySuite:
                         "mean": row["mean"],
                         "stddev": row["stddev"],
                         "min": row["min"],
-                        "max": row["max"]
+                        "max": row["max"],
                     }
 
             self.quality_metrics["statistics"] = statistics
@@ -354,8 +369,9 @@ class DataQualitySuite:
             logger.error(f"Statistics calculation failed: {e}")
             return {"error": str(e)}
 
-    def detect_anomalies(self, df: DataFrame, column: str,
-                        method: str = "iqr", threshold: float = 1.5) -> Dict[str, Any]:
+    def detect_anomalies(
+        self, df: DataFrame, column: str, method: str = "iqr", threshold: float = 1.5
+    ) -> dict[str, Any]:
         """
         Detect anomalies in a numeric column.
 
@@ -374,11 +390,11 @@ class DataQualitySuite:
 
             if method == "iqr":
                 # Calculate quartiles using window functions
-                window_spec = Window.orderBy(F.col(column))
+                Window.orderBy(F.col(column))
 
                 quartiles_df = df.select(
                     F.percentile_approx(F.col(column), 0.25).alias("q1"),
-                    F.percentile_approx(F.col(column), 0.75).alias("q3")
+                    F.percentile_approx(F.col(column), 0.75).alias("q3"),
                 ).limit(1)  # Use limit(1) instead of collect()
 
                 if quartiles_df.count() > 0:
@@ -407,14 +423,13 @@ class DataQualitySuite:
                         "upper_bound": upper_bound,
                         "anomalies": anomalies,
                         "total_count": total_count,
-                        "anomaly_ratio": anomaly_ratio
+                        "anomaly_ratio": anomaly_ratio,
                     }
 
             elif method == "zscore":
                 # Calculate z-score based anomalies
                 stats_df = df.select(
-                    F.mean(F.col(column)).alias("mean"),
-                    F.stddev(F.col(column)).alias("stddev")
+                    F.mean(F.col(column)).alias("mean"), F.stddev(F.col(column)).alias("stddev")
                 ).limit(1)  # Use limit(1) instead of collect()
 
                 if stats_df.count() > 0:
@@ -438,7 +453,7 @@ class DataQualitySuite:
                             "threshold": threshold,
                             "anomalies": anomalies,
                             "total_count": total_count,
-                            "anomaly_ratio": anomaly_ratio
+                            "anomaly_ratio": anomaly_ratio,
                         }
 
             return {"error": f"Unknown method: {method}"}
@@ -447,7 +462,7 @@ class DataQualitySuite:
             logger.error(f"Anomaly detection failed: {e}")
             return {"error": str(e)}
 
-    def generate_quality_report(self, output_path: Optional[str] = None) -> str:
+    def generate_quality_report(self, output_path: str | None = None) -> str:
         """
         Generate comprehensive data quality report.
 
@@ -464,17 +479,23 @@ class DataQualitySuite:
                 "quality_metrics": self.quality_metrics,
                 "summary": {
                     "total_checks": len(self.validation_results),
-                    "passed_checks": sum(1 for result in self.validation_results.values()
-                                       if isinstance(result, dict) and result.get("valid", False)),
-                    "failed_checks": sum(1 for result in self.validation_results.values()
-                                       if isinstance(result, dict) and not result.get("valid", True))
-                }
+                    "passed_checks": sum(
+                        1
+                        for result in self.validation_results.values()
+                        if isinstance(result, dict) and result.get("valid", False)
+                    ),
+                    "failed_checks": sum(
+                        1
+                        for result in self.validation_results.values()
+                        if isinstance(result, dict) and not result.get("valid", True)
+                    ),
+                },
             }
 
             report_json = json.dumps(report, indent=2, default=str)
 
             if output_path:
-                with open(output_path, 'w') as f:
+                with open(output_path, "w") as f:
                     f.write(report_json)
                 logger.info(f"Quality report saved to {output_path}")
 
@@ -484,13 +505,16 @@ class DataQualitySuite:
             logger.error(f"Report generation failed: {e}")
             return json.dumps({"error": str(e)})
 
-    def run_comprehensive_validation(self, df: DataFrame,
-                                   expected_schema: Optional[StructType] = None,
-                                   completeness_columns: Optional[List[str]] = None,
-                                   uniqueness_columns: Optional[List[str]] = None,
-                                   consistency_rules: Optional[List[Dict[str, Any]]] = None,
-                                   accuracy_rules: Optional[List[Dict[str, Any]]] = None,
-                                   timestamp_column: Optional[str] = None) -> Dict[str, Any]:
+    def run_comprehensive_validation(
+        self,
+        df: DataFrame,
+        expected_schema: StructType | None = None,
+        completeness_columns: list[str] | None = None,
+        uniqueness_columns: list[str] | None = None,
+        consistency_rules: list[dict[str, Any]] | None = None,
+        accuracy_rules: list[dict[str, Any]] | None = None,
+        timestamp_column: str | None = None,
+    ) -> dict[str, Any]:
         """
         Run comprehensive data quality validation.
 

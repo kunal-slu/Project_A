@@ -1,4 +1,3 @@
-
 from project_a.validate import ValidateOutput
 
 

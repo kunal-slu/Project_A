@@ -14,11 +14,11 @@ Supported jobs:
         - crm_to_bronze
         - fx_to_bronze
         - kafka_events_to_bronze
-    
+
     Transformations:
         - bronze_to_silver
         - silver_to_gold
-    
+
     Optional:
         - kafka_producer (local simulation)
 """
@@ -28,11 +28,16 @@ import logging
 import sys
 from pathlib import Path
 
-# Add src to path for local execution
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root and src to path for local execution.
+# When invoked as `python jobs/run_pipeline.py`, Python sets sys.path[0] to
+# the `jobs/` directory, so absolute imports like `from jobs.ingest...` fail
+# unless the repository root is added explicitly.
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+SRC_ROOT = PROJECT_ROOT / "src"
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(SRC_ROOT))
 
 from project_a.core.config import ProjectConfig
-from project_a.core.base_job import BaseJob
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +52,7 @@ def main():
         description="Project A - Unified ETL Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--job",
         required=True,
@@ -67,9 +72,9 @@ def main():
         "--run-date",
         help="Optional run date override (YYYY-MM-DD)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Load configuration
     try:
         config = ProjectConfig(args.config, env=args.env)
@@ -77,49 +82,65 @@ def main():
     except Exception as e:
         logger.error(f"❌ Failed to load configuration: {e}")
         sys.exit(1)
-    
+
     # Route to appropriate job
     job_name = args.job.lower()
-    
+
     try:
         if job_name == "bronze_to_silver":
             from jobs.transform.bronze_to_silver import BronzeToSilverJob
+
             job = BronzeToSilverJob(config)
         elif job_name == "silver_to_gold":
             from jobs.transform.silver_to_gold import SilverToGoldJob
+
             job = SilverToGoldJob(config)
         elif job_name == "snowflake_to_bronze":
             from jobs.ingest.snowflake_to_bronze import SnowflakeToBronzeJob
+
             job = SnowflakeToBronzeJob(config)
         elif job_name == "redshift_to_bronze":
             from jobs.ingest.redshift_to_bronze import RedshiftToBronzeJob
+
             job = RedshiftToBronzeJob(config)
         elif job_name == "crm_to_bronze":
             from jobs.ingest.crm_to_bronze import CrmToBronzeJob
+
             job = CrmToBronzeJob(config)
         elif job_name == "fx_to_bronze":
             from jobs.ingest.fx_to_bronze import FxToBronzeJob
+
             job = FxToBronzeJob(config)
         elif job_name == "kafka_events_to_bronze":
             from jobs.ingest.kafka_events_to_bronze import KafkaEventsToBronzeJob
+
             job = KafkaEventsToBronzeJob(config)
+        elif job_name == "orders_silver_to_iceberg":
+            from jobs.iceberg.orders_silver_to_iceberg import OrdersSilverToIcebergJob
+
+            job = OrdersSilverToIcebergJob(config)
         elif job_name == "kafka_producer":
             from jobs.streaming.kafka_producer import KafkaProducerJob
+
             job = KafkaProducerJob(config)
         else:
             logger.error(f"❌ Unknown job: {job_name}")
-            logger.info(f"Supported jobs: bronze_to_silver, silver_to_gold, snowflake_to_bronze, redshift_to_bronze, crm_to_bronze, fx_to_bronze, kafka_events_to_bronze, kafka_producer")
+            logger.info(
+                "Supported jobs: bronze_to_silver, silver_to_gold, snowflake_to_bronze, redshift_to_bronze, crm_to_bronze, fx_to_bronze, kafka_events_to_bronze, orders_silver_to_iceberg, kafka_producer"
+            )
             sys.exit(1)
-        
+
         # Execute job
         logger.info(f"🚀 Starting job: {job_name}")
         result = job.execute()
         logger.info(f"✅ Job completed: {job_name}")
         logger.info(f"Result: {result}")
-        
+
     except ImportError as e:
         logger.error(f"❌ Failed to import job module: {e}")
-        logger.info("Make sure all job modules are implemented in project_a.transform/ and project_a.ingest/")
+        logger.info(
+            "Make sure all job modules are implemented in project_a.transform/ and project_a.ingest/"
+        )
         sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Job failed: {e}", exc_info=True)
@@ -128,4 +149,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

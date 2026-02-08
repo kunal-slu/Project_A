@@ -1,0 +1,30 @@
+{
+  "table": "salesforce_opportunities_bronze",
+  "primary_key": "opportunity_id",
+  "columns": {
+    "opportunity_id": "string",
+    "account_id": "string",
+    "contact_id": "string",
+    "opportunity_name": "string",
+    "stage_name": "string",
+    "amount": "double",
+    "probability": "integer",
+    "close_date": "string",
+    "type": "string",
+    "lead_source": "string",
+    "created_date": "string",
+    "last_modified_date": "string",
+    "owner_id": "string",
+    "forecast_category": "string",
+    "next_step": "string"
+  },
+  "required_non_null": ["opportunity_id", "account_id", "opportunity_name", "stage_name", "amount", "close_date"],
+  "freshness_column": "last_modified_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "positive_amount": "amount > 0",
+    "valid_probability": "probability BETWEEN 0 AND 100",
+    "valid_stage": "stage_name IN ('Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost')",
+    "valid_forecast": "forecast_category IN ('Pipeline', 'Best Case', 'Most Likely', 'Closed')"
+  }
+}

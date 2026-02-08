@@ -7,7 +7,7 @@ schema-violating or malformed records without failing entire jobs.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -23,7 +23,7 @@ class ErrorLaneHandler:
     s3://bucket/_errors/<layer>/<table>/dt=YYYY-MM-DD/run_id=<uuid>/*.json
     """
 
-    def __init__(self, spark: SparkSession, config: Dict[str, Any]):
+    def __init__(self, spark: SparkSession, config: dict[str, Any]):
         """
         Initialize error lane handler.
 
@@ -67,7 +67,7 @@ class ErrorLaneHandler:
 
     def quarantine_bad_rows(
         self, df: DataFrame, validation_errors: DataFrame, layer: str, table: str, run_id: str
-    ) -> Tuple[DataFrame, Dict[str, Any]]:
+    ) -> tuple[DataFrame, dict[str, Any]]:
         """
         Quarantine bad rows to error lane.
 
@@ -135,9 +135,9 @@ class ErrorLaneHandler:
         layer: str,
         table: str,
         run_id: str,
-        required_cols: List[str],
+        required_cols: list[str],
         date_col: str = None,
-    ) -> Tuple[DataFrame, Dict[str, Any]]:
+    ) -> tuple[DataFrame, dict[str, Any]]:
         """
         Quarantine rows with null values in required columns.
 
@@ -208,8 +208,8 @@ def add_row_id(df: DataFrame) -> DataFrame:
 
 
 def create_error_lane_metadata(
-    layer: str, table: str, run_id: str, error_type: str, error_details: Dict[str, Any]
-) -> Dict[str, Any]:
+    layer: str, table: str, run_id: str, error_type: str, error_details: dict[str, Any]
+) -> dict[str, Any]:
     """
     Create error lane metadata document.
 

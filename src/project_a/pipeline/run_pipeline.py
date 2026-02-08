@@ -47,11 +47,12 @@ try:
     )
 except ImportError as import_error:
     logger.warning(f"Some job imports failed: {import_error}. Continuing with available jobs.")
+    import_error_msg = str(import_error)
 
     # Create dummy modules to prevent errors
     class DummyModule:
         def main(self, args):
-            logger.error(f"Job module not available: {import_error}")
+            logger.error(f"Job module not available: {import_error_msg}")
             sys.exit(1)
 
     fx_json_to_bronze = DummyModule()

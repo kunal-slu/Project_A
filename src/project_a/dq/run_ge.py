@@ -3,7 +3,7 @@ Great Expectations checkpoint runner for enterprise data quality.
 """
 
 import logging
-from typing import Any, Optional, Dict, List
+from typing import Any
 
 from great_expectations.checkpoint import SimpleCheckpoint
 from great_expectations.data_context import get_context
@@ -11,7 +11,7 @@ from great_expectations.data_context import get_context
 logger = logging.getLogger(__name__)
 
 
-def run_checkpoint(checkpoint_name: str, context_path: Optional[str] = None) -> Dict[str, Any]:
+def run_checkpoint(checkpoint_name: str, context_path: str | None = None) -> dict[str, Any]:
     """
     Run Great Expectations checkpoint.
 
@@ -44,7 +44,7 @@ def run_checkpoint(checkpoint_name: str, context_path: Optional[str] = None) -> 
         raise
 
 
-def run_contract_validation(contract_path: str, data_path: str) -> Dict[str, Any]:
+def run_contract_validation(contract_path: str, data_path: str) -> dict[str, Any]:
     """
     Run contract-based validation using Great Expectations.
 

@@ -4,22 +4,22 @@ Snowflake bronze to silver merge job.
 Merges Snowflake data into silver layer using Delta MERGE operations.
 """
 
+import logging
 import os
 import sys
-import logging
-from typing import Dict, Any
 from pathlib import Path
+from typing import Any
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, current_timestamp, when, coalesce
 from delta.tables import DeltaTable
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, current_timestamp
 
-from project_a.utils.spark_session import build_spark
 from project_a.utils.config import load_conf
 from project_a.utils.logging import setup_json_logging
+from project_a.utils.spark_session import build_spark
 
 logger = logging.getLogger(__name__)
 
@@ -27,41 +27,37 @@ logger = logging.getLogger(__name__)
 def merge_orders_data(spark: SparkSession, lake_root: str) -> None:
     """
     Merge Snowflake orders data into silver layer.
-    
+
     Args:
         spark: Spark session
         lake_root: S3 root path of the data lake
     """
     logger.info("Merging Snowflake orders data into silver layer")
-    
+
     # Read bronze data
-    bronze_orders_df = spark.read \
-        .format("delta") \
-        .load(f"{lake_root}/bronze/snowflake/orders")
-    
+    bronze_orders_df = spark.read.format("delta").load(f"{lake_root}/bronze/snowflake/orders")
+
     # Read existing silver data (if exists)
     silver_orders_path = f"{lake_root}/silver/orders"
-    
+
     try:
         # Check if silver table exists
-        silver_orders_df = spark.read.format("delta").load(silver_orders_path)
+        spark.read.format("delta").load(silver_orders_path)
         silver_table_exists = True
     except Exception:
         logger.info("Silver orders table does not exist, creating new one")
         silver_table_exists = False
-    
+
     if not silver_table_exists:
         # Create new silver table
-        bronze_orders_df.write \
-            .format("delta") \
-            .mode("overwrite") \
-            .option("path", silver_orders_path) \
-            .saveAsTable("silver.orders")
+        bronze_orders_df.write.format("delta").mode("overwrite").option(
+            "path", silver_orders_path
+        ).saveAsTable("silver.orders")
         logger.info("Created new silver orders table")
     else:
         # Merge data using Delta MERGE
         silver_table = DeltaTable.forPath(spark, silver_orders_path)
-        
+
         # Prepare bronze data for merge
         bronze_orders_for_merge = bronze_orders_df.select(
             col("order_id"),
@@ -76,16 +72,15 @@ def merge_orders_data(spark: SparkSession, lake_root: str) -> None:
             col("_source"),
             col("_extracted_at"),
             col("_proc_date"),
-            current_timestamp().alias("_updated_at")
+            current_timestamp().alias("_updated_at"),
         )
-        
+
         # Perform MERGE operation
-        silver_table.alias("silver") \
-            .merge(
-                bronze_orders_for_merge.alias("bronze"),
-                "silver.order_id = bronze.order_id AND silver._source = bronze._source"
-            ) \
-            .whenMatchedUpdate(set={
+        silver_table.alias("silver").merge(
+            bronze_orders_for_merge.alias("bronze"),
+            "silver.order_id = bronze.order_id AND silver._source = bronze._source",
+        ).whenMatchedUpdate(
+            set={
                 "customer_id": "bronze.customer_id",
                 "status": "bronze.status",
                 "total_price": "bronze.total_price",
@@ -96,9 +91,10 @@ def merge_orders_data(spark: SparkSession, lake_root: str) -> None:
                 "comment": "bronze.comment",
                 "_extracted_at": "bronze._extracted_at",
                 "_proc_date": "bronze._proc_date",
-                "_updated_at": "bronze._updated_at"
-            }) \
-            .whenNotMatchedInsert(values={
+                "_updated_at": "bronze._updated_at",
+            }
+        ).whenNotMatchedInsert(
+            values={
                 "order_id": "bronze.order_id",
                 "customer_id": "bronze.customer_id",
                 "status": "bronze.status",
@@ -111,51 +107,47 @@ def merge_orders_data(spark: SparkSession, lake_root: str) -> None:
                 "_source": "bronze._source",
                 "_extracted_at": "bronze._extracted_at",
                 "_proc_date": "bronze._proc_date",
-                "_updated_at": "bronze._updated_at"
-            }) \
-            .execute()
-        
+                "_updated_at": "bronze._updated_at",
+            }
+        ).execute()
+
         logger.info("Successfully merged orders data into silver layer")
 
 
 def merge_customers_data(spark: SparkSession, lake_root: str) -> None:
     """
     Merge Snowflake customers data into silver layer.
-    
+
     Args:
         spark: Spark session
         lake_root: S3 root path of the data lake
     """
     logger.info("Merging Snowflake customers data into silver layer")
-    
+
     # Read bronze data
-    bronze_customers_df = spark.read \
-        .format("delta") \
-        .load(f"{lake_root}/bronze/snowflake/customers")
-    
+    bronze_customers_df = spark.read.format("delta").load(f"{lake_root}/bronze/snowflake/customers")
+
     # Read existing silver data (if exists)
     silver_customers_path = f"{lake_root}/silver/customers"
-    
+
     try:
         # Check if silver table exists
-        silver_customers_df = spark.read.format("delta").load(silver_customers_path)
+        spark.read.format("delta").load(silver_customers_path)
         silver_table_exists = True
     except Exception:
         logger.info("Silver customers table does not exist, creating new one")
         silver_table_exists = False
-    
+
     if not silver_table_exists:
         # Create new silver table
-        bronze_customers_df.write \
-            .format("delta") \
-            .mode("overwrite") \
-            .option("path", silver_customers_path) \
-            .saveAsTable("silver.customers")
+        bronze_customers_df.write.format("delta").mode("overwrite").option(
+            "path", silver_customers_path
+        ).saveAsTable("silver.customers")
         logger.info("Created new silver customers table")
     else:
         # Merge data using Delta MERGE
         silver_table = DeltaTable.forPath(spark, silver_customers_path)
-        
+
         # Prepare bronze data for merge
         bronze_customers_for_merge = bronze_customers_df.select(
             col("customer_id"),
@@ -169,16 +161,15 @@ def merge_customers_data(spark: SparkSession, lake_root: str) -> None:
             col("_source"),
             col("_extracted_at"),
             col("_proc_date"),
-            current_timestamp().alias("_updated_at")
+            current_timestamp().alias("_updated_at"),
         )
-        
+
         # Perform MERGE operation
-        silver_table.alias("silver") \
-            .merge(
-                bronze_customers_for_merge.alias("bronze"),
-                "silver.customer_id = bronze.customer_id AND silver._source = bronze._source"
-            ) \
-            .whenMatchedUpdate(set={
+        silver_table.alias("silver").merge(
+            bronze_customers_for_merge.alias("bronze"),
+            "silver.customer_id = bronze.customer_id AND silver._source = bronze._source",
+        ).whenMatchedUpdate(
+            set={
                 "name": "bronze.name",
                 "address": "bronze.address",
                 "nation_key": "bronze.nation_key",
@@ -188,9 +179,10 @@ def merge_customers_data(spark: SparkSession, lake_root: str) -> None:
                 "comment": "bronze.comment",
                 "_extracted_at": "bronze._extracted_at",
                 "_proc_date": "bronze._proc_date",
-                "_updated_at": "bronze._updated_at"
-            }) \
-            .whenNotMatchedInsert(values={
+                "_updated_at": "bronze._updated_at",
+            }
+        ).whenNotMatchedInsert(
+            values={
                 "customer_id": "bronze.customer_id",
                 "name": "bronze.name",
                 "address": "bronze.address",
@@ -202,51 +194,47 @@ def merge_customers_data(spark: SparkSession, lake_root: str) -> None:
                 "_source": "bronze._source",
                 "_extracted_at": "bronze._extracted_at",
                 "_proc_date": "bronze._proc_date",
-                "_updated_at": "bronze._updated_at"
-            }) \
-            .execute()
-        
+                "_updated_at": "bronze._updated_at",
+            }
+        ).execute()
+
         logger.info("Successfully merged customers data into silver layer")
 
 
 def merge_lineitems_data(spark: SparkSession, lake_root: str) -> None:
     """
     Merge Snowflake lineitems data into silver layer.
-    
+
     Args:
         spark: Spark session
         lake_root: S3 root path of the data lake
     """
     logger.info("Merging Snowflake lineitems data into silver layer")
-    
+
     # Read bronze data
-    bronze_lineitems_df = spark.read \
-        .format("delta") \
-        .load(f"{lake_root}/bronze/snowflake/lineitems")
-    
+    bronze_lineitems_df = spark.read.format("delta").load(f"{lake_root}/bronze/snowflake/lineitems")
+
     # Read existing silver data (if exists)
     silver_lineitems_path = f"{lake_root}/silver/lineitems"
-    
+
     try:
         # Check if silver table exists
-        silver_lineitems_df = spark.read.format("delta").load(silver_lineitems_path)
+        spark.read.format("delta").load(silver_lineitems_path)
         silver_table_exists = True
     except Exception:
         logger.info("Silver lineitems table does not exist, creating new one")
         silver_table_exists = False
-    
+
     if not silver_table_exists:
         # Create new silver table
-        bronze_lineitems_df.write \
-            .format("delta") \
-            .mode("overwrite") \
-            .option("path", silver_lineitems_path) \
-            .saveAsTable("silver.lineitems")
+        bronze_lineitems_df.write.format("delta").mode("overwrite").option(
+            "path", silver_lineitems_path
+        ).saveAsTable("silver.lineitems")
         logger.info("Created new silver lineitems table")
     else:
         # Merge data using Delta MERGE
         silver_table = DeltaTable.forPath(spark, silver_lineitems_path)
-        
+
         # Prepare bronze data for merge
         bronze_lineitems_for_merge = bronze_lineitems_df.select(
             col("order_id"),
@@ -268,16 +256,15 @@ def merge_lineitems_data(spark: SparkSession, lake_root: str) -> None:
             col("_source"),
             col("_extracted_at"),
             col("_proc_date"),
-            current_timestamp().alias("_updated_at")
+            current_timestamp().alias("_updated_at"),
         )
-        
+
         # Perform MERGE operation
-        silver_table.alias("silver") \
-            .merge(
-                bronze_lineitems_for_merge.alias("bronze"),
-                "silver.order_id = bronze.order_id AND silver.part_id = bronze.part_id AND silver.line_number = bronze.line_number AND silver._source = bronze._source"
-            ) \
-            .whenMatchedUpdate(set={
+        silver_table.alias("silver").merge(
+            bronze_lineitems_for_merge.alias("bronze"),
+            "silver.order_id = bronze.order_id AND silver.part_id = bronze.part_id AND silver.line_number = bronze.line_number AND silver._source = bronze._source",
+        ).whenMatchedUpdate(
+            set={
                 "supplier_id": "bronze.supplier_id",
                 "quantity": "bronze.quantity",
                 "extended_price": "bronze.extended_price",
@@ -293,9 +280,10 @@ def merge_lineitems_data(spark: SparkSession, lake_root: str) -> None:
                 "comment": "bronze.comment",
                 "_extracted_at": "bronze._extracted_at",
                 "_proc_date": "bronze._proc_date",
-                "_updated_at": "bronze._updated_at"
-            }) \
-            .whenNotMatchedInsert(values={
+                "_updated_at": "bronze._updated_at",
+            }
+        ).whenNotMatchedInsert(
+            values={
                 "order_id": "bronze.order_id",
                 "part_id": "bronze.part_id",
                 "supplier_id": "bronze.supplier_id",
@@ -315,51 +303,51 @@ def merge_lineitems_data(spark: SparkSession, lake_root: str) -> None:
                 "_source": "bronze._source",
                 "_extracted_at": "bronze._extracted_at",
                 "_proc_date": "bronze._proc_date",
-                "_updated_at": "bronze._updated_at"
-            }) \
-            .execute()
-        
+                "_updated_at": "bronze._updated_at",
+            }
+        ).execute()
+
         logger.info("Successfully merged lineitems data into silver layer")
 
 
-def process_snowflake_merge(spark: SparkSession, config: Dict[str, Any]) -> None:
+def process_snowflake_merge(spark: SparkSession, config: dict[str, Any]) -> None:
     """
     Process Snowflake bronze to silver merge.
-    
+
     Args:
         spark: Spark session
         config: Configuration dictionary
     """
     logger.info("Starting Snowflake bronze to silver merge")
-    
+
     # Get data lake configuration
     lake_root = config["lake"]["root"]
-    
+
     # Merge each table
     merge_orders_data(spark, lake_root)
     merge_customers_data(spark, lake_root)
     merge_lineitems_data(spark, lake_root)
-    
+
     logger.info("Snowflake bronze to silver merge completed successfully")
 
 
 def main():
     """Main function to run the Snowflake merge job."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Merge Snowflake data from bronze to silver")
     parser.add_argument("--config", required=True, help="Configuration file path")
     args = parser.parse_args()
-    
+
     # Setup logging
     setup_json_logging()
     log_level = os.getenv("LOG_LEVEL", "INFO")
     logging.getLogger().setLevel(getattr(logging, log_level.upper()))
-    
+
     try:
         # Load configuration
         config = load_conf(args.config)
-        
+
         # Create Spark session with Delta support
         extra_conf = {
             "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
@@ -371,10 +359,10 @@ def main():
         spark_settings.update(extra_conf)
         spark_config["spark"] = spark_settings
         spark = build_spark(app_name="SnowflakeBronzeToSilverMerge", config=spark_config)
-        
+
         # Process Snowflake merge
         process_snowflake_merge(spark, config)
-        
+
     except Exception as e:
         logger.error(f"Snowflake merge failed: {e}")
         sys.exit(1)

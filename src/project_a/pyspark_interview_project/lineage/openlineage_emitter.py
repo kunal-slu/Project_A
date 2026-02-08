@@ -6,19 +6,18 @@ Reads endpoint and namespace from environment if present:
 Falls back to config lineage.url and lineage.namespace.
 """
 
-import os
-import logging
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-
 import json
+import logging
+import os
 import urllib.error
 import urllib.request
+from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _get_endpoint(cfg: dict) -> Optional[str]:
+def _get_endpoint(cfg: dict) -> str | None:
     url = os.getenv("OPENLINEAGE_URL") or cfg.get("lineage", {}).get("url")
     return url.rstrip("/") if url else None
 
@@ -49,18 +48,18 @@ def emit(event: dict, cfg: dict) -> None:
         logger.debug("OpenLineage emit failed: %s", exc)
 
 
-def build_dataset(name: str, namespace: str) -> Dict[str, Any]:
+def build_dataset(name: str, namespace: str) -> dict[str, Any]:
     return {"namespace": namespace, "name": name}
 
 
 def emit_job_event(
     cfg: dict,
     job_name: str,
-    inputs: List[str],
-    outputs: List[str],
+    inputs: list[str],
+    outputs: list[str],
     event_type: str,
-    run_id: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    run_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     ns = _get_namespace(cfg)
     event = {
@@ -78,7 +77,7 @@ def emit_job_event(
 
 
 def emit_bronze_to_silver(cfg: dict, table: str, run_id: str) -> None:
-    ns = _get_namespace(cfg)
+    _get_namespace(cfg)
     emit_job_event(
         cfg,
         job_name=f"bronze_to_silver_{table}",
@@ -100,12 +99,3 @@ def emit_silver_to_gold(cfg: dict, table: str, run_id: str) -> None:
         event_type="COMPLETE",
         run_id=run_id,
     )
-
-
-
-
-
-
-
-
-

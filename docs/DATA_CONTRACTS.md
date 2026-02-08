@@ -6,6 +6,14 @@ Data contracts define the **explicit agreements** between data producers and con
 
 **Purpose**: Prevent breaking changes from propagating silently through the data platform.
 
+## Contract Artifacts (Executable + Human-Readable)
+
+- Machine-readable contract file: `config/contracts/silver_contracts.yaml`
+- Runtime fail-fast validator: `src/project_a/contracts/runtime_contracts.py`
+- dbt model/source tests: `dbt/models/schema.yml`, `dbt/models/sources.yml`
+
+Pipeline behavior: contract violations fail the pipeline run.
+
 ## Contract Philosophy
 
 > "Treat data like an API - versioned, tested, and backward compatible"

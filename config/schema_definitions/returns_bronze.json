@@ -1,0 +1,16 @@
+{
+  "table": "returns_bronze",
+  "primary_key": "order_id",
+  "columns": {
+    "order_id": "string",
+    "return_date": "string",
+    "reason": "string"
+  },
+  "required_non_null": ["order_id", "return_date", "reason"],
+  "freshness_column": "return_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "valid_reason": "reason IN ('not_as_described', 'defective', 'wrong_item', 'changed_mind', 'damaged')",
+    "valid_date": "return_date IS NOT NULL"
+  }
+}

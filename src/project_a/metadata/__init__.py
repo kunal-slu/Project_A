@@ -1,20 +1,21 @@
 """Metadata Management Module"""
+
 from .catalog import (
+    DatasetMetadata,
     MetadataCatalog,
     MetadataExtractor,
-    DatasetMetadata,
     get_catalog,
-    register_dataset,
     get_dataset_metadata,
-    search_datasets
+    register_dataset,
+    search_datasets,
 )
 
 __all__ = [
-    'MetadataCatalog',
-    'MetadataExtractor',
-    'DatasetMetadata',
-    'get_catalog',
-    'register_dataset',
-    'get_dataset_metadata',
-    'search_datasets'
+    "MetadataCatalog",
+    "MetadataExtractor",
+    "DatasetMetadata",
+    "get_catalog",
+    "register_dataset",
+    "get_dataset_metadata",
+    "search_datasets",
 ]

@@ -151,6 +151,23 @@ Interview line: *"Pipelines fail fast if data quality checks don't pass."*
 
 **Mindset**: *"Pipelines are products, not scripts."*
 
+### 7. Operational Ownership
+
+- Runbook: `RUNBOOK.md`
+- Data SLAs: `docs/runbooks/DATA_SLA.md`
+- DQ failover: `docs/runbooks/RUNBOOK_DQ_FAILOVER.md`
+- Entrypoints: `docs/ENTRYPOINTS.md`
+
+### 8. Explicit Contracts and Pipeline Gates
+
+- Machine-readable contracts: `config/contracts/silver_contracts.yaml`
+- Runtime contract validation: `src/project_a/contracts/runtime_contracts.py`
+- dbt contract/test definitions:
+  - `dbt/models/schema.yml`
+  - `dbt/models/sources.yml`
+
+Pipeline is expected to stop on contract violations (null PKs, duplicates, RI breaks).
+
 ## 📁 Project Structure
 
 ```
@@ -202,6 +219,27 @@ python tools/validate_local_etl.py --env local --config local/config/local.yaml
 ```
 
 See [Local ETL Validation Guide](local/docs/LOCAL_ETL_VALIDATION.md) for detailed validation instructions.
+
+### Apache Iceberg (via Spark packages)
+
+Iceberg is supported via Spark packages (no separate install required). Configure it in `local/config/local.yaml`:
+
+```yaml
+iceberg:
+  enabled: true
+  catalog_name: "local"
+  catalog_type: "hadoop"
+  warehouse: "file:///Users/kunal/IdeaProjects/Project_A/data/iceberg"
+  packages: "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0"
+```
+
+### Apache Airflow (Optional, Docker on Mac)
+
+Use the Docker-based setup:
+
+```bash
+docker compose -f docker-compose-airflow.yml up -d
+```
 
 ### AWS Deployment
 

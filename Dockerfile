@@ -43,4 +43,4 @@ RUN curl -sSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spar
 ENV PATH=${SPARK_HOME}/bin:${SPARK_HOME}/sbin:$PATH
 
 # Default command
-CMD ["python3", "-m", "pyspark_interview_project.pipeline.run_pipeline"]
+CMD ["python3", "-m", "project_a.pipeline.run_pipeline"]

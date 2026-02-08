@@ -3,16 +3,25 @@ modeling.py
 Utilities for dimensional modeling: date dimension, surrogate keys, and SCD helpers.
 """
 
-from typing import List
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import (col, concat_ws, date_format, dayofmonth,
-                                   expr, lit, month, quarter,
-                                   sha2, weekofyear, year)
+from pyspark.sql.functions import (
+    col,
+    concat_ws,
+    date_format,
+    dayofmonth,
+    expr,
+    lit,
+    month,
+    quarter,
+    sha2,
+    weekofyear,
+    year,
+)
 
 
 def add_surrogate_key(
-    df: DataFrame, key_columns: List[str], surrogate_key_column: str
+    df: DataFrame, key_columns: list[str], surrogate_key_column: str
 ) -> DataFrame:
     """
     Add a deterministic surrogate key using SHA-256 over concatenated natural keys.
@@ -112,11 +121,9 @@ def normalize_dim_products(
     Adds category_sk and brand_sk and retains original natural keys for traceability.
     """
     out = products_sk
-    if "category" in out.columns and set(["category"]).issubset(
-        set(dim_category.columns)
-    ):
+    if "category" in out.columns and {"category"}.issubset(set(dim_category.columns)):
         out = out.join(dim_category, ["category"], "left")
-    if "brand" in out.columns and set(["brand"]).issubset(set(dim_brand.columns)):
+    if "brand" in out.columns and {"brand"}.issubset(set(dim_brand.columns)):
         out = out.join(dim_brand, ["brand"], "left")
     return out
 
@@ -132,9 +139,7 @@ def build_dim_geography(customers: DataFrame) -> DataFrame:
     return add_surrogate_key(dim, cols, "geography_sk")
 
 
-def normalize_dim_customers(
-    customers_sk: DataFrame, dim_geography: DataFrame
-) -> DataFrame:
+def normalize_dim_customers(customers_sk: DataFrame, dim_geography: DataFrame) -> DataFrame:
     """
     Normalize customers to reference geography dimension via geography_sk.
     """

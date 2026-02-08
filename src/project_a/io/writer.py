@@ -7,7 +7,6 @@ Handles writing to:
 """
 
 import logging
-from typing import Optional, List
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType
@@ -25,7 +24,7 @@ def validate_schema_before_write(
 ) -> None:
     """
     Validate DataFrame schema before writing.
-    
+
     Args:
         df: DataFrame to validate
         expected_schema: Expected schema
@@ -40,13 +39,13 @@ def write_silver_table(
     df: DataFrame,
     path: str,
     table_name: str,
-    partition_cols: Optional[List[str]] = None,
-    expected_schema: Optional[StructType] = None,
+    partition_cols: list[str] | None = None,
+    expected_schema: StructType | None = None,
     mode: str = "overwrite",
 ) -> None:
     """
     Write DataFrame to Silver layer (Delta or Parquet).
-    
+
     Args:
         spark: SparkSession
         df: DataFrame to write
@@ -59,16 +58,18 @@ def write_silver_table(
     # Validate schema if provided
     if expected_schema:
         validate_schema_before_write(df, expected_schema, table_name, fail_on_mismatch=True)
-    
+
     # Check if Delta Lake is available
     try:
         spark.conf.get("spark.sql.extensions")
-        has_delta = "io.delta.sql.DeltaSparkSessionExtension" in spark.conf.get("spark.sql.extensions", "")
+        has_delta = "io.delta.sql.DeltaSparkSessionExtension" in spark.conf.get(
+            "spark.sql.extensions", ""
+        )
     except Exception:
         has_delta = False
-    
+
     writer = df.write.mode(mode)
-    
+
     if partition_cols:
         # Check that partition columns exist
         missing_cols = [c for c in partition_cols if c not in df.columns]
@@ -76,7 +77,7 @@ def write_silver_table(
             logger.warning(f"⚠️ Partition columns missing: {missing_cols}, skipping partitionBy")
         else:
             writer = writer.partitionBy(*partition_cols)
-    
+
     if has_delta:
         writer.format("delta").save(path)
         logger.info(f"✅ Wrote {table_name} to Delta: {path}")
@@ -90,14 +91,13 @@ def write_gold_table(
     df: DataFrame,
     path: str,
     table_name: str,
-    partition_cols: Optional[List[str]] = None,
-    expected_schema: Optional[StructType] = None,
+    partition_cols: list[str] | None = None,
+    expected_schema: StructType | None = None,
     mode: str = "overwrite",
 ) -> None:
     """
     Write DataFrame to Gold layer (Delta or Parquet).
-    
+
     Same as write_silver_table but with Gold-specific logging.
     """
     write_silver_table(spark, df, path, table_name, partition_cols, expected_schema, mode)
-

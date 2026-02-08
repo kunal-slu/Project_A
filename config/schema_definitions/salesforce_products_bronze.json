@@ -1,0 +1,20 @@
+{
+  "table": "salesforce_products_bronze",
+  "primary_key": "product_id",
+  "columns": {
+    "product_id": "string",
+    "product_name": "string",
+    "product_category": "string",
+    "unit_price": "double",
+    "is_active": "boolean",
+    "created_date": "string"
+  },
+  "required_non_null": ["product_id", "product_name", "product_category", "unit_price"],
+  "freshness_column": "created_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "positive_price": "unit_price > 0",
+    "valid_category": "product_category IN ('Software License', 'SaaS Subscription', 'Professional Services', 'Training', 'Support', 'Custom Development', 'Integration', 'Consulting')",
+    "active_products": "is_active = true"
+  }
+}

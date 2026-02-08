@@ -1,0 +1,11 @@
+spark:
+  target: local
+  outputs:
+    local:
+      type: spark
+      method: session
+      schema: default
+      host: localhost
+      port: 10000
+      user: "{{ env_var('DBT_SPARK_USER', 'spark') }}"
+      connect_timeout: 30

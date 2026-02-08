@@ -9,11 +9,11 @@ Alarms for:
 - cost_estimate_usd (budget alerts)
 """
 
-import sys
-import boto3
 import argparse
 import logging
-from pathlib import Path
+import sys
+
+import boto3
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,10 +32,8 @@ def create_dq_alarm(cloudwatch, alarm_name: str, namespace: str = "ETLPipelineMe
         Threshold=1.0,
         ComparisonOperator="GreaterThanOrEqualToThreshold",
         ActionsEnabled=True,
-        AlarmActions=[
-            "arn:aws:sns:us-east-1:ACCOUNT:data-engineering-alerts"
-        ],
-        TreatMissingData="notBreaching"
+        AlarmActions=["arn:aws:sns:us-east-1:ACCOUNT:data-engineering-alerts"],
+        TreatMissingData="notBreaching",
     )
     logger.info(f"✅ Created alarm: {alarm_name}")
 
@@ -53,9 +51,7 @@ def create_latency_alarm(cloudwatch, alarm_name: str, threshold_seconds: float =
         Threshold=threshold_seconds,
         ComparisonOperator="GreaterThanThreshold",
         ActionsEnabled=True,
-        AlarmActions=[
-            "arn:aws:sns:us-east-1:ACCOUNT:data-engineering-alerts"
-        ]
+        AlarmActions=["arn:aws:sns:us-east-1:ACCOUNT:data-engineering-alerts"],
     )
     logger.info(f"✅ Created alarm: {alarm_name}")
 
@@ -73,9 +69,7 @@ def create_cost_alarm(cloudwatch, alarm_name: str, budget_threshold: float = 100
         Threshold=budget_threshold,
         ComparisonOperator="GreaterThanThreshold",
         ActionsEnabled=True,
-        AlarmActions=[
-            "arn:aws:sns:us-east-1:ACCOUNT:finance-alerts"
-        ]
+        AlarmActions=["arn:aws:sns:us-east-1:ACCOUNT:finance-alerts"],
     )
     logger.info(f"✅ Created alarm: {alarm_name}")
 
@@ -85,26 +79,26 @@ def main():
     parser = argparse.ArgumentParser(description="Create CloudWatch alarms for ETL pipeline")
     parser.add_argument("--region", default="us-east-1", help="AWS region")
     parser.add_argument("--sns-topic", required=True, help="SNS topic ARN for alerts")
-    
+
     args = parser.parse_args()
-    
-    cloudwatch = boto3.client('cloudwatch', region_name=args.region)
-    
+
+    cloudwatch = boto3.client("cloudwatch", region_name=args.region)
+
     try:
         # DQ failures alarm
         create_dq_alarm(cloudwatch, "etl-dq-critical-failures")
-        
+
         # Latency alarms
         create_latency_alarm(cloudwatch, "etl-latency-bronze", threshold_seconds=7200.0)  # 2 hours
         create_latency_alarm(cloudwatch, "etl-latency-silver", threshold_seconds=10800.0)  # 3 hours
         create_latency_alarm(cloudwatch, "etl-latency-gold", threshold_seconds=14400.0)  # 4 hours
-        
+
         # Cost alarm
         create_cost_alarm(cloudwatch, "etl-daily-cost-budget", budget_threshold=100.0)
-        
+
         logger.info("🎉 All CloudWatch alarms created successfully")
         return 0
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to create alarms: {e}", exc_info=True)
         return 1
@@ -112,4 +106,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

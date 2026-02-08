@@ -7,4 +7,3 @@ This package contains all ETL jobs organized by function:
 - analytics/: Analytics and dimensional modeling jobs
 - maintenance/: Maintenance operations (optimize, vacuum, masking)
 """
-

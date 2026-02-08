@@ -25,13 +25,17 @@ sources:
     base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/redshift"
     files:
       behavior: "redshift_customer_behavior_50000.csv"
+    incremental_dirs:
+      behavior: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/redshift/behavior/daily"
 
   snowflake:
     base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake"
     files:
-      customers: "customers.csv"
-      orders: "orders.csv"
-      products: "products.csv"
+      customers: "snowflake_customers_50000.csv"
+      orders: "snowflake_orders_100000.csv"
+      products: "snowflake_products_10000.csv"
+    incremental_dirs:
+      orders: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake/orders/daily"
 
   fx:
     type: json
@@ -49,6 +53,13 @@ sources:
     base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka"
     files:
       orders_seed: "stream_kafka_events_100000.csv"
+    incremental_dirs:
+      events: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka/events/daily"
+
+  kafka:
+    local_bootstrap_servers: "localhost:9092"
+    topic: "orders_events"
+    seed_file: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka/stream_kafka_events_100000.csv"
 
 tables:
   silver:
@@ -67,8 +78,46 @@ tables:
 
 dq:
   mode: "strict"
-  fail_on_error: true
+  fail_on_error: false
   alert_on_warning: true
+  sampling:
+    enabled: true
+    fraction: 0.02
+    max_rows: 100000
+    seed: 42
+  profiling:
+    enabled: true
+    output_path: "artifacts/dq/profiles"
+    max_columns: 30
+    top_values: 5
+  reconciliation:
+    enabled: true
+  realism:
+    enabled: true
+    max_future_days: 3
+    max_past_years: 5
+    fail_on_violation: false
+
+schema_evolution:
+  enabled: true
+  baseline_path: "artifacts/schema_baselines"
+  update_baseline: false
+  policies:
+    bronze: "backward_compatible"
+    silver: "backward_compatible"
+    gold: "strict"
+
+contracts:
+  path: "config/contracts/silver_contracts.yaml"
+
+incremental:
+  orders_lookback_days: 3
+
+monitoring:
+  metrics_enabled: true
+  thresholds:
+    bronze_to_silver_duration_seconds: 1800
+    silver_to_gold_duration_seconds: 1800
 
 lineage:
   enabled: false  # Disable for local
@@ -85,3 +134,10 @@ spark:
   enable_adaptive_join: true
   adaptive_coalesce_partitions: true
   broadcast_join_threshold: "64MB"
+
+iceberg:
+  enabled: true
+  catalog_name: "local"
+  catalog_type: "hadoop"
+  warehouse: "file:///Users/kunal/IdeaProjects/Project_A/data/iceberg"
+  packages: "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0"

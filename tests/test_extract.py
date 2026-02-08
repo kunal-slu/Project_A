@@ -1,7 +1,6 @@
 import os
 import sys
 
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 from project_a import extract
 
@@ -39,17 +38,17 @@ def test_extract_orders_json(spark):
 def test_extract_returns(spark):
     p = "data/input_data/returns.json"
     df = extract.extract_returns(spark, p)
-    assert set(["order_id", "return_date", "reason"]).issubset(set(df.columns))
+    assert {"order_id", "return_date", "reason"}.issubset(set(df.columns))
 
 
 def test_extract_exchange_rates(spark):
     p = "data/input_data/exchange_rates.csv"
     df = extract.extract_exchange_rates(spark, p)
-    assert set(["currency", "usd_rate"]).issubset(set(df.columns))
+    assert {"currency", "usd_rate"}.issubset(set(df.columns))
     assert df.filter(df.currency == "USD").count() == 1
 
 
 def test_extract_inventory_snapshots(spark):
     p = "data/input_data/inventory_snapshots.csv"
     df = extract.extract_inventory_snapshots(spark, p)
-    assert set(["product_id", "on_hand", "warehouse"]).issubset(set(df.columns))
+    assert {"product_id", "on_hand", "warehouse"}.issubset(set(df.columns))

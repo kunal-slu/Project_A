@@ -5,7 +5,6 @@ Emits custom metrics to CloudWatch for EMR job monitoring.
 """
 
 import logging
-from typing import Optional, Dict
 
 import boto3
 from botocore.exceptions import ClientError
@@ -17,7 +16,7 @@ def put_metric(
     namespace: str,
     metric_name: str,
     value: float,
-    dimensions: Optional[Dict[str, str]] = None,
+    dimensions: dict[str, str] | None = None,
     unit: str = "Count",
 ) -> None:
     """
@@ -53,7 +52,7 @@ def put_metric(
 
 
 def emit_job_success(
-    job_name: str, duration_seconds: float, env: str = "dev", rows_processed: Optional[int] = None
+    job_name: str, duration_seconds: float, env: str = "dev", rows_processed: int | None = None
 ) -> None:
     """
     Emit metrics for a successful job run.
@@ -91,7 +90,7 @@ def emit_job_success(
         )
 
 
-def emit_job_failure(job_name: str, env: str = "dev", error_type: Optional[str] = None) -> None:
+def emit_job_failure(job_name: str, env: str = "dev", error_type: str | None = None) -> None:
     """
     Emit metrics for a failed job run.
 

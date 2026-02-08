@@ -3,14 +3,14 @@ Disaster Recovery Executor
 Handles backup strategies, replication, and recovery operations for Azure data platform.
 """
 
-import logging
 import json
+import logging
 import os
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from typing import Any
 
 from pyspark.sql import SparkSession
 
@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 # Azure imports
 try:
-    from azure.storage.blob import BlobServiceClient
     from azure.identity import DefaultAzureCredential
     from azure.keyvault.secrets import SecretClient
+    from azure.storage.blob import BlobServiceClient
+
     AZURE_AVAILABLE = True
 except ImportError:
     AZURE_AVAILABLE = False
@@ -30,6 +31,7 @@ except ImportError:
 @dataclass
 class BackupStrategy:
     """Backup strategy configuration."""
+
     strategy_name: str
     backup_type: str  # full, incremental, differential
     frequency: str  # daily, weekly, monthly
@@ -39,17 +41,18 @@ class BackupStrategy:
     compression: bool = True
     encryption: bool = True
     cross_region: bool = False
-    secondary_region: Optional[str] = None
+    secondary_region: str | None = None
 
 
 @dataclass
 class ReplicationConfig:
     """Replication configuration."""
+
     config_name: str
     source_storage: str
     target_storage: str
     replication_type: str  # sync, async, geo
-    tables: List[str]
+    tables: list[str]
     frequency_minutes: int
     enabled: bool = True
     monitoring: bool = True
@@ -60,7 +63,7 @@ class DisasterRecoveryExecutor:
     Executes disaster recovery operations including backups and replication.
     """
 
-    def __init__(self, spark: SparkSession, config: Dict[str, Any]):
+    def __init__(self, spark: SparkSession, config: dict[str, Any]):
         self.spark = spark
         self.config = config
         self.dr_config = config.get("disaster_recovery", {})
@@ -87,17 +90,17 @@ class DisasterRecoveryExecutor:
             # Storage clients
             self.primary_storage_client = BlobServiceClient(
                 account_url=f"https://{self.dr_config.get('primary_storage_account')}.blob.core.windows.net/",
-                credential=credential
+                credential=credential,
             )
 
-            if self.dr_config.get('secondary_storage_account'):
+            if self.dr_config.get("secondary_storage_account"):
                 self.secondary_storage_client = BlobServiceClient(
                     account_url=f"https://{self.dr_config.get('secondary_storage_account')}.blob.core.windows.net/",
-                    credential=credential
+                    credential=credential,
                 )
 
             # Key Vault client
-            key_vault_name = self.dr_config.get('key_vault_name')
+            key_vault_name = self.dr_config.get("key_vault_name")
             if key_vault_name:
                 key_vault_url = f"https://{key_vault_name}.vault.azure.net/"
                 self.key_vault_client = SecretClient(vault_url=key_vault_url, credential=credential)
@@ -115,11 +118,13 @@ class DisasterRecoveryExecutor:
         self.key_vault_client = None
         logger.info("Using mock Azure clients")
 
-    def load_backup_strategy(self, strategy_path: str = "data/disaster_recovery/backup_strategy.json") -> BackupStrategy:
+    def load_backup_strategy(
+        self, strategy_path: str = "data/disaster_recovery/backup_strategy.json"
+    ) -> BackupStrategy:
         """Load backup strategy from configuration file."""
         try:
             if os.path.exists(strategy_path):
-                with open(strategy_path, 'r') as f:
+                with open(strategy_path) as f:
                     strategy_data = json.load(f)
 
                 strategy = BackupStrategy(**strategy_data)
@@ -132,12 +137,12 @@ class DisasterRecoveryExecutor:
                     backup_type="full",
                     frequency="daily",
                     retention_days=30,
-                    storage_account=self.dr_config.get('primary_storage_account', 'default'),
+                    storage_account=self.dr_config.get("primary_storage_account", "default"),
                     container_name="backups",
                     compression=True,
                     encryption=True,
-                    cross_region=self.dr_config.get('enable_cross_region_replication', False),
-                    secondary_region=self.dr_config.get('secondary_region')
+                    cross_region=self.dr_config.get("enable_cross_region_replication", False),
+                    secondary_region=self.dr_config.get("secondary_region"),
                 )
 
                 # Save default strategy
@@ -155,7 +160,7 @@ class DisasterRecoveryExecutor:
             strategy_dir = Path(strategy_path).parent
             strategy_dir.mkdir(parents=True, exist_ok=True)
 
-            with open(strategy_path, 'w') as f:
+            with open(strategy_path, "w") as f:
                 json.dump(asdict(strategy), f, indent=2)
 
             logger.info(f"Backup strategy saved to {strategy_path}")
@@ -164,7 +169,9 @@ class DisasterRecoveryExecutor:
             logger.error(f"Failed to save backup strategy: {e}")
             raise
 
-    def load_replication_configs(self, config_dir: str = "data/disaster_recovery/replication_configs") -> List[ReplicationConfig]:
+    def load_replication_configs(
+        self, config_dir: str = "data/disaster_recovery/replication_configs"
+    ) -> list[ReplicationConfig]:
         """Load replication configurations from directory."""
         configs = []
         config_path = Path(config_dir)
@@ -173,7 +180,7 @@ class DisasterRecoveryExecutor:
             if config_path.exists():
                 for config_file in config_path.glob("*.json"):
                     try:
-                        with open(config_file, 'r') as f:
+                        with open(config_file) as f:
                             config_data = json.load(f)
 
                         config = ReplicationConfig(**config_data)
@@ -194,46 +201,50 @@ class DisasterRecoveryExecutor:
             logger.error(f"Failed to load replication configs: {e}")
             return []
 
-    def _create_default_replication_configs(self, config_dir: Path) -> List[ReplicationConfig]:
+    def _create_default_replication_configs(self, config_dir: Path) -> list[ReplicationConfig]:
         """Create default replication configurations."""
         configs = []
 
         # Default configs for common tables
         default_tables = ["customers", "orders", "products", "returns"]
 
-        configs.append(ReplicationConfig(
-            config_name="core_tables_replication",
-            source_storage=self.dr_config.get('primary_storage_account', 'primary'),
-            target_storage=self.dr_config.get('secondary_storage_account', 'secondary'),
-            replication_type="sync",
-            tables=default_tables,
-            frequency_minutes=15,
-            enabled=True,
-            monitoring=True
-        ))
+        configs.append(
+            ReplicationConfig(
+                config_name="core_tables_replication",
+                source_storage=self.dr_config.get("primary_storage_account", "primary"),
+                target_storage=self.dr_config.get("secondary_storage_account", "secondary"),
+                replication_type="sync",
+                tables=default_tables,
+                frequency_minutes=15,
+                enabled=True,
+                monitoring=True,
+            )
+        )
 
-        configs.append(ReplicationConfig(
-            config_name="analytics_tables_replication",
-            source_storage=self.dr_config.get('primary_storage_account', 'primary'),
-            target_storage=self.dr_config.get('secondary_storage_account', 'secondary'),
-            replication_type="async",
-            tables=["metrics", "aggregations", "reports"],
-            frequency_minutes=60,
-            enabled=True,
-            monitoring=True
-        ))
+        configs.append(
+            ReplicationConfig(
+                config_name="analytics_tables_replication",
+                source_storage=self.dr_config.get("primary_storage_account", "primary"),
+                target_storage=self.dr_config.get("secondary_storage_account", "secondary"),
+                replication_type="async",
+                tables=["metrics", "aggregations", "reports"],
+                frequency_minutes=60,
+                enabled=True,
+                monitoring=True,
+            )
+        )
 
         # Save default configs
         for config in configs:
             config_file = config_dir / f"{config.config_name}.json"
             config_dir.mkdir(parents=True, exist_ok=True)
 
-            with open(config_file, 'w') as f:
+            with open(config_file, "w") as f:
                 json.dump(asdict(config), f, indent=2)
 
         return configs
 
-    def execute_backup(self, strategy: BackupStrategy, tables: List[str]) -> Dict[str, Any]:
+    def execute_backup(self, strategy: BackupStrategy, tables: list[str]) -> dict[str, Any]:
         """Execute backup operation based on strategy."""
         backup_result = {
             "backup_id": f"backup_{int(time.time())}",
@@ -245,14 +256,14 @@ class DisasterRecoveryExecutor:
             "tables_backed_up": [],
             "backup_size_bytes": 0,
             "errors": [],
-            "warnings": []
+            "warnings": [],
         }
 
         try:
             logger.info(f"Starting backup operation: {backup_result['backup_id']}")
 
             # Create backup directory
-            backup_dir = self.dr_base / "backups" / backup_result['backup_id']
+            backup_dir = self.dr_base / "backups" / backup_result["backup_id"]
             backup_dir.mkdir(parents=True, exist_ok=True)
 
             # Backup each table
@@ -290,19 +301,21 @@ class DisasterRecoveryExecutor:
             logger.error(f"Backup operation failed: {e}")
 
         # Save backup metrics
-        self.backup_metrics[backup_result['backup_id']] = backup_result
+        self.backup_metrics[backup_result["backup_id"]] = backup_result
         self._save_backup_metrics()
 
         return backup_result
 
-    def _backup_table(self, table_name: str, backup_dir: Path, strategy: BackupStrategy) -> Dict[str, Any]:
+    def _backup_table(
+        self, table_name: str, backup_dir: Path, strategy: BackupStrategy
+    ) -> dict[str, Any]:
         """Backup individual table."""
         table_backup = {
             "table_name": table_name,
             "backup_path": None,
             "size_bytes": 0,
             "record_count": 0,
-            "backup_time": datetime.now().isoformat()
+            "backup_time": datetime.now().isoformat(),
         }
 
         try:
@@ -316,9 +329,10 @@ class DisasterRecoveryExecutor:
             table_backup_dir.mkdir(exist_ok=True)
 
             # Copy table data
-            if table_path.endswith('.parquet'):
+            if table_path.endswith(".parquet"):
                 # For Parquet files, copy directly
                 import shutil
+
                 backup_file = table_backup_dir / f"{table_name}.parquet"
                 shutil.copy2(table_path, backup_file)
 
@@ -333,7 +347,7 @@ class DisasterRecoveryExecutor:
                 except:
                     table_backup["record_count"] = 0
 
-            elif table_path.endswith('.csv'):
+            elif table_path.endswith(".csv"):
                 # For CSV files, convert to Parquet for better compression
                 backup_file = table_backup_dir / f"{table_name}.parquet"
                 df = self.spark.read.csv(table_path, header=True, inferSchema=True)
@@ -351,7 +365,7 @@ class DisasterRecoveryExecutor:
 
         return table_backup
 
-    def _get_table_path(self, table_name: str) -> Optional[str]:
+    def _get_table_path(self, table_name: str) -> str | None:
         """Get the file path for a table."""
         table_mappings = {
             "customers": "data/input_data/customers.csv",
@@ -359,7 +373,7 @@ class DisasterRecoveryExecutor:
             "orders": "data/input_data/orders.json",
             "returns": "data/input_data/returns.json",
             "inventory": "data/input_data/inventory_snapshots.csv",
-            "fx_rates": "data/input_data/exchange_rates.csv"
+            "fx_rates": "data/input_data/exchange_rates.csv",
         }
 
         return table_mappings.get(table_name)
@@ -370,13 +384,14 @@ class DisasterRecoveryExecutor:
             import zipfile
 
             zip_file = backup_dir.parent / f"{backup_dir.name}.zip"
-            with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for file_path in backup_dir.rglob('*'):
+            with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in backup_dir.rglob("*"):
                     if file_path.is_file():
                         zipf.write(file_path, file_path.relative_to(backup_dir))
 
             # Remove uncompressed directory
             import shutil
+
             shutil.rmtree(backup_dir)
 
             logger.info(f"Backup compressed to {zip_file}")
@@ -391,7 +406,9 @@ class DisasterRecoveryExecutor:
                 logger.warning("Storage client not available, skipping upload")
                 return
 
-            container_client = self.primary_storage_client.get_container_client(strategy.container_name)
+            container_client = self.primary_storage_client.get_container_client(
+                strategy.container_name
+            )
 
             # Find backup file (either directory or zip)
             backup_file = None
@@ -404,7 +421,7 @@ class DisasterRecoveryExecutor:
 
             if backup_file:
                 blob_name = f"backups/{backup_file.name}"
-                with open(backup_file, 'rb') as f:
+                with open(backup_file, "rb") as f:
                     container_client.upload_blob(blob_name, f, overwrite=True)
 
                 logger.info(f"Backup uploaded to storage: {blob_name}")
@@ -427,10 +444,11 @@ class DisasterRecoveryExecutor:
                     creation_time = datetime.fromtimestamp(backup_item.stat().st_ctime)
                     if creation_time < cutoff_date:
                         import shutil
+
                         shutil.rmtree(backup_item)
                         logger.info(f"Removed old backup: {backup_item.name}")
 
-                elif backup_item.suffix == '.zip':
+                elif backup_item.suffix == ".zip":
                     # Check creation time for zip files
                     creation_time = datetime.fromtimestamp(backup_item.stat().st_ctime)
                     if creation_time < cutoff_date:
@@ -440,7 +458,7 @@ class DisasterRecoveryExecutor:
         except Exception as e:
             logger.warning(f"Failed to cleanup old backups: {e}")
 
-    def execute_replication(self, config: ReplicationConfig) -> Dict[str, Any]:
+    def execute_replication(self, config: ReplicationConfig) -> dict[str, Any]:
         """Execute replication operation based on configuration."""
         replication_result = {
             "replication_id": f"repl_{int(time.time())}",
@@ -451,7 +469,7 @@ class DisasterRecoveryExecutor:
             "tables_replicated": [],
             "total_size_bytes": 0,
             "errors": [],
-            "warnings": []
+            "warnings": [],
         }
 
         try:
@@ -481,12 +499,12 @@ class DisasterRecoveryExecutor:
             logger.error(f"Replication failed: {e}")
 
         # Save replication metrics
-        self.replication_metrics[replication_result['replication_id']] = replication_result
+        self.replication_metrics[replication_result["replication_id"]] = replication_result
         self._save_replication_metrics()
 
         return replication_result
 
-    def _replicate_table(self, table_name: str, config: ReplicationConfig) -> Dict[str, Any]:
+    def _replicate_table(self, table_name: str, config: ReplicationConfig) -> dict[str, Any]:
         """Replicate individual table."""
         table_repl = {
             "table_name": table_name,
@@ -494,7 +512,7 @@ class DisasterRecoveryExecutor:
             "target_path": None,
             "size_bytes": 0,
             "record_count": 0,
-            "replication_time": datetime.now().isoformat()
+            "replication_time": datetime.now().isoformat(),
         }
 
         try:
@@ -508,9 +526,10 @@ class DisasterRecoveryExecutor:
             target_dir.mkdir(parents=True, exist_ok=True)
 
             # Copy table to target
-            if source_path.endswith('.parquet'):
+            if source_path.endswith(".parquet"):
                 target_file = target_dir / f"{table_name}.parquet"
                 import shutil
+
                 shutil.copy2(source_path, target_file)
 
                 table_repl["source_path"] = source_path
@@ -536,7 +555,7 @@ class DisasterRecoveryExecutor:
         """Save backup metrics to file."""
         try:
             metrics_file = self.dr_base / "backup_metrics.json"
-            with open(metrics_file, 'w') as f:
+            with open(metrics_file, "w") as f:
                 json.dump(self.backup_metrics, f, indent=2, default=str)
 
         except Exception as e:
@@ -546,33 +565,43 @@ class DisasterRecoveryExecutor:
         """Save replication metrics to file."""
         try:
             metrics_file = self.dr_base / "replication_metrics.json"
-            with open(metrics_file, 'w') as f:
+            with open(metrics_file, "w") as f:
                 json.dump(self.replication_metrics, f, indent=2, default=str)
 
         except Exception as e:
             logger.warning(f"Failed to save replication metrics: {e}")
 
-    def get_dr_status(self) -> Dict[str, Any]:
+    def get_dr_status(self) -> dict[str, Any]:
         """Get overall disaster recovery status."""
         status = {
             "timestamp": datetime.now().isoformat(),
             "backup_status": {
                 "total_backups": len(self.backup_metrics),
-                "successful_backups": sum(1 for b in self.backup_metrics.values() if b.get("status") == "completed"),
-                "failed_backups": sum(1 for b in self.backup_metrics.values() if b.get("status") == "failed"),
-                "last_backup": None
+                "successful_backups": sum(
+                    1 for b in self.backup_metrics.values() if b.get("status") == "completed"
+                ),
+                "failed_backups": sum(
+                    1 for b in self.backup_metrics.values() if b.get("status") == "failed"
+                ),
+                "last_backup": None,
             },
             "replication_status": {
                 "total_replications": len(self.replication_metrics),
-                "successful_replications": sum(1 for r in self.replication_metrics.values() if r.get("status") == "completed"),
-                "failed_replications": sum(1 for r in self.replication_metrics.values() if r.get("status") == "failed"),
-                "last_replication": None
+                "successful_replications": sum(
+                    1 for r in self.replication_metrics.values() if r.get("status") == "completed"
+                ),
+                "failed_replications": sum(
+                    1 for r in self.replication_metrics.values() if r.get("status") == "failed"
+                ),
+                "last_replication": None,
             },
             "storage_status": {
                 "primary_available": self.primary_storage_client is not None,
                 "secondary_available": self.secondary_storage_client is not None,
-                "cross_region_enabled": self.dr_config.get('enable_cross_region_replication', False)
-            }
+                "cross_region_enabled": self.dr_config.get(
+                    "enable_cross_region_replication", False
+                ),
+            },
         }
 
         # Get last backup time
@@ -582,12 +611,14 @@ class DisasterRecoveryExecutor:
 
         # Get last replication time
         if self.replication_metrics:
-            last_replication = max(self.replication_metrics.values(), key=lambda x: x.get("start_time", ""))
+            last_replication = max(
+                self.replication_metrics.values(), key=lambda x: x.get("start_time", "")
+            )
             status["replication_status"]["last_replication"] = last_replication.get("start_time")
 
         return status
 
-    def run_dr_workflow(self) -> Dict[str, Any]:
+    def run_dr_workflow(self) -> dict[str, Any]:
         """Run complete disaster recovery workflow."""
         workflow_result = {
             "workflow_id": f"dr_workflow_{int(time.time())}",
@@ -596,7 +627,7 @@ class DisasterRecoveryExecutor:
             "status": "running",
             "backup_result": None,
             "replication_result": None,
-            "overall_status": "unknown"
+            "overall_status": "unknown",
         }
 
         try:
@@ -607,8 +638,17 @@ class DisasterRecoveryExecutor:
             replication_configs = self.load_replication_configs()
 
             # Execute backup
-            tables_to_backup = ["customers", "products", "orders", "returns", "inventory", "fx_rates"]
-            workflow_result["backup_result"] = self.execute_backup(backup_strategy, tables_to_backup)
+            tables_to_backup = [
+                "customers",
+                "products",
+                "orders",
+                "returns",
+                "inventory",
+                "fx_rates",
+            ]
+            workflow_result["backup_result"] = self.execute_backup(
+                backup_strategy, tables_to_backup
+            )
 
             # Execute replication for enabled configs
             enabled_configs = [c for c in replication_configs if c.enabled]
@@ -618,8 +658,8 @@ class DisasterRecoveryExecutor:
             # Determine overall status
             backup_success = workflow_result["backup_result"].get("status") == "completed"
             replication_success = (
-                workflow_result["replication_result"] is None or
-                workflow_result["replication_result"].get("status") == "completed"
+                workflow_result["replication_result"] is None
+                or workflow_result["replication_result"].get("status") == "completed"
             )
 
             if backup_success and replication_success:
@@ -644,11 +684,11 @@ class DisasterRecoveryExecutor:
 
 def main():
     """Main entry point for disaster recovery operations."""
-    from .utils import get_spark_session
     from .config_loader import load_config_resolved
+    from .utils import get_spark_session
 
     # Load configuration
-    config = load_config_resolved('config/config-dev.yaml')
+    config = load_config_resolved("config/config-dev.yaml")
 
     # Create Spark session
     spark = get_spark_session(config)
@@ -661,8 +701,12 @@ def main():
     workflow_result = dr_executor.run_dr_workflow()
 
     print(f"DR Workflow Status: {workflow_result['overall_status']}")
-    print(f"Backup Status: {workflow_result['backup_result']['status'] if workflow_result['backup_result'] else 'N/A'}")
-    print(f"Replication Status: {workflow_result['replication_result']['status'] if workflow_result['replication_result'] else 'N/A'}")
+    print(
+        f"Backup Status: {workflow_result['backup_result']['status'] if workflow_result['backup_result'] else 'N/A'}"
+    )
+    print(
+        f"Replication Status: {workflow_result['replication_result']['status'] if workflow_result['replication_result'] else 'N/A'}"
+    )
 
     # Get overall DR status
     status = dr_executor.get_dr_status()

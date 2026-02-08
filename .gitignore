@@ -40,6 +40,9 @@ data/
 *.delta
 *.avro
 *.json
+!config/schema_definitions/*.json
+!aws/config/schemas/*.json
+!aws/config/schema_definitions/*.json
 
 # Temporary files
 *.tmp

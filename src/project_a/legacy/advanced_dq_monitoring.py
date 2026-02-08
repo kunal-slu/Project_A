@@ -9,14 +9,14 @@ This module provides enterprise-grade data quality capabilities:
 - Performance metrics and trending
 """
 
+import json
 import logging
 import os
-import json
 import time
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
-from enum import Enum
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, isnan
@@ -26,14 +26,16 @@ logger = logging.getLogger(__name__)
 
 class QualitySeverity(Enum):
     """Data quality severity levels."""
-    CRITICAL = "critical"      # Pipeline should fail
-    HIGH = "high"              # Pipeline should warn
-    MEDIUM = "medium"          # Pipeline should log
-    LOW = "low"                # Pipeline should monitor
+
+    CRITICAL = "critical"  # Pipeline should fail
+    HIGH = "high"  # Pipeline should warn
+    MEDIUM = "medium"  # Pipeline should log
+    LOW = "low"  # Pipeline should monitor
 
 
 class QualityStatus(Enum):
     """Data quality check status."""
+
     PASSED = "passed"
     FAILED = "failed"
     WARNING = "warning"
@@ -43,16 +45,17 @@ class QualityStatus(Enum):
 @dataclass
 class QualityCheck:
     """Data quality check definition."""
+
     name: str
     description: str
     severity: QualitySeverity
     check_type: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     expected_result: Any
-    tolerance: Optional[float] = None
+    tolerance: float | None = None
     enabled: bool = True
     created_at: datetime = field(default_factory=datetime.now)
-    last_run: Optional[datetime] = None
+    last_run: datetime | None = None
     success_count: int = 0
     failure_count: int = 0
 
@@ -60,15 +63,16 @@ class QualityCheck:
 @dataclass
 class QualityResult:
     """Data quality check result."""
+
     check_name: str
     status: QualityStatus
     actual_result: Any
     expected_result: Any
-    tolerance: Optional[float]
+    tolerance: float | None
     execution_time_ms: float
-    error_message: Optional[str] = None
+    error_message: str | None = None
     timestamp: datetime = field(default_factory=datetime.now)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class AdvancedDataQualityManager:
@@ -76,13 +80,13 @@ class AdvancedDataQualityManager:
     Manages advanced data quality checks and monitoring.
     """
 
-    def __init__(self, spark: SparkSession, config: Dict[str, Any]):
+    def __init__(self, spark: SparkSession, config: dict[str, Any]):
         self.spark = spark
         self.config = config
-        self.quality_checks: Dict[str, QualityCheck] = {}
-        self.quality_results: List[QualityResult] = []
-        self.sla_configs: Dict[str, Any] = {}
-        self.alert_configs: Dict[str, Any] = {}
+        self.quality_checks: dict[str, QualityCheck] = {}
+        self.quality_results: list[QualityResult] = []
+        self.sla_configs: dict[str, Any] = {}
+        self.alert_configs: dict[str, Any] = {}
         self._load_quality_configs()
 
     def _load_quality_configs(self):
@@ -109,8 +113,13 @@ class AdvancedDataQualityManager:
             logger.error(f"Failed to add quality check {check.name}: {str(e)}")
             return False
 
-    def create_completeness_check(self, table_name: str, column_name: str,
-                                threshold: float = 0.95, severity: QualitySeverity = QualitySeverity.HIGH) -> QualityCheck:
+    def create_completeness_check(
+        self,
+        table_name: str,
+        column_name: str,
+        threshold: float = 0.95,
+        severity: QualitySeverity = QualitySeverity.HIGH,
+    ) -> QualityCheck:
         """
         Create a completeness check for a column.
 
@@ -131,17 +140,22 @@ class AdvancedDataQualityManager:
             parameters={
                 "table_name": table_name,
                 "column_name": column_name,
-                "threshold": threshold
+                "threshold": threshold,
             },
             expected_result=threshold,
-            tolerance=0.01
+            tolerance=0.01,
         )
 
         self.add_quality_check(check)
         return check
 
-    def create_uniqueness_check(self, table_name: str, column_name: str,
-                              threshold: float = 0.99, severity: QualitySeverity = QualitySeverity.HIGH) -> QualityCheck:
+    def create_uniqueness_check(
+        self,
+        table_name: str,
+        column_name: str,
+        threshold: float = 0.99,
+        severity: QualitySeverity = QualitySeverity.HIGH,
+    ) -> QualityCheck:
         """
         Create a uniqueness check for a column.
 
@@ -162,18 +176,23 @@ class AdvancedDataQualityManager:
             parameters={
                 "table_name": table_name,
                 "column_name": column_name,
-                "threshold": threshold
+                "threshold": threshold,
             },
             expected_result=threshold,
-            tolerance=0.01
+            tolerance=0.01,
         )
 
         self.add_quality_check(check)
         return check
 
-    def create_range_check(self, table_name: str, column_name: str,
-                          min_value: Union[int, float], max_value: Union[int, float],
-                          severity: QualitySeverity = QualitySeverity.MEDIUM) -> QualityCheck:
+    def create_range_check(
+        self,
+        table_name: str,
+        column_name: str,
+        min_value: int | float,
+        max_value: int | float,
+        severity: QualitySeverity = QualitySeverity.MEDIUM,
+    ) -> QualityCheck:
         """
         Create a range check for a numeric column.
 
@@ -196,18 +215,23 @@ class AdvancedDataQualityManager:
                 "table_name": table_name,
                 "column_name": column_name,
                 "min_value": min_value,
-                "max_value": max_value
+                "max_value": max_value,
             },
             expected_result=f"{min_value} to {max_value}",
-            tolerance=None
+            tolerance=None,
         )
 
         self.add_quality_check(check)
         return check
 
-    def create_pattern_check(self, table_name: str, column_name: str,
-                           pattern: str, threshold: float = 0.95,
-                           severity: QualitySeverity = QualitySeverity.MEDIUM) -> QualityCheck:
+    def create_pattern_check(
+        self,
+        table_name: str,
+        column_name: str,
+        pattern: str,
+        threshold: float = 0.95,
+        severity: QualitySeverity = QualitySeverity.MEDIUM,
+    ) -> QualityCheck:
         """
         Create a pattern check for a string column.
 
@@ -230,10 +254,10 @@ class AdvancedDataQualityManager:
                 "table_name": table_name,
                 "column_name": column_name,
                 "pattern": pattern,
-                "threshold": threshold
+                "threshold": threshold,
             },
             expected_result=threshold,
-            tolerance=0.05
+            tolerance=0.05,
         )
 
         self.add_quality_check(check)
@@ -275,7 +299,7 @@ class AdvancedDataQualityManager:
                 tolerance=check.tolerance,
                 execution_time_ms=execution_time,
                 error_message=result.get("error_message"),
-                metadata=result.get("metadata", {})
+                metadata=result.get("metadata", {}),
             )
 
             # Update check statistics
@@ -301,7 +325,7 @@ class AdvancedDataQualityManager:
                 expected_result=check.expected_result,
                 tolerance=check.tolerance,
                 execution_time_ms=execution_time,
-                error_message=str(e)
+                error_message=str(e),
             )
 
             check.failure_count += 1
@@ -311,7 +335,7 @@ class AdvancedDataQualityManager:
             logger.error(f"Quality check {check.name} failed: {str(e)}")
             return error_result
 
-    def _run_completeness_check(self, check: QualityCheck, df: DataFrame) -> Dict[str, Any]:
+    def _run_completeness_check(self, check: QualityCheck, df: DataFrame) -> dict[str, Any]:
         """Run completeness check."""
         try:
             column_name = check.parameters["column_name"]
@@ -322,7 +346,7 @@ class AdvancedDataQualityManager:
                 return {
                     "status": QualityStatus.WARNING,
                     "actual_result": 0.0,
-                    "metadata": {"total_rows": 0, "null_rows": 0}
+                    "metadata": {"total_rows": 0, "null_rows": 0},
                 }
 
             null_rows = df.filter(col(column_name).isNull() | isnan(col(column_name))).count()
@@ -341,18 +365,14 @@ class AdvancedDataQualityManager:
                 "metadata": {
                     "total_rows": total_rows,
                     "null_rows": null_rows,
-                    "completeness_percentage": completeness * 100
-                }
+                    "completeness_percentage": completeness * 100,
+                },
             }
 
         except Exception as e:
-            return {
-                "status": QualityStatus.ERROR,
-                "actual_result": None,
-                "error_message": str(e)
-            }
+            return {"status": QualityStatus.ERROR, "actual_result": None, "error_message": str(e)}
 
-    def _run_uniqueness_check(self, check: QualityCheck, df: DataFrame) -> Dict[str, Any]:
+    def _run_uniqueness_check(self, check: QualityCheck, df: DataFrame) -> dict[str, Any]:
         """Run uniqueness check."""
         try:
             column_name = check.parameters["column_name"]
@@ -363,7 +383,7 @@ class AdvancedDataQualityManager:
                 return {
                     "status": QualityStatus.WARNING,
                     "actual_result": 1.0,
-                    "metadata": {"total_rows": 0, "unique_values": 0}
+                    "metadata": {"total_rows": 0, "unique_values": 0},
                 }
 
             unique_values = df.select(column_name).distinct().count()
@@ -382,18 +402,14 @@ class AdvancedDataQualityManager:
                 "metadata": {
                     "total_rows": total_rows,
                     "unique_values": unique_values,
-                    "uniqueness_percentage": uniqueness * 100
-                }
+                    "uniqueness_percentage": uniqueness * 100,
+                },
             }
 
         except Exception as e:
-            return {
-                "status": QualityStatus.ERROR,
-                "actual_result": None,
-                "error_message": str(e)
-            }
+            return {"status": QualityStatus.ERROR, "actual_result": None, "error_message": str(e)}
 
-    def _run_range_check(self, check: QualityCheck, df: DataFrame) -> Dict[str, Any]:
+    def _run_range_check(self, check: QualityCheck, df: DataFrame) -> dict[str, Any]:
         """Run range check."""
         try:
             column_name = check.parameters["column_name"]
@@ -405,7 +421,7 @@ class AdvancedDataQualityManager:
                 return {
                     "status": QualityStatus.WARNING,
                     "actual_result": 1.0,
-                    "metadata": {"total_rows": 0, "out_of_range": 0}
+                    "metadata": {"total_rows": 0, "out_of_range": 0},
                 }
 
             out_of_range = df.filter(
@@ -429,18 +445,14 @@ class AdvancedDataQualityManager:
                     "out_of_range": out_of_range,
                     "in_range_percentage": in_range_percentage * 100,
                     "min_value": min_value,
-                    "max_value": max_value
-                }
+                    "max_value": max_value,
+                },
             }
 
         except Exception as e:
-            return {
-                "status": QualityStatus.ERROR,
-                "actual_result": None,
-                "error_message": str(e)
-            }
+            return {"status": QualityStatus.ERROR, "actual_result": None, "error_message": str(e)}
 
-    def _run_pattern_check(self, check: QualityCheck, df: DataFrame) -> Dict[str, Any]:
+    def _run_pattern_check(self, check: QualityCheck, df: DataFrame) -> dict[str, Any]:
         """Run pattern check."""
         try:
             column_name = check.parameters["column_name"]
@@ -452,13 +464,11 @@ class AdvancedDataQualityManager:
                 return {
                     "status": QualityStatus.WARNING,
                     "actual_result": 1.0,
-                    "metadata": {"total_rows": 0, "pattern_matches": 0}
+                    "metadata": {"total_rows": 0, "pattern_matches": 0},
                 }
 
             # Use regex pattern matching
-            pattern_matches = df.filter(
-                col(column_name).rlike(pattern)
-            ).count()
+            pattern_matches = df.filter(col(column_name).rlike(pattern)).count()
 
             pattern_percentage = pattern_matches / total_rows
 
@@ -476,18 +486,14 @@ class AdvancedDataQualityManager:
                     "total_rows": total_rows,
                     "pattern_matches": pattern_matches,
                     "pattern_percentage": pattern_percentage * 100,
-                    "pattern": pattern
-                }
+                    "pattern": pattern,
+                },
             }
 
         except Exception as e:
-            return {
-                "status": QualityStatus.ERROR,
-                "actual_result": None,
-                "error_message": str(e)
-            }
+            return {"status": QualityStatus.ERROR, "actual_result": None, "error_message": str(e)}
 
-    def run_all_quality_checks(self, df: DataFrame, table_name: str) -> List[QualityResult]:
+    def run_all_quality_checks(self, df: DataFrame, table_name: str) -> list[QualityResult]:
         """
         Run all quality checks for a table.
 
@@ -507,7 +513,7 @@ class AdvancedDataQualityManager:
 
         return results
 
-    def check_sla_compliance(self, table_name: str, sla_name: str) -> Dict[str, Any]:
+    def check_sla_compliance(self, table_name: str, sla_name: str) -> dict[str, Any]:
         """
         Check SLA compliance for a table.
 
@@ -524,8 +530,11 @@ class AdvancedDataQualityManager:
                 return {"error": f"SLA {sla_name} not found"}
 
             # Get recent quality results for the table
-            table_checks = [check for check in self.quality_checks.values()
-                          if check.parameters.get("table_name") == table_name]
+            table_checks = [
+                check
+                for check in self.quality_checks.values()
+                if check.parameters.get("table_name") == table_name
+            ]
 
             if not table_checks:
                 return {"error": f"No quality checks found for table {table_name}"}
@@ -538,9 +547,11 @@ class AdvancedDataQualityManager:
 
             for check in table_checks:
                 if check.last_run:
-                    recent_results = [r for r in self.quality_results
-                                   if r.check_name == check.name and
-                                   (datetime.now() - r.timestamp).days <= 1]
+                    recent_results = [
+                        r
+                        for r in self.quality_results
+                        if r.check_name == check.name and (datetime.now() - r.timestamp).days <= 1
+                    ]
 
                     if recent_results:
                         latest_result = max(recent_results, key=lambda x: x.timestamp)
@@ -569,7 +580,7 @@ class AdvancedDataQualityManager:
                 "failed_checks": failed_checks,
                 "warning_checks": warning_checks,
                 "last_checked": datetime.now().isoformat(),
-                "status": "compliant" if sla_met else "non_compliant"
+                "status": "compliant" if sla_met else "non_compliant",
             }
 
             logger.info(f"SLA {sla_name} for {table_name}: {compliance_percentage:.1f}% compliant")
@@ -579,9 +590,9 @@ class AdvancedDataQualityManager:
             logger.error(f"Failed to check SLA compliance: {str(e)}")
             return {"error": str(e)}
 
-    def generate_quality_report(self, table_name: str = None,
-                              start_date: datetime = None,
-                              end_date: datetime = None) -> Dict[str, Any]:
+    def generate_quality_report(
+        self, table_name: str = None, start_date: datetime = None, end_date: datetime = None
+    ) -> dict[str, Any]:
         """
         Generate comprehensive quality report.
 
@@ -598,8 +609,12 @@ class AdvancedDataQualityManager:
             filtered_results = self.quality_results
 
             if table_name:
-                filtered_results = [r for r in filtered_results
-                                 if self.quality_checks.get(r.check_name, {}).parameters.get("table_name") == table_name]
+                filtered_results = [
+                    r
+                    for r in filtered_results
+                    if self.quality_checks.get(r.check_name, {}).parameters.get("table_name")
+                    == table_name
+                ]
 
             if start_date:
                 filtered_results = [r for r in filtered_results if r.timestamp >= start_date]
@@ -632,13 +647,17 @@ class AdvancedDataQualityManager:
                         check_type_stats[check_type]["failed"] += 1
 
             # Performance metrics
-            avg_execution_time = sum(r.execution_time_ms for r in filtered_results) / total_checks if total_checks > 0 else 0
+            avg_execution_time = (
+                sum(r.execution_time_ms for r in filtered_results) / total_checks
+                if total_checks > 0
+                else 0
+            )
 
             report = {
                 "report_period": {
                     "start_date": start_date.isoformat() if start_date else None,
                     "end_date": end_date.isoformat() if end_date else None,
-                    "generated_at": datetime.now().isoformat()
+                    "generated_at": datetime.now().isoformat(),
                 },
                 "overall_statistics": {
                     "total_checks": total_checks,
@@ -646,15 +665,15 @@ class AdvancedDataQualityManager:
                     "failed_checks": failed_checks,
                     "warning_checks": warning_checks,
                     "error_checks": error_checks,
-                    "success_rate_percentage": round(success_rate, 2)
+                    "success_rate_percentage": round(success_rate, 2),
                 },
                 "check_type_statistics": check_type_stats,
                 "performance_metrics": {
                     "average_execution_time_ms": round(avg_execution_time, 2),
-                    "total_execution_time_ms": sum(r.execution_time_ms for r in filtered_results)
+                    "total_execution_time_ms": sum(r.execution_time_ms for r in filtered_results),
                 },
                 "table_filter": table_name,
-                "recommendations": self._generate_recommendations(filtered_results)
+                "recommendations": self._generate_recommendations(filtered_results),
             }
 
             logger.info(f"Generated quality report: {success_rate:.1f}% success rate")
@@ -664,7 +683,7 @@ class AdvancedDataQualityManager:
             logger.error(f"Failed to generate quality report: {str(e)}")
             return {"error": str(e)}
 
-    def _generate_recommendations(self, results: List[QualityResult]) -> List[str]:
+    def _generate_recommendations(self, results: list[QualityResult]) -> list[str]:
         """Generate recommendations based on quality results."""
         recommendations = []
 
@@ -686,10 +705,14 @@ class AdvancedDataQualityManager:
         # Check for data quality trends
         if len(results) >= 10:
             recent_results = sorted(results, key=lambda x: x.timestamp)[-10:]
-            recent_success_rate = len([r for r in recent_results if r.status == QualityStatus.PASSED]) / len(recent_results)
+            recent_success_rate = len(
+                [r for r in recent_results if r.status == QualityStatus.PASSED]
+            ) / len(recent_results)
 
             if recent_success_rate < 0.8:
-                recommendations.append("Data quality appears to be declining - review data sources and transformations")
+                recommendations.append(
+                    "Data quality appears to be declining - review data sources and transformations"
+                )
 
         return recommendations
 
@@ -712,7 +735,7 @@ class AdvancedDataQualityManager:
                 "export_timestamp": datetime.now().isoformat(),
                 "quality_checks": {},
                 "quality_results": [],
-                "sla_status": {}
+                "sla_status": {},
             }
 
             # Export quality checks
@@ -729,7 +752,7 @@ class AdvancedDataQualityManager:
                     "created_at": check.created_at.isoformat(),
                     "last_run": check.last_run.isoformat() if check.last_run else None,
                     "success_count": check.success_count,
-                    "failure_count": check.failure_count
+                    "failure_count": check.failure_count,
                 }
 
             # Export recent quality results (last 30 days)
@@ -737,17 +760,19 @@ class AdvancedDataQualityManager:
             recent_results = [r for r in self.quality_results if r.timestamp >= thirty_days_ago]
 
             for result in recent_results:
-                export_data["quality_results"].append({
-                    "check_name": result.check_name,
-                    "status": result.status.value,
-                    "actual_result": result.actual_result,
-                    "expected_result": result.expected_result,
-                    "tolerance": result.tolerance,
-                    "execution_time_ms": result.execution_time_ms,
-                    "error_message": result.error_message,
-                    "timestamp": result.timestamp.isoformat(),
-                    "metadata": result.metadata
-                })
+                export_data["quality_results"].append(
+                    {
+                        "check_name": result.check_name,
+                        "status": result.status.value,
+                        "actual_result": result.actual_result,
+                        "expected_result": result.expected_result,
+                        "tolerance": result.tolerance,
+                        "execution_time_ms": result.execution_time_ms,
+                        "error_message": result.error_message,
+                        "timestamp": result.timestamp.isoformat(),
+                        "metadata": result.metadata,
+                    }
+                )
 
             # Export SLA status for all tables
             tables = set()
@@ -774,7 +799,9 @@ class AdvancedDataQualityManager:
             return False
 
 
-def setup_advanced_data_quality(spark: SparkSession, config: Dict[str, Any]) -> AdvancedDataQualityManager:
+def setup_advanced_data_quality(
+    spark: SparkSession, config: dict[str, Any]
+) -> AdvancedDataQualityManager:
     """
     Setup advanced data quality management for the project.
 
@@ -804,14 +831,14 @@ def setup_advanced_data_quality(spark: SparkSession, config: Dict[str, Any]) -> 
                         table_name=table_name,
                         column_name=check_config["column"],
                         threshold=check_config.get("threshold", 0.95),
-                        severity=QualitySeverity(check_config.get("severity", "high"))
+                        severity=QualitySeverity(check_config.get("severity", "high")),
                     )
                 elif check_type == "uniqueness":
                     dq_manager.create_uniqueness_check(
                         table_name=table_name,
                         column_name=check_config["column"],
                         threshold=check_config.get("threshold", 0.99),
-                        severity=QualitySeverity(check_config.get("severity", "high"))
+                        severity=QualitySeverity(check_config.get("severity", "high")),
                     )
                 elif check_type == "range":
                     dq_manager.create_range_check(
@@ -819,7 +846,7 @@ def setup_advanced_data_quality(spark: SparkSession, config: Dict[str, Any]) -> 
                         column_name=check_config["column"],
                         min_value=check_config["min_value"],
                         max_value=check_config["max_value"],
-                        severity=QualitySeverity(check_config.get("severity", "medium"))
+                        severity=QualitySeverity(check_config.get("severity", "medium")),
                     )
                 elif check_type == "pattern":
                     dq_manager.create_pattern_check(
@@ -827,7 +854,7 @@ def setup_advanced_data_quality(spark: SparkSession, config: Dict[str, Any]) -> 
                         column_name=check_config["column"],
                         pattern=check_config["pattern"],
                         threshold=check_config.get("threshold", 0.95),
-                        severity=QualitySeverity(check_config.get("severity", "medium"))
+                        severity=QualitySeverity(check_config.get("severity", "medium")),
                     )
 
         logger.info("Advanced data quality setup completed")
@@ -838,8 +865,9 @@ def setup_advanced_data_quality(spark: SparkSession, config: Dict[str, Any]) -> 
         raise
 
 
-def run_quality_pipeline(dq_manager: AdvancedDataQualityManager,
-                        table_name: str, df: DataFrame) -> Dict[str, Any]:
+def run_quality_pipeline(
+    dq_manager: AdvancedDataQualityManager, table_name: str, df: DataFrame
+) -> dict[str, Any]:
     """
     Run complete quality pipeline for a table.
 
@@ -867,9 +895,12 @@ def run_quality_pipeline(dq_manager: AdvancedDataQualityManager,
         quality_report = dq_manager.generate_quality_report(table_name=table_name)
 
         # Determine overall pipeline status
-        critical_failures = [r for r in quality_results
-                           if r.status == QualityStatus.FAILED and
-                           dq_manager.quality_checks.get(r.check_name, {}).severity == QualitySeverity.CRITICAL]
+        critical_failures = [
+            r
+            for r in quality_results
+            if r.status == QualityStatus.FAILED
+            and dq_manager.quality_checks.get(r.check_name, {}).severity == QualitySeverity.CRITICAL
+        ]
 
         pipeline_status = "failed" if critical_failures else "passed"
 
@@ -882,7 +913,7 @@ def run_quality_pipeline(dq_manager: AdvancedDataQualityManager,
             "quality_results": quality_results,
             "sla_compliance": sla_results,
             "quality_report": quality_report,
-            "execution_time": datetime.now().isoformat()
+            "execution_time": datetime.now().isoformat(),
         }
 
         logger.info(f"Quality pipeline for {table_name} completed: {pipeline_status}")

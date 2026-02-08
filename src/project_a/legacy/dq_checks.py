@@ -26,9 +26,7 @@ class DQChecks:
     def assert_email_valid(self, df, email_regex):
         from pyspark.sql.functions import col
 
-        bad_count = df.filter(
-            ~(col("email").isNotNull() & col("email").rlike(email_regex))
-        ).count()
+        bad_count = df.filter(~(col("email").isNotNull() & col("email").rlike(email_regex))).count()
         if bad_count > 0:
             logger.warning(f"{bad_count} records with invalid email")
         return bad_count
@@ -37,9 +35,7 @@ class DQChecks:
         """Check that every child_key exists in parent_key. Returns count of violations."""
         from pyspark.sql.functions import col
 
-        parent_alias = parent_df.select(
-            col(parent_key).alias("__parent_key")
-        ).distinct()
+        parent_alias = parent_df.select(col(parent_key).alias("__parent_key")).distinct()
         missing = child_df.join(
             parent_alias,
             child_df[child_key] == col("__parent_key"),

@@ -6,36 +6,45 @@ Bronze → DQ → Silver → DQ → Gold
 
 If DQ fails at any stage, downstream jobs do not run.
 """
+
 from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from airflow.operators.dummy import DummyOperator
-from airflow.sensors.filesystem import FileSensor
+from airflow.operators.empty import EmptyOperator
+
+
+def emr_submit_command(entrypoint: str) -> str:
+    return (
+        'aws emr-serverless start-job-run '
+        '--application-id "$EMR_APP_ID" '
+        f'--job-driver "{{\\"sparkSubmit\\":{{\\"entryPoint\\":\\"{entrypoint}\\"}}}}"'
+    )
 
 # Default arguments
 default_args = {
-    'owner': 'data-engineering',
-    'depends_on_past': False,
-    'start_date': datetime(2024, 1, 1),
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    "owner": "data-engineering",
+    "depends_on_past": False,
+    "start_date": datetime(2024, 1, 1),
+    "email_on_failure": True,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
 }
 
 # Create DAG
 dag = DAG(
-    'daily_batch_pipeline',
+    "daily_batch_pipeline",
     default_args=default_args,
-    description='Main batch ETL pipeline with DQ gating',
-    schedule_interval='0 1 * * *',  # Daily at 1 AM
+    description="Main batch ETL pipeline with DQ gating",
+    schedule="0 1 * * *",  # Daily at 1 AM
     catchup=False,
-    tags=['production', 'bronze', 'silver', 'gold'],
+    tags=["production", "bronze", "silver", "gold"],
 )
 
 # Dummy start operator
-start = DummyOperator(
-    task_id='start',
+start = EmptyOperator(
+    task_id="start",
     dag=dag,
 )
 
@@ -44,32 +53,32 @@ start = DummyOperator(
 # ============================================================================
 
 ingest_salesforce = BashOperator(
-    task_id='ingest_salesforce_to_bronze',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/salesforce_to_bronze.py\"}}"',
+    task_id="ingest_salesforce_to_bronze",
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/salesforce_to_bronze.py"),
     dag=dag,
 )
 
 ingest_snowflake = BashOperator(
-    task_id='ingest_snowflake_to_bronze',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/snowflake_to_bronze.py\"}}"',
+    task_id="ingest_snowflake_to_bronze",
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/snowflake_to_bronze.py"),
     dag=dag,
 )
 
 ingest_redshift = BashOperator(
-    task_id='ingest_redshift_to_bronze',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/redshift_behavior_ingest.py\"}}"',
+    task_id="ingest_redshift_to_bronze",
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/redshift_behavior_ingest.py"),
     dag=dag,
 )
 
 ingest_fx = BashOperator(
-    task_id='ingest_fx_to_bronze',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/fx_rates_ingest.py\"}}"',
+    task_id="ingest_fx_to_bronze",
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/fx_rates_ingest.py"),
     dag=dag,
 )
 
 # Wait for all ingestion jobs
-ingest_done = DummyOperator(
-    task_id='ingest_done',
+ingest_done = EmptyOperator(
+    task_id="ingest_done",
     dag=dag,
 )
 
@@ -78,8 +87,8 @@ ingest_done = DummyOperator(
 # ============================================================================
 
 dq_check_bronze = BashOperator(
-    task_id='dq_check_bronze',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/dq_check_bronze.py\"}}"',
+    task_id="dq_check_bronze",
+    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{"sparkSubmit":{"entryPoint":"s3://$CODE_BUCKET/jobs/dq_check_bronze.py"}}"',
     dag=dag,
 )
 
@@ -88,8 +97,8 @@ dq_check_bronze = BashOperator(
 # ============================================================================
 
 bronze_to_silver = BashOperator(
-    task_id='bronze_to_silver',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/snowflake_bronze_to_silver_merge.py\"}}"',
+    task_id="bronze_to_silver",
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/snowflake_bronze_to_silver_merge.py"),
     dag=dag,
 )
 
@@ -98,8 +107,8 @@ bronze_to_silver = BashOperator(
 # ============================================================================
 
 dq_check_silver = BashOperator(
-    task_id='dq_check_silver',
-    bash_command='python aws/scripts/run_ge_checks.py --suite-name silver_orders --data-asset s3://$S3_LAKE_BUCKET/silver/orders --critical-only --fail-on-error',
+    task_id="dq_check_silver",
+    bash_command="python aws/scripts/run_ge_checks.py --suite-name silver_orders --data-asset s3://$S3_LAKE_BUCKET/silver/orders --critical-only --fail-on-error",
     sla=timedelta(minutes=20),  # P4-11: SLA on dq_gate
     dag=dag,
 )
@@ -109,8 +118,8 @@ dq_check_silver = BashOperator(
 # ============================================================================
 
 silver_to_gold = BashOperator(
-    task_id='silver_to_gold',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/silver_to_gold.py\"}}"',
+    task_id="silver_to_gold",
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/silver_to_gold.py"),
     dag=dag,
 )
 
@@ -119,20 +128,20 @@ silver_to_gold = BashOperator(
 # ============================================================================
 
 register_glue_catalog = BashOperator(
-    task_id='register_glue_catalog',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/register_glue_catalog.py\"}}"',
+    task_id="register_glue_catalog",
+    bash_command="python aws/scripts/utilities/register_glue_tables.py --lake-root s3://$S3_LAKE_BUCKET --database gold_db --layer gold --config config/prod.yaml",
     dag=dag,
 )
 
 emit_lineage_metrics = BashOperator(
-    task_id='emit_lineage_and_metrics',
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{\"sparkSubmit\":{\"entryPoint\":\"s3://$CODE_BUCKET/jobs/emit_lineage_and_metrics.py\"}}"',
+    task_id="emit_lineage_and_metrics",
+    bash_command="python aws/scripts/utilities/emit_lineage_and_metrics.py",
     dag=dag,
 )
 
 # Dummy end operator
-end = DummyOperator(
-    task_id='end',
+end = EmptyOperator(
+    task_id="end",
     dag=dag,
 )
 
@@ -160,14 +169,14 @@ dq_check_silver >> silver_to_gold
 # ============================================================================
 
 reconcile_snowflake = BashOperator(
-    task_id='reconcile_snowflake_to_s3',
-    bash_command='python -m project_a.jobs.reconciliation_job --source snowflake --target s3://$S3_LAKE_BUCKET/bronze/snowflake/orders',
+    task_id="reconcile_snowflake_to_s3",
+    bash_command="python -m project_a.legacy.jobs.reconciliation_job --source snowflake --target s3://$S3_LAKE_BUCKET/bronze/snowflake/orders",
     dag=dag,
 )
 
 reconcile_redshift = BashOperator(
-    task_id='reconcile_redshift_to_s3',
-    bash_command='python -m project_a.jobs.reconciliation_job --source redshift --target s3://$S3_LAKE_BUCKET/bronze/redshift/customer_behavior',
+    task_id="reconcile_redshift_to_s3",
+    bash_command="python -m project_a.legacy.jobs.reconciliation_job --source redshift --target s3://$S3_LAKE_BUCKET/bronze/redshift/customer_behavior",
     dag=dag,
 )
 
@@ -176,8 +185,8 @@ reconcile_redshift = BashOperator(
 # ============================================================================
 
 load_to_snowflake = BashOperator(
-    task_id='load_gold_to_snowflake',
-    bash_command='python -m project_a.jobs.load_to_snowflake --config config/prod.yaml --tables customer_360 orders_metrics',
+    task_id="load_gold_to_snowflake",
+    bash_command="python -m project_a.legacy.jobs.load_to_snowflake --config config/prod.yaml --tables customer_360 orders_metrics",
     dag=dag,
 )
 
@@ -189,4 +198,3 @@ emit_lineage_metrics >> [reconcile_snowflake, reconcile_redshift, load_to_snowfl
 
 # CRITICAL: This enforces "DQ fails = Gold never updates"
 # If dq_check_bronze or dq_check_silver fails, downstream jobs do NOT run.
-

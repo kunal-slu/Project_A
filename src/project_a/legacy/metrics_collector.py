@@ -5,32 +5,51 @@ Parses pipeline metrics and exposes them for monitoring systems.
 
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any
-from pathlib import Path
 import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 # Prometheus client for metrics export
 try:
     from prometheus_client import (
-        Counter, Gauge, Histogram, Summary,
-        generate_latest, CONTENT_TYPE_LATEST,
-        CollectorRegistry, multiprocess
+        CONTENT_TYPE_LATEST,
+        CollectorRegistry,
+        Counter,
+        Gauge,
+        Histogram,
+        Summary,
+        generate_latest,
+        multiprocess,
     )
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
+
     # Mock classes for when prometheus_client is not available
     class MockMetric:
-        def __init__(self, *args, **kwargs): pass
-        def inc(self, *args, **kwargs): pass
-        def set(self, *args, **kwargs): pass
-        def observe(self, *args, **kwargs): pass
-        def time(self): return MockContext()
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def inc(self, *args, **kwargs):
+            pass
+
+        def set(self, *args, **kwargs):
+            pass
+
+        def observe(self, *args, **kwargs):
+            pass
+
+        def time(self):
+            return MockContext()
 
     class MockContext:
-        def __enter__(self): return self
-        def __exit__(self, *args, **kwargs): pass
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args, **kwargs):
+            pass
 
     Counter = Gauge = Histogram = Summary = MockMetric
 
@@ -59,76 +78,67 @@ class MetricsCollector:
         """Initialize Prometheus metrics."""
         # Pipeline execution metrics
         self.pipeline_runs_total = Counter(
-            'pipeline_runs_total',
-            'Total number of pipeline runs',
-            ['pipeline_name', 'status'],
-            registry=self.registry
+            "pipeline_runs_total",
+            "Total number of pipeline runs",
+            ["pipeline_name", "status"],
+            registry=self.registry,
         )
 
         self.pipeline_duration_seconds = Histogram(
-            'pipeline_duration_seconds',
-            'Pipeline execution duration in seconds',
-            ['pipeline_name'],
-            registry=self.registry
+            "pipeline_duration_seconds",
+            "Pipeline execution duration in seconds",
+            ["pipeline_name"],
+            registry=self.registry,
         )
 
         # Data quality metrics
         self.data_quality_issues_total = Counter(
-            'data_quality_issues_total',
-            'Total number of data quality issues',
-            ['table_name', 'issue_type'],
-            registry=self.registry
+            "data_quality_issues_total",
+            "Total number of data quality issues",
+            ["table_name", "issue_type"],
+            registry=self.registry,
         )
 
         self.records_processed_total = Counter(
-            'records_processed_total',
-            'Total number of records processed',
-            ['table_name', 'layer'],
-            registry=self.registry
+            "records_processed_total",
+            "Total number of records processed",
+            ["table_name", "layer"],
+            registry=self.registry,
         )
 
         # Performance metrics
         self.table_optimization_duration_seconds = Histogram(
-            'table_optimization_duration_seconds',
-            'Table optimization duration in seconds',
-            ['table_name'],
-            registry=self.registry
+            "table_optimization_duration_seconds",
+            "Table optimization duration in seconds",
+            ["table_name"],
+            registry=self.registry,
         )
 
         self.ingestion_latency_seconds = Histogram(
-            'ingestion_latency_seconds',
-            'Data ingestion latency in seconds',
-            ['source', 'target_layer'],
-            registry=self.registry
+            "ingestion_latency_seconds",
+            "Data ingestion latency in seconds",
+            ["source", "target_layer"],
+            registry=self.registry,
         )
 
         # Business metrics
         self.customer_count = Gauge(
-            'customer_count',
-            'Total number of customers',
-            ['segment'],
-            registry=self.registry
+            "customer_count", "Total number of customers", ["segment"], registry=self.registry
         )
 
         self.order_count = Gauge(
-            'order_count',
-            'Total number of orders',
-            ['status'],
-            registry=self.registry
+            "order_count", "Total number of orders", ["status"], registry=self.registry
         )
 
         self.return_rate = Gauge(
-            'return_rate',
-            'Product return rate percentage',
-            ['category'],
-            registry=self.registry
+            "return_rate", "Product return rate percentage", ["category"], registry=self.registry
         )
 
         self.inventory_level = Gauge(
-            'inventory_level',
-            'Current inventory levels',
-            ['product_id', 'stock_level'],
-            registry=self.registry
+            "inventory_level",
+            "Current inventory levels",
+            ["product_id", "stock_level"],
+            registry=self.registry,
         )
 
     def _init_mock_metrics(self):
@@ -144,7 +154,7 @@ class MetricsCollector:
         self.return_rate = MockMetric()
         self.inventory_level = MockMetric()
 
-    def collect_pipeline_metrics(self) -> Dict[str, Any]:
+    def collect_pipeline_metrics(self) -> dict[str, Any]:
         """Collect all pipeline metrics from JSON files."""
         metrics_summary = {
             "total_runs": 0,
@@ -155,7 +165,7 @@ class MetricsCollector:
             "data_quality_issues": 0,
             "records_processed": 0,
             "last_run": None,
-            "pipeline_performance": {}
+            "pipeline_performance": {},
         }
 
         try:
@@ -177,7 +187,7 @@ class MetricsCollector:
 
             for metrics_file in metrics_files:
                 try:
-                    with open(metrics_file, 'r') as f:
+                    with open(metrics_file) as f:
                         metrics = json.load(f)
 
                     # Update summary metrics
@@ -221,7 +231,7 @@ class MetricsCollector:
 
         return metrics_summary
 
-    def _update_prometheus_metrics(self, metrics: Dict[str, Any]):
+    def _update_prometheus_metrics(self, metrics: dict[str, Any]):
         """Update Prometheus metrics from pipeline metrics."""
         try:
             pipeline_name = "automated_ingestion"
@@ -229,15 +239,10 @@ class MetricsCollector:
             duration = metrics.get("pipeline_duration_seconds", 0)
 
             # Pipeline execution metrics
-            self.pipeline_runs_total.labels(
-                pipeline_name=pipeline_name,
-                status=status
-            ).inc()
+            self.pipeline_runs_total.labels(pipeline_name=pipeline_name, status=status).inc()
 
             if duration > 0:
-                self.pipeline_duration_seconds.labels(
-                    pipeline_name=pipeline_name
-                ).observe(duration)
+                self.pipeline_duration_seconds.labels(pipeline_name=pipeline_name).observe(duration)
 
             # Data quality metrics
             bronze_metrics = metrics.get("bronze", {})
@@ -246,41 +251,37 @@ class MetricsCollector:
 
             if quality_issues > 0:
                 self.data_quality_issues_total.labels(
-                    table_name="all_tables",
-                    issue_type="validation_failure"
+                    table_name="all_tables", issue_type="validation_failure"
                 ).inc(quality_issues)
 
             if records_processed > 0:
-                self.records_processed_total.labels(
-                    table_name="all_tables",
-                    layer="bronze"
-                ).inc(records_processed)
+                self.records_processed_total.labels(table_name="all_tables", layer="bronze").inc(
+                    records_processed
+                )
 
             # Silver layer metrics
             silver_metrics = metrics.get("silver", {})
             silver_records = silver_metrics.get("records_transformed", 0)
             if silver_records > 0:
-                self.records_processed_total.labels(
-                    table_name="all_tables",
-                    layer="silver"
-                ).inc(silver_records)
+                self.records_processed_total.labels(table_name="all_tables", layer="silver").inc(
+                    silver_records
+                )
 
             # Gold layer metrics
             gold_metrics = metrics.get("gold", {})
             gold_metrics_count = gold_metrics.get("metrics_created", 0)
             if gold_metrics_count > 0:
-                self.records_processed_total.labels(
-                    table_name="all_tables",
-                    layer="gold"
-                ).inc(gold_metrics_count)
+                self.records_processed_total.labels(table_name="all_tables", layer="gold").inc(
+                    gold_metrics_count
+                )
 
             # Performance metrics
             optimization_metrics = metrics.get("optimization", {})
             optimization_time = optimization_metrics.get("optimization_time", 0)
             if optimization_time > 0:
-                self.table_optimization_duration_seconds.labels(
-                    table_name="all_tables"
-                ).observe(optimization_time)
+                self.table_optimization_duration_seconds.labels(table_name="all_tables").observe(
+                    optimization_time
+                )
 
         except Exception as e:
             logger.warning(f"Failed to update Prometheus metrics: {e}")
@@ -300,7 +301,7 @@ class MetricsCollector:
             logger.error(f"Failed to generate Prometheus metrics: {e}")
             return f"# Error generating metrics: {e}"
 
-    def get_open_telemetry_metrics(self) -> Dict[str, Any]:
+    def get_open_telemetry_metrics(self) -> dict[str, Any]:
         """Get metrics in OpenTelemetry format."""
         try:
             # Collect latest metrics
@@ -308,52 +309,61 @@ class MetricsCollector:
 
             # Convert to OpenTelemetry format
             otel_metrics = {
-                "resourceMetrics": [{
-                    "resource": {
-                        "attributes": [{
-                            "key": "service.name",
-                            "value": {"stringValue": "pyspark-data-engineer"}
-                        }]
-                    },
-                    "scopeMetrics": [{
-                        "scope": {
-                            "name": "pyspark.interview.project",
-                            "version": "1.0.0"
+                "resourceMetrics": [
+                    {
+                        "resource": {
+                            "attributes": [
+                                {
+                                    "key": "service.name",
+                                    "value": {"stringValue": "pyspark-data-engineer"},
+                                }
+                            ]
                         },
-                        "metrics": [
+                        "scopeMetrics": [
                             {
-                                "name": "pipeline.runs.total",
-                                "description": "Total pipeline runs",
-                                "unit": "1",
-                                "sum": {
-                                    "dataPoints": [{
-                                        "attributes": [{
-                                            "key": "status",
-                                            "value": {"stringValue": "total"}
-                                        }],
-                                        "value": summary["total_runs"],
-                                        "timeUnixNano": int(time.time() * 1e9)
-                                    }]
-                                }
-                            },
-                            {
-                                "name": "pipeline.duration.seconds",
-                                "description": "Pipeline duration",
-                                "unit": "s",
-                                "histogram": {
-                                    "dataPoints": [{
-                                        "attributes": [],
-                                        "count": summary["total_runs"],
-                                        "sum": summary["total_duration"],
-                                        "explicitBounds": [60, 300, 900, 1800, 3600],
-                                        "bucketCounts": [0, 0, 0, 0, 0, 0],
-                                        "timeUnixNano": int(time.time() * 1e9)
-                                    }]
-                                }
+                                "scope": {"name": "pyspark.interview.project", "version": "1.0.0"},
+                                "metrics": [
+                                    {
+                                        "name": "pipeline.runs.total",
+                                        "description": "Total pipeline runs",
+                                        "unit": "1",
+                                        "sum": {
+                                            "dataPoints": [
+                                                {
+                                                    "attributes": [
+                                                        {
+                                                            "key": "status",
+                                                            "value": {"stringValue": "total"},
+                                                        }
+                                                    ],
+                                                    "value": summary["total_runs"],
+                                                    "timeUnixNano": int(time.time() * 1e9),
+                                                }
+                                            ]
+                                        },
+                                    },
+                                    {
+                                        "name": "pipeline.duration.seconds",
+                                        "description": "Pipeline duration",
+                                        "unit": "s",
+                                        "histogram": {
+                                            "dataPoints": [
+                                                {
+                                                    "attributes": [],
+                                                    "count": summary["total_runs"],
+                                                    "sum": summary["total_duration"],
+                                                    "explicitBounds": [60, 300, 900, 1800, 3600],
+                                                    "bucketCounts": [0, 0, 0, 0, 0, 0],
+                                                    "timeUnixNano": int(time.time() * 1e9),
+                                                }
+                                            ]
+                                        },
+                                    },
+                                ],
                             }
-                        ]
-                    }]
-                }]
+                        ],
+                    }
+                ]
             }
 
             return otel_metrics
@@ -362,15 +372,19 @@ class MetricsCollector:
             logger.error(f"Failed to generate OpenTelemetry metrics: {e}")
             return {"error": str(e)}
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get a human-readable metrics summary."""
         summary = self.collect_pipeline_metrics()
 
         # Add business insights
         summary["business_insights"] = {
-            "success_rate": f"{(summary['successful_runs'] / max(summary['total_runs'], 1)) * 100:.1f}%" if summary['total_runs'] > 0 else "0%",
+            "success_rate": f"{(summary['successful_runs'] / max(summary['total_runs'], 1)) * 100:.1f}%"
+            if summary["total_runs"] > 0
+            else "0%",
             "avg_processing_time": f"{summary['avg_duration']:.2f} seconds",
-            "data_quality_score": f"{max(0, 100 - (summary['data_quality_issues'] / max(summary['records_processed'], 1)) * 100):.1f}%" if summary['records_processed'] > 0 else "100%"
+            "data_quality_score": f"{max(0, 100 - (summary['data_quality_issues'] / max(summary['records_processed'], 1)) * 100):.1f}%"
+            if summary["records_processed"] > 0
+            else "100%",
         }
 
         return summary
@@ -392,7 +406,7 @@ class MetricsCollector:
             if not output_path.endswith(file_extension):
                 output_path += file_extension
 
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 if format_type.lower() == "prometheus":
                     f.write(content)
                 else:
@@ -403,7 +417,7 @@ class MetricsCollector:
         except Exception as e:
             logger.error(f"Failed to export metrics: {e}")
 
-    def create_metrics_dashboard_data(self) -> Dict[str, Any]:
+    def create_metrics_dashboard_data(self) -> dict[str, Any]:
         """Create data for a metrics dashboard."""
         try:
             summary = self.collect_pipeline_metrics()
@@ -418,8 +432,8 @@ class MetricsCollector:
                 "performance_trends": {
                     "avg_duration_trend": [],
                     "success_rate_trend": [],
-                    "quality_score_trend": []
-                }
+                    "quality_score_trend": [],
+                },
             }
 
             # Generate sample daily metrics (in real implementation, this would read from time-series storage)
@@ -431,19 +445,21 @@ class MetricsCollector:
                     "successful_runs": 0,
                     "failed_runs": 0,
                     "avg_duration": 0,
-                    "quality_issues": 0
+                    "quality_issues": 0,
                 }
 
                 # In a real implementation, you'd aggregate metrics by date
                 # For now, we'll use the overall summary
                 if current_date == end_date:
-                    daily_metrics.update({
-                        "runs": summary["total_runs"],
-                        "successful_runs": summary["successful_runs"],
-                        "failed_runs": summary["failed_runs"],
-                        "avg_duration": summary["avg_duration"],
-                        "quality_issues": summary["data_quality_issues"]
-                    })
+                    daily_metrics.update(
+                        {
+                            "runs": summary["total_runs"],
+                            "successful_runs": summary["successful_runs"],
+                            "failed_runs": summary["failed_runs"],
+                            "avg_duration": summary["avg_duration"],
+                            "quality_issues": summary["data_quality_issues"],
+                        }
+                    )
 
                 dashboard_data["daily_metrics"].append(daily_metrics)
                 current_date += timedelta(days=1)
@@ -460,8 +476,12 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Collect and export pipeline metrics")
-    parser.add_argument("--format", choices=["json", "prometheus", "opentelemetry"],
-                       default="json", help="Output format")
+    parser.add_argument(
+        "--format",
+        choices=["json", "prometheus", "opentelemetry"],
+        default="json",
+        help="Output format",
+    )
     parser.add_argument("--output", help="Output file path")
     parser.add_argument("--dashboard", action="store_true", help="Generate dashboard data")
 

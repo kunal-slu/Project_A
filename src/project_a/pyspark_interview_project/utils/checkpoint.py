@@ -4,29 +4,27 @@ Checkpoint Utility for Streaming/Incremental Processing
 Manages checkpoints in S3 (or DynamoDB) to track last processed batch/watermark
 for incremental and streaming jobs.
 """
+
 import json
 import logging
-from typing import Optional, Any, Dict
 from datetime import datetime
+from typing import Any
+
 import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
 
-def get_last_processed_batch(
-    bucket: str,
-    key: str,
-    region: str = "us-east-1"
-) -> Optional[str]:
+def get_last_processed_batch(bucket: str, key: str, region: str = "us-east-1") -> str | None:
     """
     Get last processed batch ID from S3 checkpoint.
-    
+
     Args:
         bucket: S3 bucket name
         key: S3 key for checkpoint file
         region: AWS region
-        
+
     Returns:
         Last processed batch ID, or None if not found
     """
@@ -48,12 +46,12 @@ def set_last_processed_batch(
     bucket: str,
     key: str,
     batch_id: str,
-    metadata: Optional[Dict[str, Any]] = None,
-    region: str = "us-east-1"
+    metadata: dict[str, Any] | None = None,
+    region: str = "us-east-1",
 ) -> None:
     """
     Set last processed batch ID in S3 checkpoint.
-    
+
     Args:
         bucket: S3 bucket name
         key: S3 key for checkpoint file
@@ -63,20 +61,20 @@ def set_last_processed_batch(
     """
     try:
         s3 = boto3.client("s3", region_name=region)
-        
+
         payload = {
             "batch_id": batch_id,
             "timestamp_utc": datetime.utcnow().isoformat(),
         }
-        
+
         if metadata:
             payload["metadata"] = metadata
-        
+
         s3.put_object(
             Bucket=bucket,
             Key=key,
             Body=json.dumps(payload, indent=2).encode("utf-8"),
-            ContentType="application/json"
+            ContentType="application/json",
         )
         logger.info(f"✅ Wrote checkpoint: {batch_id} to s3://{bucket}/{key}")
     except ClientError as e:
@@ -84,19 +82,15 @@ def set_last_processed_batch(
         raise
 
 
-def get_watermark(
-    bucket: str,
-    key: str,
-    region: str = "us-east-1"
-) -> Optional[datetime]:
+def get_watermark(bucket: str, key: str, region: str = "us-east-1") -> datetime | None:
     """
     Get watermark timestamp from checkpoint.
-    
+
     Args:
         bucket: S3 bucket name
         key: S3 key for checkpoint file
         region: AWS region
-        
+
     Returns:
         Watermark datetime, or None if not found
     """
@@ -104,7 +98,7 @@ def get_watermark(
         s3 = boto3.client("s3", region_name=region)
         obj = s3.get_object(Bucket=bucket, Key=key)
         content = json.loads(obj["Body"].read().decode("utf-8"))
-        
+
         watermark_str = content.get("watermark")
         if watermark_str:
             return datetime.fromisoformat(watermark_str.replace("Z", "+00:00"))
@@ -120,12 +114,12 @@ def set_watermark(
     bucket: str,
     key: str,
     watermark: datetime,
-    metadata: Optional[Dict[str, Any]] = None,
-    region: str = "us-east-1"
+    metadata: dict[str, Any] | None = None,
+    region: str = "us-east-1",
 ) -> None:
     """
     Set watermark timestamp in checkpoint.
-    
+
     Args:
         bucket: S3 bucket name
         key: S3 key for checkpoint file
@@ -135,23 +129,22 @@ def set_watermark(
     """
     try:
         s3 = boto3.client("s3", region_name=region)
-        
+
         payload = {
             "watermark": watermark.isoformat(),
             "timestamp_utc": datetime.utcnow().isoformat(),
         }
-        
+
         if metadata:
             payload["metadata"] = metadata
-        
+
         s3.put_object(
             Bucket=bucket,
             Key=key,
             Body=json.dumps(payload, indent=2).encode("utf-8"),
-            ContentType="application/json"
+            ContentType="application/json",
         )
         logger.info(f"✅ Wrote watermark: {watermark.isoformat()} to s3://{bucket}/{key}")
     except ClientError as e:
         logger.error(f"❌ Failed to write watermark: {e}")
         raise
-

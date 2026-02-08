@@ -2,8 +2,8 @@ import json
 import logging
 import os
 import sys
-import uuid
 import time
+import uuid
 from logging import LogRecord
 
 

@@ -2,17 +2,14 @@
 Data quality module.
 """
 
-from .runner import run_yaml_policy, print_dq_summary
-from .rules import DataQualityRule, NotNullRule, UniqueRule, ExpressionRule
+from .rules import DataQualityRule, ExpressionRule, NotNullRule, UniqueRule
+from .runner import print_dq_summary, run_yaml_policy
 
 __all__ = [
     "run_yaml_policy",
-    "print_dq_summary", 
+    "print_dq_summary",
     "DataQualityRule",
     "NotNullRule",
     "UniqueRule",
-    "ExpressionRule"
+    "ExpressionRule",
 ]
-
-
-

@@ -1,10 +1,9 @@
 from prometheus_client import Counter, Gauge, start_http_server
 
-
 # Pipeline execution metrics
-PIPELINE_RUNS = Counter('pipeline_runs_total', 'Total pipeline runs', ['stage'])
-ROWS_PROCESSED = Counter('rows_processed_total', 'Total rows processed', ['stage'])
-STAGE_DURATION = Gauge('stage_duration_seconds', 'Stage execution duration', ['stage'])
+PIPELINE_RUNS = Counter("pipeline_runs_total", "Total pipeline runs", ["stage"])
+ROWS_PROCESSED = Counter("rows_processed_total", "Total rows processed", ["stage"])
+STAGE_DURATION = Gauge("stage_duration_seconds", "Stage execution duration", ["stage"])
 
 
 def start_metrics_server(port: int = 8000) -> int:
@@ -20,4 +19,4 @@ def start_metrics_server(port: int = 8000) -> int:
                 return p
             except OSError:
                 continue
-        raise RuntimeError(f"Could not start metrics server on ports {port}-{port+9}")
+        raise RuntimeError(f"Could not start metrics server on ports {port}-{port + 9}")

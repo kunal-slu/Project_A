@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -25,20 +25,20 @@ _VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 class ConfigLoader:
     """Configuration loader class that provides config loading and validation."""
 
-    def __init__(self, config_path: Optional[str] = None, env: Optional[str] = None):
+    def __init__(self, config_path: str | None = None, env: str | None = None):
         self.config_path = config_path
         self.env = env
         self.config = None
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """Load and resolve configuration."""
         self.config = load_config_resolved(self.config_path, self.env)
         return self.config
 
-    def validate_config(self, config: Dict[str, Any]) -> bool:
+    def validate_config(self, config: dict[str, Any]) -> bool:
         """Validate configuration structure and required fields."""
         try:
-            required_sections = ['unity_catalog', 'azure_security', 'disaster_recovery']
+            required_sections = ["unity_catalog", "azure_security", "disaster_recovery"]
 
             for section in required_sections:
                 if section not in config:
@@ -47,18 +47,18 @@ class ConfigLoader:
                     return False
 
             # Validate unity_catalog
-            uc_config = config['unity_catalog']
-            if not uc_config.get('catalog_name') or not uc_config.get('metastore_id'):
+            uc_config = config["unity_catalog"]
+            if not uc_config.get("catalog_name") or not uc_config.get("metastore_id"):
                 return False
 
             # Validate azure_security
-            sec_config = config['azure_security']
-            if not sec_config.get('subscription_id') or not sec_config.get('resource_group'):
+            sec_config = config["azure_security"]
+            if not sec_config.get("subscription_id") or not sec_config.get("resource_group"):
                 return False
 
             # Validate disaster_recovery
-            dr_config = config['disaster_recovery']
-            if not dr_config.get('primary_region') or not dr_config.get('secondary_region'):
+            dr_config = config["disaster_recovery"]
+            if not dr_config.get("primary_region") or not dr_config.get("secondary_region"):
                 return False
 
             return True
@@ -66,7 +66,7 @@ class ConfigLoader:
         except Exception:
             return False
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """Get the loaded configuration."""
         if self.config is None:
             self.load_config()
@@ -90,7 +90,7 @@ def _get_dbutils():
             return None
 
 
-def _resolve_value(value: Any, dbutils, config: Dict[str, Any] = None) -> Any:
+def _resolve_value(value: Any, dbutils, config: dict[str, Any] = None) -> Any:
     if not isinstance(value, str):
         return value
 
@@ -134,7 +134,7 @@ def _resolve_value(value: Any, dbutils, config: Dict[str, Any] = None) -> Any:
     return _VAR_PATTERN.sub(replace_var, value)
 
 
-def _resolve_secrets(obj: Any, dbutils, config: Dict[str, Any] = None) -> Any:
+def _resolve_secrets(obj: Any, dbutils, config: dict[str, Any] = None) -> Any:
     if isinstance(obj, dict):
         # Pass config to nested resolution
         resolved = {k: _resolve_secrets(v, dbutils, config) for k, v in obj.items()}
@@ -148,8 +148,8 @@ def _resolve_secrets(obj: Any, dbutils, config: Dict[str, Any] = None) -> Any:
 
 
 def load_config_resolved(
-    config_path: Optional[str] = None, env: Optional[str] = None
-) -> Dict[str, Any]:
+    config_path: str | None = None, env: str | None = None
+) -> dict[str, Any]:
     """
     Load config from a path, or pick by environment if path not provided.
     Environment resolution order:
@@ -169,7 +169,7 @@ def load_config_resolved(
         }
         config_path = candidates.get(env, "config/local.yaml")
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     dbutils = _get_dbutils()

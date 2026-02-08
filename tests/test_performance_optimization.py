@@ -10,18 +10,18 @@ This module tests:
 - File compaction and I/O tuning
 """
 
-import pytest
 import json
 from unittest.mock import Mock, patch
-from pyspark.sql import SparkSession
-from pyspark.sql import DataFrame
+
+import pytest
+from pyspark.sql import DataFrame, SparkSession
 
 from project_a.performance_optimizer import (
-    PerformanceOptimizer,
     CacheManager,
     PerformanceBenchmark,
     PerformanceMetrics,
-    create_performance_optimizer
+    PerformanceOptimizer,
+    create_performance_optimizer,
 )
 
 
@@ -253,7 +253,7 @@ class TestPerformanceOptimizer:
         df.rdd.getNumPartitions = Mock(return_value=100)
         df.coalesce = Mock(return_value=df)
 
-        optimized_df = optimizer._optimize_shuffle_partitions(df)
+        optimizer._optimize_shuffle_partitions(df)
 
         # Should call coalesce to reduce partitions
         df.coalesce.assert_called_once()
@@ -269,7 +269,7 @@ class TestPerformanceOptimizer:
         df.rdd.getNumPartitions = Mock(return_value=10)
         df.repartition = Mock(return_value=df)
 
-        optimized_df = optimizer._optimize_file_compaction(df)
+        optimizer._optimize_file_compaction(df)
 
         # Should call repartition for compaction
         # With 50k rows and 3 columns, optimal partitions = 1 (very small dataset)
@@ -397,7 +397,7 @@ class TestPerformanceOptimizerIntegration:
             df.columns = ["col1", "col2", "col3"]
             df.persist = Mock(return_value=df)
 
-            cached_df = optimizer.cache_manager.smart_cache(df, f"dataset_{row_count}", "auto")
+            optimizer.cache_manager.smart_cache(df, f"dataset_{row_count}", "auto")
 
             # Verify storage level selection
             stats = optimizer.cache_manager.cache_stats[f"dataset_{row_count}"]

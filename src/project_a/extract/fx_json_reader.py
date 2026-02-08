@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, Union
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -60,6 +59,8 @@ def read_fx_json(
         df = df.withColumnRenamed("ccy", "base_ccy")
     if "fx_rate" in df.columns and "rate" not in df.columns:
         df = df.withColumnRenamed("fx_rate", "rate")
+    if "counter_ccy" in df.columns and "quote_ccy" not in df.columns:
+        df = df.withColumnRenamed("counter_ccy", "quote_ccy")
     if "currency" in df.columns and "quote_ccy" not in df.columns:
         df = df.withColumnRenamed("currency", "quote_ccy")
 
@@ -68,11 +69,29 @@ def read_fx_json(
     df = (
         df.withColumn(
             "date",
-            F.coalesce(F.to_date("date", "yyyy-MM-dd"), F.to_date("trade_date", "yyyy-MM-dd")),
+            F.to_date(
+                F.coalesce(
+                    F.to_timestamp("date", "yyyy-MM-dd HH:mm:ss"),
+                    F.to_timestamp("date", "yyyy-MM-dd"),
+                    F.to_timestamp("trade_date", "yyyy-MM-dd HH:mm:ss"),
+                    F.to_timestamp("trade_date", "yyyy-MM-dd"),
+                )
+            ),
         )
         .withColumn("base_currency", F.upper(F.coalesce(F.col("base_ccy"), F.col("base_currency"))))
-        .withColumn("target_currency", F.upper(F.coalesce(F.col("quote_ccy"), F.col("target_currency"))))
-        .withColumn("exchange_rate", F.coalesce(F.col("rate"), F.col("exchange_rate")).cast("double"))
+        .withColumn(
+            "target_currency",
+            F.upper(
+                F.coalesce(
+                    F.col("quote_ccy"),
+                    F.col("counter_ccy"),
+                    F.col("target_currency"),
+                )
+            ),
+        )
+        .withColumn(
+            "exchange_rate", F.coalesce(F.col("rate"), F.col("exchange_rate")).cast("double")
+        )
         .withColumn("record_source", F.coalesce(F.col("source"), F.lit("fx-json-demo")))
         .withColumn("ingest_timestamp", F.current_timestamp())
     )
@@ -132,11 +151,12 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
         DataFrame containing normalized FX rates.
     """
     from project_a.schemas.bronze_schemas import FX_RATES_SCHEMA
-    
+
     # Handle both config dict and string path
     if isinstance(bronze_root_or_config, dict):
         # Backward compatibility: extract path from config
         from project_a.utils.path_resolver import resolve_data_path
+
         config = bronze_root_or_config
         fx_cfg = config.get("sources", {}).get("fx", {})
         bronze_root = fx_cfg.get("raw_path", fx_cfg.get("base_path", ""))
@@ -148,14 +168,14 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
     # Handle both bronze paths (s3://.../bronze) and source paths (local file paths)
     if "/fx/" in bronze_root or bronze_root.endswith("/fx"):
         # Already includes /fx, use as-is
-        fx_base = bronze_root.rstrip('/')
+        fx_base = bronze_root.rstrip("/")
     elif bronze_root.endswith(".json") or bronze_root.endswith(".csv"):
         # Direct file path, use as-is
         fx_base = str(Path(bronze_root).parent)
     else:
         # Add /fx suffix
         fx_base = f"{bronze_root.rstrip('/')}/fx"
-    
+
     # Try multiple possible JSON locations
     json_paths = [
         f"{fx_base}/json/fx_rates_historical.json",  # Actual location
@@ -183,28 +203,30 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
             except Exception as e2:
                 logger.debug("JSON not found at %s: %s", json_path, e2)
                 continue
-        
+
         # If JSON failed, try CSV
         if df_raw is None:
             try:
                 logger.info("Trying CSV: %s", csv_path)
-                df_raw = (
-                    spark.read.schema(FX_RATES_SCHEMA)
-                    .option("header", "true")
-                    .csv(csv_path)
-                )
+                df_raw = spark.read.schema(FX_RATES_SCHEMA).option("header", "true").csv(csv_path)
                 logger.info("✅ Loaded FX rates from CSV at %s", csv_path)
             except Exception as e3:
-                logger.warning("❌ No FX data found at any location. Creating empty DataFrame: %s", e3)
+                logger.warning(
+                    "❌ No FX data found at any location. Creating empty DataFrame: %s", e3
+                )
                 # Create empty DataFrame with schema
                 df_raw = spark.createDataFrame([], FX_RATES_SCHEMA)
 
     # Standardize date column
     df = df_raw.withColumn(
         "date",
-        F.coalesce(
-            F.to_date("date"),
-            F.to_date("trade_date"),
+        F.to_date(
+            F.coalesce(
+                F.to_timestamp("date", "yyyy-MM-dd HH:mm:ss"),
+                F.to_timestamp("date", "yyyy-MM-dd"),
+                F.to_timestamp("trade_date", "yyyy-MM-dd HH:mm:ss"),
+                F.to_timestamp("trade_date", "yyyy-MM-dd"),
+            )
         ),
     )
 
@@ -217,18 +239,30 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
         df = df.withColumnRenamed("ccy", "base_ccy")
     if "currency" in df.columns and "quote_ccy" not in df.columns:
         df = df.withColumnRenamed("currency", "quote_ccy")
+    if "counter_ccy" in df.columns and "quote_ccy" not in df.columns:
+        df = df.withColumnRenamed("counter_ccy", "quote_ccy")
     if "fx_rate" in df.columns and "rate" not in df.columns:
         df = df.withColumnRenamed("fx_rate", "rate")
 
-    df = df.withColumn(
-        "base_ccy",
-        F.upper(F.coalesce(F.col("base_ccy"), F.col("base_currency"))),
-    ).withColumn(
-        "quote_ccy",
-        F.upper(F.coalesce(F.col("quote_ccy"), F.col("target_currency"))),
-    ).withColumn(
-        "rate",
-        F.coalesce(F.col("rate"), F.col("exchange_rate")).cast("double"),
+    df = (
+        df.withColumn(
+            "base_ccy",
+            F.upper(F.coalesce(F.col("base_ccy"), F.col("base_currency"))),
+        )
+        .withColumn(
+            "quote_ccy",
+            F.upper(
+                F.coalesce(
+                    F.col("quote_ccy"),
+                    F.col("counter_ccy"),
+                    F.col("target_currency"),
+                )
+            ),
+        )
+        .withColumn(
+            "rate",
+            F.coalesce(F.col("rate"), F.col("exchange_rate")).cast("double"),
+        )
     )
 
     # Provide normalized "fx_*" aliases while keeping original columns

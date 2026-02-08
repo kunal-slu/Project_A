@@ -1,0 +1,220 @@
+# Production Configuration
+# This config is for AWS production deployment
+
+environment: "aws-prod"
+region: "us-east-1"
+
+# AWS Configuration (production buckets)
+aws:
+  region: "us-east-1"
+  s3:
+    data_lake_bucket: "company-data-lake-123456789012"
+    backup_bucket: "company-backups-123456789012"
+    logs_bucket: "company-logs-123456789012"
+    artifacts_bucket: "company-artifacts-123456789012"
+
+# EMR Configuration (production)
+emr:
+  mode: "serverless"
+  application_id: "emr-serverless-app-id-from-terraform"
+  execution_role_arn: "arn:aws:iam::123456789012:role/EmrServerlessJobExecutionRole"
+  spark_submit_defaults:
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.serializer: "org.apache.spark.serializer.KryoSerializer"
+    spark.sql.shuffle.partitions: "200"
+
+# Data Lake Configuration
+data_lake:
+  bronze_prefix: "bronze"
+  silver_prefix: "silver"
+  gold_prefix: "gold"
+  checkpoint_prefix: "checkpoints"
+  metrics_prefix: "metrics"
+
+# Secrets Configuration (production)
+secrets:
+  snowflake: "snowflake/etl/prod"
+  salesforce: "salesforce/api_token/prod"
+  stripe: "stripe/api_token/prod"
+  paypal: "paypal/api_token/prod"
+  redshift: "redshift/etl_user/prod"
+  kafka: "kafka/orders_stream/prod"
+  zendesk: "zendesk/api_token/prod"
+
+# Streaming Configuration (enabled for production)
+streaming:
+  enabled: true
+  source: "kafka"
+  checkpoint_prefix: "checkpoints/streaming/orders"
+  trigger_interval: "5 minutes"
+  kafka:
+    topic: "orders_events"
+    bootstrap_servers: "b-1.msk-prod.example:9092,b-2.msk-prod.example:9092"
+    credentials_secret: "kafka/orders_stream/prod"
+
+# Spark Configuration
+spark:
+  app_name: "Company Production ETL"
+  shuffle_partitions: 200
+  enable_aqe: true
+  cloud: "aws"
+
+# Data Quality Configuration
+data_quality:
+  enabled: true
+  validation_rules:
+    - name: "opportunity_id_not_null"
+      rule: "opportunity_id IS NOT NULL"
+      table: "opportunities"
+    - name: "account_id_not_null"
+      rule: "account_id IS NOT NULL"
+      table: "accounts"
+    - name: "positive_amount"
+      rule: "amount > 0"
+      table: "opportunities"
+    - name: "valid_email_format"
+      rule: "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+      table: "contacts"
+    - name: "valid_close_date"
+      rule: "close_date BETWEEN '2020-01-01' AND CURRENT_DATE"
+      table: "opportunities"
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  metrics_export: "cloudwatch"
+  log_level: "INFO"
+  pipeline_metrics: true
+  metrics_enabled: true
+  thresholds:
+    bronze_to_silver_duration_seconds: 7200
+    silver_to_gold_duration_seconds: 7200
+
+contracts:
+  path: "config/contracts/silver_contracts.yaml"
+
+incremental:
+  orders_lookback_days: 3
+
+# Lake Configuration (S3 paths)
+lake:
+  root: "s3://company-data-lake-123456789012"
+  bronze: "s3://company-data-lake-123456789012/bronze"
+  silver: "s3://company-data-lake-123456789012/silver"
+  gold: "s3://company-data-lake-123456789012/gold"
+  metrics: "s3://company-data-lake-123456789012/metrics"
+  checkpoint: "s3://company-data-lake-123456789012/checkpoints"
+  backup: "s3://company-backups-123456789012"
+
+# Security Configuration
+security:
+  encryption_enabled: true
+  audit_logging: true
+  data_masking: true
+  access_control:
+    - role: "data_engineer"
+      permissions: ["read", "write", "delete"]
+      tables: ["*"]
+    - role: "data_analyst"
+      permissions: ["read"]
+      tables: ["gold_*", "silver_*"]
+    - role: "business_user"
+      permissions: ["read"]
+      tables: ["gold_fact_sales", "gold_dim_accounts"]
+  data_classification:
+    pii_columns:
+      - "email"
+      - "phone"
+      - "mobile_phone"
+      - "billing_street"
+    sensitive_columns:
+      - "annual_revenue"
+      - "amount"
+      - "probability"
+  data_masking_rules:
+    email: "hash"
+    phone: "redact"
+    mobile_phone: "redact"
+    billing_street: "hash"
+    annual_revenue: "mask"
+    amount: "mask"
+    probability: "mask"
+
+# Performance Configuration
+performance:
+  cache_enabled: true
+  partition_size_mb: 128
+  max_partitions: 200
+  broadcast_threshold_mb: 10
+  executor_instances: 5
+  executor_memory: "8g"
+  executor_cores: 4
+
+# SLA Configuration
+sla:
+  bronze_ingestion_hours: 2
+  silver_transformation_hours: 2.5
+  gold_business_logic_hours: 3
+  streaming_delay_minutes: 5
+
+# Lineage Configuration
+lineage:
+  namespace: "company_etl_pipeline"
+  sink: "cloudwatch"
+  environment: "aws-prod"
+  cloudwatch:
+    log_group: "/aws/etl/lineage"
+    region: "us-east-1"
+
+# Schema Contracts Configuration
+schema_contracts:
+  enabled: true
+  validation_mode: "strict"
+  contracts_path: "s3://company-artifacts-123456789012/schema_definitions"
+  required_tables:
+    - "salesforce_accounts_bronze"
+    - "salesforce_contacts_bronze"
+    - "salesforce_leads_bronze"
+    - "salesforce_solutions_bronze"
+    - "orders_bronze"
+    - "products_bronze"
+    - "returns_bronze"
+
+# Data Sources Configuration
+data_sources:
+  crm:
+    salesforce:
+      enabled: true
+      source_type: "api"
+      schema_contract: "salesforce_accounts_bronze"
+      refresh_frequency: "daily"
+      objects:
+        - "accounts"
+        - "contacts"
+        - "leads"
+        - "solutions"
+      landing_zone: "s3://company-data-lake-123456789012/bronze/crm/salesforce/"
+      frequency: "daily"
+      schema: "contract"
+      pii: ["email", "phone", "first_name", "last_name"]
+  snowflake:
+    enabled: true
+    source_type: "database"
+    schema_contract: "orders_bronze"
+    refresh_frequency: "daily"
+  redshift:
+    enabled: true
+    source_type: "database"
+    schema_contract: "products_bronze"
+    refresh_frequency: "daily"
+  kafka:
+    enabled: true
+    source_type: "streaming"
+    schema_contract: "orders_bronze"
+    refresh_frequency: "real-time"
+  fx_vendor:
+    enabled: true
+    source_type: "api"
+    schema_contract: "fx_rates_bronze"
+    refresh_frequency: "hourly"

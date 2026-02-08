@@ -1,0 +1,25 @@
+{
+  "table": "salesforce_tasks_bronze",
+  "primary_key": "task_id",
+  "columns": {
+    "task_id": "string",
+    "entity_type": "string",
+    "entity_id": "string",
+    "subject": "string",
+    "description": "string",
+    "priority": "string",
+    "status": "string",
+    "due_date": "string",
+    "created_date": "string",
+    "owner_id": "string"
+  },
+  "required_non_null": ["task_id", "entity_type", "entity_id", "subject", "priority", "status"],
+  "freshness_column": "created_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "valid_priority": "priority IN ('High', 'Medium', 'Low')",
+    "valid_status": "status IN ('Not Started', 'In Progress', 'Completed', 'Cancelled')",
+    "valid_entity_type": "entity_type IN ('account', 'contact', 'opportunity', 'case')",
+    "due_date_future": "due_date >= created_date"
+  }
+}

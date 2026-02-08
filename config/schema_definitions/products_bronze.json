@@ -1,0 +1,23 @@
+{
+  "table": "products_bronze",
+  "primary_key": "product_id",
+  "columns": {
+    "product_id": "string",
+    "product_name": "string",
+    "category": "string",
+    "brand": "string",
+    "price": "double",
+    "in_stock": "boolean",
+    "launch_date": "string",
+    "rating": "double",
+    "tags": "string"
+  },
+  "required_non_null": ["product_id", "product_name", "category", "price"],
+  "freshness_column": "launch_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "positive_price": "price > 0",
+    "valid_rating": "rating BETWEEN 1.0 AND 5.0",
+    "valid_category": "category IN ('Electronics', 'Grocery', 'Home', 'Sports', 'Clothing')"
+  }
+}

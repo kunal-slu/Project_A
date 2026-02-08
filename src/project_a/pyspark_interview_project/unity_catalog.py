@@ -12,7 +12,7 @@ This module provides comprehensive Unity Catalog integration for:
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
 
@@ -33,6 +33,7 @@ class UnityCatalogManager:
         """Get dbutils instance for Unity Catalog operations."""
         try:
             from pyspark.dbutils import DBUtils
+
             return DBUtils(self.spark)
         except ImportError:
             try:
@@ -77,7 +78,9 @@ class UnityCatalogManager:
             logger.error(f"Failed to create catalog {catalog_name}: {str(e)}")
             return False
 
-    def create_schema(self, catalog_name: str, schema_name: str, description: str = "", owner: str = None) -> bool:
+    def create_schema(
+        self, catalog_name: str, schema_name: str, description: str = "", owner: str = None
+    ) -> bool:
         """
         Create a new schema within a catalog.
 
@@ -113,9 +116,17 @@ class UnityCatalogManager:
             logger.error(f"Failed to create schema {catalog_name}.{schema_name}: {str(e)}")
             return False
 
-    def create_table(self, catalog_name: str, schema_name: str, table_name: str,
-                    df: DataFrame, description: str = "", owner: str = None,
-                    partition_by: List[str] = None, properties: Dict[str, str] = None) -> bool:
+    def create_table(
+        self,
+        catalog_name: str,
+        schema_name: str,
+        table_name: str,
+        df: DataFrame,
+        description: str = "",
+        owner: str = None,
+        partition_by: list[str] = None,
+        properties: dict[str, str] = None,
+    ) -> bool:
         """
         Create a Unity Catalog table from DataFrame.
 
@@ -149,7 +160,9 @@ class UnityCatalogManager:
 
             # Set description and owner if specified
             if description:
-                self.spark.sql(f"ALTER TABLE {table_path} SET TBLPROPERTIES ('comment' = '{description}')")
+                self.spark.sql(
+                    f"ALTER TABLE {table_path} SET TBLPROPERTIES ('comment' = '{description}')"
+                )
 
             if owner:
                 self.spark.sql(f"ALTER TABLE {table_path} OWNER TO `{owner}`")
@@ -158,11 +171,20 @@ class UnityCatalogManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to create table {catalog_name}.{schema_name}.{table_name}: {str(e)}")
+            logger.error(
+                f"Failed to create table {catalog_name}.{schema_name}.{table_name}: {str(e)}"
+            )
             return False
 
-    def grant_permissions(self, catalog_name: str, schema_name: str, table_name: str,
-                         principal: str, permissions: List[str], grant_option: bool = False) -> bool:
+    def grant_permissions(
+        self,
+        catalog_name: str,
+        schema_name: str,
+        table_name: str,
+        principal: str,
+        permissions: list[str],
+        grant_option: bool = False,
+    ) -> bool:
         """
         Grant permissions on Unity Catalog table.
 
@@ -198,8 +220,9 @@ class UnityCatalogManager:
             logger.error(f"Failed to grant permissions on {table_path}: {str(e)}")
             return False
 
-    def create_external_location(self, location_name: str, url: str,
-                               credential_name: str, owner: str = None) -> bool:
+    def create_external_location(
+        self, location_name: str, url: str, credential_name: str, owner: str = None
+    ) -> bool:
         """
         Create external location for cross-workspace data sharing.
 
@@ -238,8 +261,15 @@ class UnityCatalogManager:
             logger.error(f"Failed to create external location {location_name}: {str(e)}")
             return False
 
-    def share_table(self, catalog_name: str, schema_name: str, table_name: str,
-                   share_name: str, recipients: List[str], comment: str = "") -> bool:
+    def share_table(
+        self,
+        catalog_name: str,
+        schema_name: str,
+        table_name: str,
+        share_name: str,
+        recipients: list[str],
+        comment: str = "",
+    ) -> bool:
         """
         Share a table with other workspaces/users.
 
@@ -281,7 +311,9 @@ class UnityCatalogManager:
             logger.error(f"Failed to share table {table_path}: {str(e)}")
             return False
 
-    def get_table_lineage(self, catalog_name: str, schema_name: str, table_name: str) -> Dict[str, Any]:
+    def get_table_lineage(
+        self, catalog_name: str, schema_name: str, table_name: str
+    ) -> dict[str, Any]:
         """
         Get lineage information for a table.
 
@@ -317,18 +349,28 @@ class UnityCatalogManager:
                 "lineage_records": lineage_df.limit(100).collect(),
                 "total_upstream_tables": lineage_df.select("upstream_table").distinct().count(),
                 "total_columns": lineage_df.select("column_name").distinct().count(),
-                "retrieved_at": datetime.now().isoformat()
+                "retrieved_at": datetime.now().isoformat(),
             }
 
-            logger.info(f"Retrieved lineage for {table_path}: {lineage_data['total_upstream_tables']} upstream tables")
+            logger.info(
+                f"Retrieved lineage for {table_path}: {lineage_data['total_upstream_tables']} upstream tables"
+            )
             return lineage_data
 
         except Exception as e:
-            logger.error(f"Failed to get lineage for {catalog_name}.{schema_name}.{table_name}: {str(e)}")
+            logger.error(
+                f"Failed to get lineage for {catalog_name}.{schema_name}.{table_name}: {str(e)}"
+            )
             return {"error": str(e)}
 
-    def set_data_classification(self, catalog_name: str, schema_name: str, table_name: str,
-                               classification: str, sensitivity_level: str = None) -> bool:
+    def set_data_classification(
+        self,
+        catalog_name: str,
+        schema_name: str,
+        table_name: str,
+        classification: str,
+        sensitivity_level: str = None,
+    ) -> bool:
         """
         Set data classification and sensitivity level for a table.
 
@@ -346,9 +388,7 @@ class UnityCatalogManager:
             table_path = f"{catalog_name}.{schema_name}.{table_name}"
 
             # Set classification properties
-            properties = {
-                "data.classification": classification
-            }
+            properties = {"data.classification": classification}
 
             if sensitivity_level:
                 properties["data.sensitivity"] = sensitivity_level
@@ -364,8 +404,9 @@ class UnityCatalogManager:
             logger.error(f"Failed to set classification for {table_path}: {str(e)}")
             return False
 
-    def create_data_governance_policy(self, policy_name: str, description: str,
-                                    rules: List[Dict[str, Any]]) -> bool:
+    def create_data_governance_policy(
+        self, policy_name: str, description: str, rules: list[dict[str, Any]]
+    ) -> bool:
         """
         Create a data governance policy.
 
@@ -383,12 +424,12 @@ class UnityCatalogManager:
                 return False
 
             # Create policy using dbutils
-            policy_config = {
+            {
                 "name": policy_name,
                 "description": description,
                 "rules": rules,
                 "created_at": datetime.now().isoformat(),
-                "enabled": True
+                "enabled": True,
             }
 
             # Store policy configuration (in production, this would go to a metadata store)
@@ -399,8 +440,15 @@ class UnityCatalogManager:
             logger.error(f"Failed to create governance policy {policy_name}: {str(e)}")
             return False
 
-    def audit_table_access(self, catalog_name: str, schema_name: str, table_name: str,
-                          user: str, action: str, timestamp: datetime = None) -> bool:
+    def audit_table_access(
+        self,
+        catalog_name: str,
+        schema_name: str,
+        table_name: str,
+        user: str,
+        action: str,
+        timestamp: datetime = None,
+    ) -> bool:
         """
         Audit table access for compliance.
 
@@ -428,11 +476,15 @@ class UnityCatalogManager:
                 "action": action,
                 "timestamp": timestamp.isoformat(),
                 "workspace_id": os.environ.get("DATABRICKS_WORKSPACE_ID", "unknown"),
-                "cluster_id": self.spark.conf.get("spark.databricks.clusterUsageTags.clusterId", "unknown")
+                "cluster_id": self.spark.conf.get(
+                    "spark.databricks.clusterUsageTags.clusterId", "unknown"
+                ),
             }
 
             # In production, this would write to an audit log table
-            logger.info(f"Audit: {user} performed {action} on {catalog_name}.{schema_name}.{table_name}")
+            logger.info(
+                f"Audit: {user} performed {action} on {catalog_name}.{schema_name}.{table_name}"
+            )
 
             # Store audit record (simplified - in production use proper audit table)
             audit_df = self.spark.createDataFrame([audit_data])
@@ -444,7 +496,7 @@ class UnityCatalogManager:
             logger.error(f"Failed to audit table access: {str(e)}")
             return False
 
-    def get_governance_summary(self) -> Dict[str, Any]:
+    def get_governance_summary(self) -> dict[str, Any]:
         """
         Get summary of governance status across all catalogs.
 
@@ -459,7 +511,7 @@ class UnityCatalogManager:
                 "classified_tables": 0,
                 "shared_tables": 0,
                 "governance_policies": 0,
-                "last_updated": datetime.now().isoformat()
+                "last_updated": datetime.now().isoformat(),
             }
 
             # Query Unity Catalog metadata
@@ -504,8 +556,8 @@ class UnityCatalogManager:
                     "rules": [
                         "DELETE data older than 7 years for financial records",
                         "DELETE data older than 3 years for customer data",
-                        "ARCHIVE data older than 1 year"
-                    ]
+                        "ARCHIVE data older than 1 year",
+                    ],
                 },
                 {
                     "name": "data_access_policy",
@@ -513,8 +565,8 @@ class UnityCatalogManager:
                     "rules": [
                         "ADMIN users can access all data",
                         "ANALYST users can access non-sensitive data",
-                        "AUDITOR users can read-only access for compliance"
-                    ]
+                        "AUDITOR users can read-only access for compliance",
+                    ],
                 },
                 {
                     "name": "data_quality_policy",
@@ -522,17 +574,15 @@ class UnityCatalogManager:
                     "rules": [
                         "All tables must have primary keys",
                         "Required fields cannot be NULL",
-                        "Data must pass validation before ingestion"
-                    ]
-                }
+                        "Data must pass validation before ingestion",
+                    ],
+                },
             ]
 
             # Create policies
             for policy in policies:
                 success = self.create_data_governance_policy(
-                    policy["name"],
-                    policy["description"],
-                    policy["rules"]
+                    policy["name"], policy["description"], policy["rules"]
                 )
                 if success:
                     logger.info(f"Created governance policy: {policy['name']}")
@@ -544,7 +594,7 @@ class UnityCatalogManager:
                 ("public", "PUBLIC"),
                 ("internal", "INTERNAL"),
                 ("confidential", "CONFIDENTIAL"),
-                ("restricted", "RESTRICTED")
+                ("restricted", "RESTRICTED"),
             ]
 
             for classification, level in default_classifications:
@@ -565,7 +615,7 @@ class UnityCatalogManager:
             logger.error(f"Failed to setup Unity Catalog governance: {str(e)}")
             return False
 
-    def list_catalogs(self) -> List[str]:
+    def list_catalogs(self) -> list[str]:
         """
         List all available catalogs.
 
@@ -580,7 +630,9 @@ class UnityCatalogManager:
             return []
 
 
-def setup_unity_catalog_governance(spark: SparkSession, config: Dict[str, Any]) -> UnityCatalogManager:
+def setup_unity_catalog_governance(
+    spark: SparkSession, config: dict[str, Any]
+) -> UnityCatalogManager:
     """
     Setup Unity Catalog governance for the project.
 
@@ -608,9 +660,7 @@ def setup_unity_catalog_governance(spark: SparkSession, config: Dict[str, Any]) 
         governance_policies = governance_config.get("policies", [])
         for policy in governance_policies:
             uc_manager.create_data_governance_policy(
-                policy["name"],
-                policy["description"],
-                policy["rules"]
+                policy["name"], policy["description"], policy["rules"]
             )
 
         logger.info(f"Unity Catalog governance setup completed for {catalog_name}.{schema_name}")
@@ -621,8 +671,9 @@ def setup_unity_catalog_governance(spark: SparkSession, config: Dict[str, Any]) 
         raise
 
 
-def migrate_to_unity_catalog(spark: SparkSession, config: Dict[str, Any],
-                           uc_manager: UnityCatalogManager) -> bool:
+def migrate_to_unity_catalog(
+    spark: SparkSession, config: dict[str, Any], uc_manager: UnityCatalogManager
+) -> bool:
     """
     Migrate existing Delta tables to Unity Catalog.
 
@@ -644,14 +695,20 @@ def migrate_to_unity_catalog(spark: SparkSession, config: Dict[str, Any],
         schema_name = config.get("governance", {}).get("schema_name", "data_engineering")
 
         # Migrate bronze tables
-        bronze_tables = ["customers_raw", "products_raw", "orders_raw", "returns_raw", "fx_rates", "inventory_snapshots"]
+        bronze_tables = [
+            "customers_raw",
+            "products_raw",
+            "orders_raw",
+            "returns_raw",
+            "fx_rates",
+            "inventory_snapshots",
+        ]
         for table in bronze_tables:
             source_path = f"{bronze_path}/{table}"
             if os.path.exists(source_path):
                 df = spark.read.format("delta").load(source_path)
                 uc_manager.create_table(
-                    catalog_name, schema_name, f"bronze_{table}",
-                    df, f"Bronze layer table: {table}"
+                    catalog_name, schema_name, f"bronze_{table}", df, f"Bronze layer table: {table}"
                 )
 
         # Migrate silver tables
@@ -661,8 +718,7 @@ def migrate_to_unity_catalog(spark: SparkSession, config: Dict[str, Any],
             if os.path.exists(source_path):
                 df = spark.read.format("delta").load(source_path)
                 uc_manager.create_table(
-                    catalog_name, schema_name, f"silver_{table}",
-                    df, f"Silver layer table: {table}"
+                    catalog_name, schema_name, f"silver_{table}", df, f"Silver layer table: {table}"
                 )
 
         # Migrate gold tables
@@ -672,8 +728,7 @@ def migrate_to_unity_catalog(spark: SparkSession, config: Dict[str, Any],
             if os.path.exists(source_path):
                 df = spark.read.format("delta").load(source_path)
                 uc_manager.create_table(
-                    catalog_name, schema_name, f"gold_{table}",
-                    df, f"Gold layer table: {table}"
+                    catalog_name, schema_name, f"gold_{table}", df, f"Gold layer table: {table}"
                 )
 
         logger.info("Successfully migrated tables to Unity Catalog")

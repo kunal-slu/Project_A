@@ -3,9 +3,11 @@ PII masking utilities for GDPR/CCPA compliance.
 
 Provides UDFs for masking sensitive data in Silver/Gold layers.
 """
+
 import logging
+
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType, IntegerType
+from pyspark.sql.types import StringType
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +64,10 @@ mask_name = udf(_mask_name, StringType())
 mask_ip = udf(_mask_ip, StringType())
 
 
-def apply_pii_masking(df, email_col=None, phone_col=None, ssn_col=None, 
-                      name_col=None, ip_col=None):
+def apply_pii_masking(df, email_col=None, phone_col=None, ssn_col=None, name_col=None, ip_col=None):
     """
     Apply PII masking to specified columns in DataFrame.
-    
+
     Args:
         df: Input DataFrame
         email_col: Column name for email masking
@@ -74,40 +75,39 @@ def apply_pii_masking(df, email_col=None, phone_col=None, ssn_col=None,
         ssn_col: Column name for SSN masking
         name_col: Column name for name masking
         ip_col: Column name for IP masking
-        
+
     Returns:
         DataFrame with PII masked
-        
+
     Example:
         masked_df = apply_pii_masking(
-            df, 
+            df,
             email_col="email",
             phone_col="phone_number"
         )
     """
     from pyspark.sql import functions as F
-    
+
     df_masked = df
-    
+
     if email_col and email_col in df.columns:
         logger.info(f"Masking PII: {email_col}")
         df_masked = df_masked.withColumn(email_col, mask_email(F.col(email_col)))
-    
+
     if phone_col and phone_col in df.columns:
         logger.info(f"Masking PII: {phone_col}")
         df_masked = df_masked.withColumn(phone_col, mask_phone(F.col(phone_col)))
-    
+
     if ssn_col and ssn_col in df.columns:
         logger.info(f"Masking PII: {ssn_col}")
         df_masked = df_masked.withColumn(ssn_col, mask_ssn(F.col(ssn_col)))
-    
+
     if name_col and name_col in df.columns:
         logger.info(f"Masking PII: {name_col}")
         df_masked = df_masked.withColumn(name_col, mask_name(F.col(name_col)))
-    
+
     if ip_col and ip_col in df.columns:
         logger.info(f"Masking PII: {ip_col}")
         df_masked = df_masked.withColumn(ip_col, mask_ip(F.col(ip_col)))
-    
-    return df_masked
 
+    return df_masked

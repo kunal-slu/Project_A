@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Optional, Dict
-
-import yaml
+from typing import Any
 
 # Matches ${ENV:VAR} or ${SECRET:scope:key} or ${paths.bronze_root} style variable references
 _SECRET_PATTERN = re.compile(r"\$\{(ENV|SECRET):([^}:]+)(?::([^}]+))?\}")
@@ -25,17 +23,17 @@ _VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 class ConfigLoader:
     """Configuration loader class that provides config loading and validation."""
 
-    def __init__(self, config_path: Optional[str] = None, env: Optional[str] = None):
+    def __init__(self, config_path: str | None = None, env: str | None = None):
         self.config_path = config_path
         self.env = env
         self.config = None
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """Load and resolve configuration."""
         self.config = load_config_resolved(self.config_path, self.env)
         return self.config
 
-    def validate_config(self, config: Dict[str, Any]) -> bool:
+    def validate_config(self, config: dict[str, Any]) -> bool:
         """Validate configuration structure and required fields."""
         try:
             required_sections = ["unity_catalog", "azure_security", "disaster_recovery"]
@@ -66,7 +64,7 @@ class ConfigLoader:
         except Exception:
             return False
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """Get the loaded configuration."""
         if self.config is None:
             self.load_config()
@@ -90,7 +88,7 @@ def _get_dbutils():
             return None
 
 
-def _resolve_value(value: Any, dbutils, config: Optional[Dict[str, Any]] = None) -> Any:
+def _resolve_value(value: Any, dbutils, config: dict[str, Any] | None = None) -> Any:
     if not isinstance(value, str):
         return value
 
@@ -134,7 +132,7 @@ def _resolve_value(value: Any, dbutils, config: Optional[Dict[str, Any]] = None)
     return _VAR_PATTERN.sub(replace_var, value)
 
 
-def _resolve_secrets(obj: Any, dbutils, config: Optional[Dict[str, Any]] = None) -> Any:
+def _resolve_secrets(obj: Any, dbutils, config: dict[str, Any] | None = None) -> Any:
     if isinstance(obj, dict):
         # Pass config to nested resolution
         resolved = {k: _resolve_secrets(v, dbutils, config) for k, v in obj.items()}
@@ -147,7 +145,9 @@ def _resolve_secrets(obj: Any, dbutils, config: Optional[Dict[str, Any]] = None)
     return _resolve_value(obj, dbutils, config)
 
 
-def load_config_resolved(config_path: Optional[str] = None, env: Optional[str] = None) -> Dict[str, Any]:
+def load_config_resolved(
+    config_path: str | None = None, env: str | None = None
+) -> dict[str, Any]:
     """
     Load config from a path, or pick by environment if path not provided.
     Environment resolution order:
@@ -155,22 +155,30 @@ def load_config_resolved(config_path: Optional[str] = None, env: Optional[str] =
       - APP_ENV environment variable (e.g., dev|staging|prod|azure-prod)
       - default to dev
     """
-    if config_path is None:
-        env = env or os.environ.get("APP_ENV", "dev")
-        candidates = {
-            "dev": "config/local.yaml",
-            "staging": "config/config-staging.yaml",
-            "prod": "config/config-prod.yaml",
-            "azure-dev": "config/config-azure-dev.yaml",
-            "azure-staging": "config/config-azure-staging.yaml",
-            "azure-prod": "config/config-azure-prod.yaml",
-        }
-        config_path = candidates.get(env, "config/local.yaml")
+    from project_a.utils.config import load_config_resolved as _load_config_resolved
 
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
+    # Compatibility: support historic paths used in tests/scripts.
+    if config_path == "config/config-dev.yaml":
+        config_path = "config/dev.yaml"
 
-    dbutils = _get_dbutils()
-    # First pass: resolve secrets, second pass: resolve variable references
-    cfg = _resolve_secrets(cfg, dbutils, cfg)
+    cfg = _load_config_resolved(config_path=config_path, env=env)
+
+    # Backfill legacy aliases expected by old integration tests.
+    paths = cfg.get("paths", {})
+    cfg.setdefault(
+        "input",
+        {
+            "customer_path": paths.get("bronze_root", "data/input/customers.csv"),
+            "orders_path": "data/input/orders.json",
+            "products_path": "data/input/products.csv",
+        },
+    )
+    cfg.setdefault(
+        "output",
+        {
+            "bronze_path": paths.get("bronze_root", "data/bronze"),
+            "silver_path": paths.get("silver_root", "data/silver"),
+            "gold_path": paths.get("gold_root", "data/gold"),
+        },
+    )
     return cfg

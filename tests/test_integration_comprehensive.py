@@ -4,41 +4,32 @@ Comprehensive Integration Tests for the Enterprise Data Platform.
 Tests full ETL pipeline with sample data, DR configs, and performance benchmarks.
 """
 
-import sys
-import os
 import json
-import tempfile
-import shutil
 import logging
-from pathlib import Path
+import os
+import shutil
+import sys
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from project_a import (
-    build_spark,
-    load_config_resolved,
-    extract_customers,
-    extract_products,
-    extract_orders_json,
-    extract_returns,
-    extract_exchange_rates,
-    extract_inventory_snapshots,
-    write_delta,
-    write_parquet
-)
-
-from project_a.ingestion_pipeline import IngestionPipeline
-from project_a.metrics_collector import MetricsCollector
+from project_a import build_spark, load_config_resolved
+from project_a.data_contracts import DataContractManager
 from project_a.data_quality_suite import DataQualitySuite
 from project_a.disaster_recovery import DisasterRecoveryExecutor
-from project_a.data_contracts import DataContractManager
+from project_a.ingestion_pipeline import IngestionPipeline
+from project_a.jobs.kafka_csv_to_bronze import main as stream_orders_to_bronze
+from project_a.legacy.enterprise_data_platform import EnterpriseDataPlatform
+from project_a.metrics_collector import MetricsCollector
 from project_a.performance_optimizer import PerformanceOptimizer
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class ComprehensiveIntegrationTest:
     """Comprehensive integration test suite."""
@@ -56,7 +47,7 @@ class ComprehensiveIntegrationTest:
         print("🔧 Setting up comprehensive integration test environment...")
 
         # Load configuration
-        self.config = load_config_resolved('config/config-dev.yaml')
+        self.config = load_config_resolved("config/config-dev.yaml")
 
         # Create Spark session
         self.spark = build_spark(self.config)
@@ -81,7 +72,7 @@ class ComprehensiveIntegrationTest:
             "data/metrics",
             "data/contracts",
             "data/backups",
-            "data/replication"
+            "data/replication",
         ]
 
         for dir_path in test_dirs:
@@ -94,58 +85,358 @@ class ComprehensiveIntegrationTest:
 
         # Sample customers data
         customers_data = [
-            ("C001", "John", "Doe", "john@example.com", "123 Main St", "Austin", "TX", "USA", "78701", "555-0101", "2021-01-01", "M", 30),
-            ("C002", "Jane", "Smith", "jane@example.com", "456 Oak Ave", "Dallas", "TX", "USA", "75201", "555-0102", "2021-01-02", "F", 25),
-            ("C003", "Bob", "Johnson", "bob@example.com", "789 Pine Rd", "Houston", "TX", "USA", "77001", "555-0103", "2021-01-03", "M", 35),
-            ("C004", "Alice", "Brown", "alice@example.com", "321 Elm St", "San Antonio", "TX", "USA", "78201", "555-0104", "2021-01-04", "F", 28),
-            ("C005", "Charlie", "Wilson", "charlie@example.com", "654 Maple Dr", "Fort Worth", "TX", "USA", "76101", "555-0105", "2021-01-05", "M", 32)
+            (
+                "C001",
+                "John",
+                "Doe",
+                "john@example.com",
+                "123 Main St",
+                "Austin",
+                "TX",
+                "USA",
+                "78701",
+                "555-0101",
+                "2021-01-01",
+                "M",
+                30,
+            ),
+            (
+                "C002",
+                "Jane",
+                "Smith",
+                "jane@example.com",
+                "456 Oak Ave",
+                "Dallas",
+                "TX",
+                "USA",
+                "75201",
+                "555-0102",
+                "2021-01-02",
+                "F",
+                25,
+            ),
+            (
+                "C003",
+                "Bob",
+                "Johnson",
+                "bob@example.com",
+                "789 Pine Rd",
+                "Houston",
+                "TX",
+                "USA",
+                "77001",
+                "555-0103",
+                "2021-01-03",
+                "M",
+                35,
+            ),
+            (
+                "C004",
+                "Alice",
+                "Brown",
+                "alice@example.com",
+                "321 Elm St",
+                "San Antonio",
+                "TX",
+                "USA",
+                "78201",
+                "555-0104",
+                "2021-01-04",
+                "F",
+                28,
+            ),
+            (
+                "C005",
+                "Charlie",
+                "Wilson",
+                "charlie@example.com",
+                "654 Maple Dr",
+                "Fort Worth",
+                "TX",
+                "USA",
+                "76101",
+                "555-0105",
+                "2021-01-05",
+                "M",
+                32,
+            ),
         ]
 
         customers_df = self.spark.createDataFrame(
             customers_data,
-            ["customer_id", "first_name", "last_name", "email", "address", "city", "state", "country", "zip", "phone", "registration_date", "gender", "age"]
+            [
+                "customer_id",
+                "first_name",
+                "last_name",
+                "email",
+                "address",
+                "city",
+                "state",
+                "country",
+                "zip",
+                "phone",
+                "registration_date",
+                "gender",
+                "age",
+            ],
         )
 
         # Sample products data
         products_data = [
-            ("P001", "Laptop", "Electronics", 999.99, "TechCorp", "High-performance laptop", "2021-01-01", True, "LAP001"),
-            ("P002", "Smartphone", "Electronics", 599.99, "TechCorp", "5G smartphone", "2021-01-01", True, "PHN001"),
-            ("P003", "Headphones", "Electronics", 199.99, "AudioTech", "Wireless headphones", "2021-01-01", True, "AUD001"),
-            ("P004", "T-Shirt", "Clothing", 29.99, "FashionCo", "Cotton t-shirt", "2021-01-01", True, "CLT001"),
-            ("P005", "Jeans", "Clothing", 79.99, "FashionCo", "Blue jeans", "2021-01-01", True, "CLJ001")
+            (
+                "P001",
+                "Laptop",
+                "Electronics",
+                999.99,
+                "TechCorp",
+                "High-performance laptop",
+                "2021-01-01",
+                True,
+                "LAP001",
+            ),
+            (
+                "P002",
+                "Smartphone",
+                "Electronics",
+                599.99,
+                "TechCorp",
+                "5G smartphone",
+                "2021-01-01",
+                True,
+                "PHN001",
+            ),
+            (
+                "P003",
+                "Headphones",
+                "Electronics",
+                199.99,
+                "AudioTech",
+                "Wireless headphones",
+                "2021-01-01",
+                True,
+                "AUD001",
+            ),
+            (
+                "P004",
+                "T-Shirt",
+                "Clothing",
+                29.99,
+                "FashionCo",
+                "Cotton t-shirt",
+                "2021-01-01",
+                True,
+                "CLT001",
+            ),
+            (
+                "P005",
+                "Jeans",
+                "Clothing",
+                79.99,
+                "FashionCo",
+                "Blue jeans",
+                "2021-01-01",
+                True,
+                "CLJ001",
+            ),
         ]
 
         products_df = self.spark.createDataFrame(
             products_data,
-            ["product_id", "name", "category", "price", "brand", "description", "created_date", "is_active", "sku"]
+            [
+                "product_id",
+                "name",
+                "category",
+                "price",
+                "brand",
+                "description",
+                "created_date",
+                "is_active",
+                "sku",
+            ],
         )
 
         # Sample orders data
         orders_data = [
-            ("O001", "C001", "P001", "2021-01-15", 1, 999.99, "USD", True, False, "123 Main St", "credit_card"),
-            ("O002", "C002", "P002", "2021-01-16", 1, 599.99, "USD", True, False, "456 Oak Ave", "credit_card"),
-            ("O003", "C003", "P003", "2021-01-17", 2, 399.98, "USD", True, False, "789 Pine Rd", "paypal"),
-            ("O004", "C004", "P004", "2021-01-18", 3, 89.97, "USD", True, False, "321 Elm St", "credit_card"),
-            ("O005", "C005", "P005", "2021-01-19", 1, 79.99, "USD", True, False, "654 Maple Dr", "credit_card")
+            (
+                "O001",
+                "C001",
+                "P001",
+                "2021-01-15",
+                1,
+                999.99,
+                "USD",
+                True,
+                False,
+                "123 Main St",
+                "credit_card",
+            ),
+            (
+                "O002",
+                "C002",
+                "P002",
+                "2021-01-16",
+                1,
+                599.99,
+                "USD",
+                True,
+                False,
+                "456 Oak Ave",
+                "credit_card",
+            ),
+            (
+                "O003",
+                "C003",
+                "P003",
+                "2021-01-17",
+                2,
+                399.98,
+                "USD",
+                True,
+                False,
+                "789 Pine Rd",
+                "paypal",
+            ),
+            (
+                "O004",
+                "C004",
+                "P004",
+                "2021-01-18",
+                3,
+                89.97,
+                "USD",
+                True,
+                False,
+                "321 Elm St",
+                "credit_card",
+            ),
+            (
+                "O005",
+                "C005",
+                "P005",
+                "2021-01-19",
+                1,
+                79.99,
+                "USD",
+                True,
+                False,
+                "654 Maple Dr",
+                "credit_card",
+            ),
         ]
 
         orders_df = self.spark.createDataFrame(
             orders_data,
-            ["order_id", "customer_id", "product_id", "order_date", "quantity", "amount", "currency", "shipped", "returned", "shipping_address", "payment_method"]
+            [
+                "order_id",
+                "customer_id",
+                "product_id",
+                "order_date",
+                "quantity",
+                "amount",
+                "currency",
+                "shipped",
+                "returned",
+                "shipping_address",
+                "payment_method",
+            ],
         )
 
         # Sample returns data
         returns_data = [
-            ("R001", "O001", "C001", "P001", "2021-02-01", "defective", 999.99, 999.99, "processed", "mail", 3, False, "Product was damaged"),
-            ("R002", "O002", "C002", "P002", "2021-02-02", "wrong_size", 599.99, 599.99, "pending", "store", 1, True, "Size too small"),
-            ("R003", "O003", "C003", "P003", "2021-02-03", "not_as_described", 199.99, 199.99, "processed", "mail", 5, False, "Not as advertised"),
-            ("R004", "O004", "C004", "P004", "2021-02-04", "changed_mind", 29.99, 29.99, "pending", "store", 2, False, "Customer changed mind"),
-            ("R005", "O005", "C005", "P005", "2021-02-05", "damaged", 79.99, 79.99, "processed", "mail", 4, False, "Damaged during shipping")
+            (
+                "R001",
+                "O001",
+                "C001",
+                "P001",
+                "2021-02-01",
+                "defective",
+                999.99,
+                999.99,
+                "processed",
+                "mail",
+                3,
+                False,
+                "Product was damaged",
+            ),
+            (
+                "R002",
+                "O002",
+                "C002",
+                "P002",
+                "2021-02-02",
+                "wrong_size",
+                599.99,
+                599.99,
+                "pending",
+                "store",
+                1,
+                True,
+                "Size too small",
+            ),
+            (
+                "R003",
+                "O003",
+                "C003",
+                "P003",
+                "2021-02-03",
+                "not_as_described",
+                199.99,
+                199.99,
+                "processed",
+                "mail",
+                5,
+                False,
+                "Not as advertised",
+            ),
+            (
+                "R004",
+                "O004",
+                "C004",
+                "P004",
+                "2021-02-04",
+                "changed_mind",
+                29.99,
+                29.99,
+                "pending",
+                "store",
+                2,
+                False,
+                "Customer changed mind",
+            ),
+            (
+                "R005",
+                "O005",
+                "C005",
+                "P005",
+                "2021-02-05",
+                "damaged",
+                79.99,
+                79.99,
+                "processed",
+                "mail",
+                4,
+                False,
+                "Damaged during shipping",
+            ),
         ]
 
         returns_df = self.spark.createDataFrame(
             returns_data,
-            ["return_id", "order_id", "customer_id", "product_id", "return_date", "return_reason", "refund_amount", "order_amount", "return_status", "return_method", "processing_time_days", "is_partial_return", "return_notes"]
+            [
+                "return_id",
+                "order_id",
+                "customer_id",
+                "product_id",
+                "return_date",
+                "return_reason",
+                "refund_amount",
+                "order_amount",
+                "return_status",
+                "return_method",
+                "processing_time_days",
+                "is_partial_return",
+                "return_notes",
+            ],
         )
 
         # Sample inventory data
@@ -154,12 +445,20 @@ class ComprehensiveIntegrationTest:
             ("INV002", "P002", 75, "2021-01-01", "WH001", 15, 150),
             ("INV003", "P003", 100, "2021-01-01", "WH002", 20, 200),
             ("INV004", "P004", 200, "2021-01-01", "WH002", 40, 400),
-            ("INV005", "P005", 150, "2021-01-01", "WH003", 30, 300)
+            ("INV005", "P005", 150, "2021-01-01", "WH003", 30, 300),
         ]
 
         inventory_df = self.spark.createDataFrame(
             inventory_data,
-            ["snapshot_id", "product_id", "quantity", "snapshot_date", "warehouse_id", "reorder_level", "max_stock"]
+            [
+                "snapshot_id",
+                "product_id",
+                "quantity",
+                "snapshot_date",
+                "warehouse_id",
+                "reorder_level",
+                "max_stock",
+            ],
         )
 
         # Sample FX rates data
@@ -168,12 +467,11 @@ class ComprehensiveIntegrationTest:
             ("FX002", "USD", "GBP", 0.73, "2021-01-01", "BOE"),
             ("FX003", "USD", "JPY", 110.50, "2021-01-01", "BOJ"),
             ("FX004", "EUR", "USD", 1.18, "2021-01-01", "ECB"),
-            ("FX005", "GBP", "USD", 1.37, "2021-01-01", "BOE")
+            ("FX005", "GBP", "USD", 1.37, "2021-01-01", "BOE"),
         ]
 
         fx_df = self.spark.createDataFrame(
-            fx_data,
-            ["rate_id", "from_currency", "to_currency", "rate", "effective_date", "source"]
+            fx_data, ["rate_id", "from_currency", "to_currency", "rate", "effective_date", "source"]
         )
 
         # Save sample data to test directories
@@ -184,7 +482,9 @@ class ComprehensiveIntegrationTest:
         self._save_sample_data(inventory_df, "inventory_snapshots")
         self._save_sample_data(fx_df, "fx_rates")
 
-        print(f"✅ Created sample data: {len(customers_data)} customers, {len(products_data)} products, {len(orders_data)} orders, {len(returns_data)} returns")
+        print(
+            f"✅ Created sample data: {len(customers_data)} customers, {len(products_data)} products, {len(orders_data)} orders, {len(returns_data)} returns"
+        )
 
     def _save_sample_data(self, df, table_name):
         """Save sample data to test directory."""
@@ -201,11 +501,15 @@ class ComprehensiveIntegrationTest:
 
             # Run bronze to silver ingestion
             bronze_to_silver_result = ingestion_pipeline.run_bronze_to_silver()
-            assert bronze_to_silver_result["success"], f"Bronze to silver failed: {bronze_to_silver_result.get('error')}"
+            assert bronze_to_silver_result["success"], (
+                f"Bronze to silver failed: {bronze_to_silver_result.get('error')}"
+            )
 
             # Run silver to gold ingestion
             silver_to_gold_result = ingestion_pipeline.run_silver_to_gold()
-            assert silver_to_gold_result["success"], f"Silver to gold failed: {silver_to_gold_result.get('error')}"
+            assert silver_to_gold_result["success"], (
+                f"Silver to gold failed: {silver_to_gold_result.get('error')}"
+            )
 
             # Verify data in each layer
             bronze_count = self._count_files_in_layer("bronze")
@@ -251,8 +555,12 @@ class ComprehensiveIntegrationTest:
             # Run DQ checks
             dq_results = dq_suite.run_data_quality_checks(returns_df, "returns_raw")
 
-            assert dq_results["overall_score"] >= 0.8, f"Data quality score too low: {dq_results['overall_score']}"
-            assert len(dq_results["failed_checks"]) == 0, f"Data quality checks failed: {dq_results['failed_checks']}"
+            assert dq_results["overall_score"] >= 0.8, (
+                f"Data quality score too low: {dq_results['overall_score']}"
+            )
+            assert len(dq_results["failed_checks"]) == 0, (
+                f"Data quality checks failed: {dq_results['failed_checks']}"
+            )
 
             self.test_results["data_quality"] = "PASSED"
             print("✅ Data quality suite test passed")
@@ -277,7 +585,9 @@ class ComprehensiveIntegrationTest:
             # Validate against contract
             validation_result = contract_manager.validate_contract(returns_df, "returns_raw")
 
-            assert validation_result["overall_valid"], f"Contract validation failed: {validation_result.get('error')}"
+            assert validation_result["overall_valid"], (
+                f"Contract validation failed: {validation_result.get('error')}"
+            )
 
             # Test schema drift detection
             drift_result = contract_manager.detect_schema_drift(returns_df, "returns_raw")
@@ -302,24 +612,26 @@ class ComprehensiveIntegrationTest:
                 "retention_days": 30,
                 "storage_account": "testbackup",
                 "container": "backups",
-                "compression": "gzip"
+                "compression": "gzip",
             }
 
             replication_config = {
                 "source_region": "eastus",
                 "target_region": "westus2",
                 "sync_interval_minutes": 60,
-                "data_types": ["bronze", "silver", "gold"]
+                "data_types": ["bronze", "silver", "gold"],
             }
 
             # Save test configs
             backup_config_path = self.temp_dir / "data" / "backups" / "backup_strategy.json"
-            replication_config_path = self.temp_dir / "data" / "replication" / "replication_config.json"
+            replication_config_path = (
+                self.temp_dir / "data" / "replication" / "replication_config.json"
+            )
 
-            with open(backup_config_path, 'w') as f:
+            with open(backup_config_path, "w") as f:
                 json.dump(backup_config, f, indent=2)
 
-            with open(replication_config_path, 'w') as f:
+            with open(replication_config_path, "w") as f:
                 json.dump(replication_config, f, indent=2)
 
             # Initialize DR executor
@@ -327,11 +639,17 @@ class ComprehensiveIntegrationTest:
 
             # Test backup execution
             backup_result = dr_executor.execute_backup_strategy(str(backup_config_path))
-            assert backup_result["success"], f"Backup execution failed: {backup_result.get('error')}"
+            assert backup_result["success"], (
+                f"Backup execution failed: {backup_result.get('error')}"
+            )
 
             # Test replication execution
-            replication_result = dr_executor.execute_replication_config(str(replication_config_path))
-            assert replication_result["success"], f"Replication execution failed: {replication_result.get('error')}"
+            replication_result = dr_executor.execute_replication_config(
+                str(replication_config_path)
+            )
+            assert replication_result["success"], (
+                f"Replication execution failed: {replication_result.get('error')}"
+            )
 
             self.test_results["disaster_recovery"] = "PASSED"
             print("✅ Disaster recovery test passed")
@@ -391,17 +709,19 @@ class ComprehensiveIntegrationTest:
                 "status": "completed",
                 "records_processed": 1000,
                 "processing_time_seconds": 300,
-                "data_quality_score": 0.95
+                "data_quality_score": 0.95,
             }
 
             # Save metrics
             metrics_path = self.temp_dir / "data" / "metrics" / "pipeline_metrics.json"
-            with open(metrics_path, 'w') as f:
+            with open(metrics_path, "w") as f:
                 json.dump(pipeline_metrics, f, indent=2)
 
             # Test metrics ingestion
             ingestion_result = metrics_collector.ingest_pipeline_metrics(str(metrics_path))
-            assert ingestion_result["success"], f"Metrics ingestion failed: {ingestion_result.get('error')}"
+            assert ingestion_result["success"], (
+                f"Metrics ingestion failed: {ingestion_result.get('error')}"
+            )
 
             # Test metrics aggregation
             aggregated_metrics = metrics_collector.aggregate_metrics()
@@ -425,8 +745,20 @@ class ComprehensiveIntegrationTest:
 
             # Create sample streaming data
             streaming_orders = [
-                {"order_id": "SO001", "customer_id": "C001", "product_id": "P001", "order_date": "2021-01-20", "amount": 999.99},
-                {"order_id": "SO002", "customer_id": "C002", "product_id": "P002", "order_date": "2021-01-21", "amount": 599.99}
+                {
+                    "order_id": "SO001",
+                    "customer_id": "C001",
+                    "product_id": "P001",
+                    "order_date": "2021-01-20",
+                    "amount": 999.99,
+                },
+                {
+                    "order_id": "SO002",
+                    "customer_id": "C002",
+                    "product_id": "P002",
+                    "order_date": "2021-01-21",
+                    "amount": 599.99,
+                },
             ]
 
             # Test streaming data processing (basic validation)
@@ -452,8 +784,12 @@ class ComprehensiveIntegrationTest:
             ingestion_pipeline = IngestionPipeline(self.spark, self.config)
 
             # Test incremental load detection
-            assert hasattr(ingestion_pipeline, 'detect_incremental_changes'), "Missing incremental change detection"
-            assert hasattr(ingestion_pipeline, 'process_incremental_changes'), "Missing incremental processing"
+            assert hasattr(ingestion_pipeline, "detect_incremental_changes"), (
+                "Missing incremental change detection"
+            )
+            assert hasattr(ingestion_pipeline, "process_incremental_changes"), (
+                "Missing incremental processing"
+            )
 
             # Test incremental load simulation
             incremental_result = ingestion_pipeline.detect_incremental_changes("returns_raw")
@@ -480,7 +816,7 @@ class ComprehensiveIntegrationTest:
             self.test_performance_optimization,
             self.test_metrics_integration,
             self.test_streaming_integration,
-            self.test_incremental_loading
+            self.test_incremental_loading,
         ]
 
         passed = 0

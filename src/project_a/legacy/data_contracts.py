@@ -4,18 +4,27 @@ Defines and enforces data contracts for all tables including returns_raw.
 Handles schema evolution, validation, and drift detection.
 """
 
-import logging
 import json
+import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, List, Any, Union
-from pathlib import Path
-from dataclasses import dataclass, asdict
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import (
-    StructType, StructField, StringType, IntegerType, DoubleType,
-    TimestampType, BooleanType, DateType, DecimalType, ArrayType, MapType
+    ArrayType,
+    BooleanType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    IntegerType,
+    MapType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,13 +32,15 @@ logger = logging.getLogger(__name__)
 
 class ContractSeverity(Enum):
     """Contract validation severity levels."""
-    ERROR = "error"           # Fail pipeline
-    WARNING = "warning"       # Log warning, continue
-    INFO = "info"            # Log info only
+
+    ERROR = "error"  # Fail pipeline
+    WARNING = "warning"  # Log warning, continue
+    INFO = "info"  # Log info only
 
 
 class SchemaChangeType(Enum):
     """Types of schema changes."""
+
     ADD_COLUMN = "add_column"
     REMOVE_COLUMN = "remove_column"
     CHANGE_TYPE = "change_type"
@@ -41,10 +52,11 @@ class SchemaChangeType(Enum):
 @dataclass
 class DataConstraint:
     """Data quality constraint definition."""
+
     name: str
     constraint_type: str  # not_null, unique, range, regex, custom
     column: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     severity: ContractSeverity = ContractSeverity.ERROR
     description: str = ""
     enabled: bool = True
@@ -53,18 +65,19 @@ class DataConstraint:
 @dataclass
 class TableContract:
     """Data contract for a table."""
+
     table_name: str
     version: str
     schema: StructType
-    constraints: List[DataConstraint]
-    partition_columns: List[str] = None
-    clustering_columns: List[str] = None
+    constraints: list[DataConstraint]
+    partition_columns: list[str] = None
+    clustering_columns: list[str] = None
     retention_days: int = 365
     created_at: str = None
     updated_at: str = None
     owner: str = "data_team"
     description: str = ""
-    tags: List[str] = None
+    tags: list[str] = None
     schema_evolution_policy: str = "strict"  # strict, flexible, backward_compatible
 
 
@@ -79,7 +92,7 @@ class DataContractManager:
         self.contracts_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize contracts
-        self.contracts: Dict[str, TableContract] = {}
+        self.contracts: dict[str, TableContract] = {}
         self._load_existing_contracts()
         self._create_default_contracts()
 
@@ -88,7 +101,7 @@ class DataContractManager:
         try:
             for contract_file in self.contracts_dir.glob("*.json"):
                 try:
-                    with open(contract_file, 'r') as f:
+                    with open(contract_file) as f:
                         contract_data = json.load(f)
 
                     # Reconstruct schema from JSON
@@ -115,7 +128,9 @@ class DataContractManager:
                         owner=contract_data.get("owner", "data_team"),
                         description=contract_data.get("description", ""),
                         tags=contract_data.get("tags", []),
-                        schema_evolution_policy=contract_data.get("schema_evolution_policy", "strict")
+                        schema_evolution_policy=contract_data.get(
+                            "schema_evolution_policy", "strict"
+                        ),
                     )
 
                     self.contracts[contract_data["table_name"]] = contract
@@ -128,7 +143,7 @@ class DataContractManager:
         except Exception as e:
             logger.warning(f"Failed to load existing contracts: {e}")
 
-    def _schema_from_json(self, schema_json: Dict[str, Any]) -> StructType:
+    def _schema_from_json(self, schema_json: dict[str, Any]) -> StructType:
         """Reconstruct PySpark schema from JSON."""
         fields = []
 
@@ -138,13 +153,13 @@ class DataContractManager:
                 name=field_data["name"],
                 dataType=field_type,
                 nullable=field_data.get("nullable", True),
-                metadata=field_data.get("metadata", {})
+                metadata=field_data.get("metadata", {}),
             )
             fields.append(field)
 
         return StructType(fields)
 
-    def _type_from_json(self, type_data: Union[str, Dict[str, Any]]) -> Any:
+    def _type_from_json(self, type_data: str | dict[str, Any]) -> Any:
         """Convert JSON type representation to PySpark type."""
         if isinstance(type_data, str):
             type_mapping = {
@@ -153,7 +168,7 @@ class DataContractManager:
                 "double": DoubleType(),
                 "timestamp": TimestampType(),
                 "boolean": BooleanType(),
-                "date": DateType()
+                "date": DateType(),
             }
             return type_mapping.get(type_data, StringType())
 
@@ -167,8 +182,7 @@ class DataContractManager:
                 return MapType(key_type, value_type)
             elif type_data["type"] == "decimal":
                 return DecimalType(
-                    precision=type_data.get("precision", 10),
-                    scale=type_data.get("scale", 2)
+                    precision=type_data.get("precision", 10), scale=type_data.get("scale", 2)
                 )
 
         return StringType()
@@ -181,7 +195,7 @@ class DataContractManager:
             "products_raw": self._create_products_raw_contract(),
             "orders_raw": self._create_orders_raw_contract(),
             "inventory_snapshots": self._create_inventory_contract(),
-            "fx_rates": self._create_fx_rates_contract()
+            "fx_rates": self._create_fx_rates_contract(),
         }
 
         for table_name, contract in default_contracts.items():
@@ -192,23 +206,25 @@ class DataContractManager:
 
     def _create_returns_raw_contract(self) -> TableContract:
         """Create comprehensive contract for returns_raw table."""
-        schema = StructType([
-            StructField("return_id", StringType(), False),
-            StructField("order_id", StringType(), False),
-            StructField("customer_id", StringType(), False),
-            StructField("product_id", StringType(), False),
-            StructField("return_date", TimestampType(), True),
-            StructField("return_reason", StringType(), True),
-            StructField("refund_amount", DecimalType(10, 2), True),
-            StructField("order_amount", DecimalType(10, 2), True),
-            StructField("return_status", StringType(), True),
-            StructField("return_method", StringType(), True),
-            StructField("processing_time_days", IntegerType(), True),
-            StructField("is_partial_return", BooleanType(), True),
-            StructField("return_notes", StringType(), True),
-            StructField("created_at", TimestampType(), True),
-            StructField("updated_at", TimestampType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("return_id", StringType(), False),
+                StructField("order_id", StringType(), False),
+                StructField("customer_id", StringType(), False),
+                StructField("product_id", StringType(), False),
+                StructField("return_date", TimestampType(), True),
+                StructField("return_reason", StringType(), True),
+                StructField("refund_amount", DecimalType(10, 2), True),
+                StructField("order_amount", DecimalType(10, 2), True),
+                StructField("return_status", StringType(), True),
+                StructField("return_method", StringType(), True),
+                StructField("processing_time_days", IntegerType(), True),
+                StructField("is_partial_return", BooleanType(), True),
+                StructField("return_notes", StringType(), True),
+                StructField("created_at", TimestampType(), True),
+                StructField("updated_at", TimestampType(), True),
+            ]
+        )
 
         constraints = [
             DataConstraint(
@@ -217,7 +233,7 @@ class DataContractManager:
                 column="return_id",
                 parameters={},
                 severity=ContractSeverity.ERROR,
-                description="Return ID must not be null"
+                description="Return ID must not be null",
             ),
             DataConstraint(
                 name="return_id_unique",
@@ -225,7 +241,7 @@ class DataContractManager:
                 column="return_id",
                 parameters={},
                 severity=ContractSeverity.ERROR,
-                description="Return ID must be unique"
+                description="Return ID must be unique",
             ),
             DataConstraint(
                 name="order_id_not_null",
@@ -233,15 +249,17 @@ class DataContractManager:
                 column="order_id",
                 parameters={},
                 severity=ContractSeverity.ERROR,
-                description="Order ID must not be null"
+                description="Order ID must not be null",
             ),
             DataConstraint(
                 name="return_reason_valid",
                 constraint_type="regex",
                 column="return_reason",
-                parameters={"pattern": r"^(defective|wrong_size|not_as_described|damaged|changed_mind|other)$"},
+                parameters={
+                    "pattern": r"^(defective|wrong_size|not_as_described|damaged|changed_mind|other)$"
+                },
                 severity=ContractSeverity.ERROR,
-                description="Return reason must be from predefined list"
+                description="Return reason must be from predefined list",
             ),
             DataConstraint(
                 name="refund_amount_positive",
@@ -249,7 +267,7 @@ class DataContractManager:
                 column="refund_amount",
                 parameters={"min": 0, "max": 1000000},
                 severity=ContractSeverity.ERROR,
-                description="Refund amount must be positive and reasonable"
+                description="Refund amount must be positive and reasonable",
             ),
             DataConstraint(
                 name="return_date_reasonable",
@@ -257,7 +275,7 @@ class DataContractManager:
                 column="return_date",
                 parameters={"min": "2020-01-01", "max": "2030-12-31"},
                 severity=ContractSeverity.WARNING,
-                description="Return date should be within reasonable range"
+                description="Return date should be within reasonable range",
             ),
             DataConstraint(
                 name="processing_time_reasonable",
@@ -265,8 +283,8 @@ class DataContractManager:
                 column="processing_time_days",
                 parameters={"min": 0, "max": 365},
                 severity=ContractSeverity.WARNING,
-                description="Processing time should be reasonable"
-            )
+                description="Processing time should be reasonable",
+            ),
         ]
 
         return TableContract(
@@ -282,23 +300,25 @@ class DataContractManager:
             owner="returns_team",
             description="Raw returns data with comprehensive validation rules",
             tags=["returns", "refunds", "customer_service"],
-            schema_evolution_policy="backward_compatible"
+            schema_evolution_policy="backward_compatible",
         )
 
     def _create_customers_raw_contract(self) -> TableContract:
         """Create contract for customers_raw table."""
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("age", IntegerType(), True),
-            StructField("address", StringType(), True),
-            StructField("total_spent", DecimalType(12, 2), True),
-            StructField("created_date", TimestampType(), True),
-            StructField("last_purchase_date", TimestampType(), True),
-            StructField("customer_tier", StringType(), True),
-            StructField("is_active", BooleanType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("age", IntegerType(), True),
+                StructField("address", StringType(), True),
+                StructField("total_spent", DecimalType(12, 2), True),
+                StructField("created_date", TimestampType(), True),
+                StructField("last_purchase_date", TimestampType(), True),
+                StructField("customer_tier", StringType(), True),
+                StructField("is_active", BooleanType(), True),
+            ]
+        )
 
         constraints = [
             DataConstraint(
@@ -306,22 +326,22 @@ class DataContractManager:
                 constraint_type="not_null",
                 column="customer_id",
                 parameters={},
-                severity=ContractSeverity.ERROR
+                severity=ContractSeverity.ERROR,
             ),
             DataConstraint(
                 name="email_format",
                 constraint_type="regex",
                 column="email",
                 parameters={"pattern": r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"},
-                severity=ContractSeverity.ERROR
+                severity=ContractSeverity.ERROR,
             ),
             DataConstraint(
                 name="age_range",
                 constraint_type="range",
                 column="age",
                 parameters={"min": 0, "max": 120},
-                severity=ContractSeverity.WARNING
-            )
+                severity=ContractSeverity.WARNING,
+            ),
         ]
 
         return TableContract(
@@ -330,22 +350,24 @@ class DataContractManager:
             schema=schema,
             constraints=constraints,
             partition_columns=["created_date"],
-            clustering_columns=["customer_tier", "is_active"]
+            clustering_columns=["customer_tier", "is_active"],
         )
 
     def _create_products_raw_contract(self) -> TableContract:
         """Create contract for products_raw table."""
-        schema = StructType([
-            StructField("product_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("category", StringType(), True),
-            StructField("price", DecimalType(10, 2), True),
-            StructField("brand", StringType(), True),
-            StructField("description", StringType(), True),
-            StructField("created_date", TimestampType(), True),
-            StructField("is_active", BooleanType(), True),
-            StructField("sku", StringType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("product_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("category", StringType(), True),
+                StructField("price", DecimalType(10, 2), True),
+                StructField("brand", StringType(), True),
+                StructField("description", StringType(), True),
+                StructField("created_date", TimestampType(), True),
+                StructField("is_active", BooleanType(), True),
+                StructField("sku", StringType(), True),
+            ]
+        )
 
         constraints = [
             DataConstraint(
@@ -353,15 +375,15 @@ class DataContractManager:
                 constraint_type="not_null",
                 column="product_id",
                 parameters={},
-                severity=ContractSeverity.ERROR
+                severity=ContractSeverity.ERROR,
             ),
             DataConstraint(
                 name="price_positive",
                 constraint_type="range",
                 column="price",
                 parameters={"min": 0, "max": 100000},
-                severity=ContractSeverity.ERROR
-            )
+                severity=ContractSeverity.ERROR,
+            ),
         ]
 
         return TableContract(
@@ -370,23 +392,25 @@ class DataContractManager:
             schema=schema,
             constraints=constraints,
             partition_columns=["created_date"],
-            clustering_columns=["category", "brand"]
+            clustering_columns=["category", "brand"],
         )
 
     def _create_orders_raw_contract(self) -> TableContract:
         """Create contract for orders_raw table."""
-        schema = StructType([
-            StructField("order_id", StringType(), False),
-            StructField("customer_id", StringType(), False),
-            StructField("product_id", StringType(), False),
-            StructField("order_date", TimestampType(), True),
-            StructField("amount", DecimalType(12, 2), True),
-            StructField("currency", StringType(), True),
-            StructField("shipped", BooleanType(), True),
-            StructField("returned", BooleanType(), True),
-            StructField("shipping_address", StringType(), True),
-            StructField("payment_method", StringType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("order_id", StringType(), False),
+                StructField("customer_id", StringType(), False),
+                StructField("product_id", StringType(), False),
+                StructField("order_date", TimestampType(), True),
+                StructField("amount", DecimalType(12, 2), True),
+                StructField("currency", StringType(), True),
+                StructField("shipped", BooleanType(), True),
+                StructField("returned", BooleanType(), True),
+                StructField("shipping_address", StringType(), True),
+                StructField("payment_method", StringType(), True),
+            ]
+        )
 
         constraints = [
             DataConstraint(
@@ -394,15 +418,15 @@ class DataContractManager:
                 constraint_type="not_null",
                 column="order_id",
                 parameters={},
-                severity=ContractSeverity.ERROR
+                severity=ContractSeverity.ERROR,
             ),
             DataConstraint(
                 name="amount_positive",
                 constraint_type="range",
                 column="amount",
                 parameters={"min": 0, "max": 1000000},
-                severity=ContractSeverity.ERROR
-            )
+                severity=ContractSeverity.ERROR,
+            ),
         ]
 
         return TableContract(
@@ -411,20 +435,22 @@ class DataContractManager:
             schema=schema,
             constraints=constraints,
             partition_columns=["order_date"],
-            clustering_columns=["shipped", "returned"]
+            clustering_columns=["shipped", "returned"],
         )
 
     def _create_inventory_contract(self) -> TableContract:
         """Create contract for inventory_snapshots table."""
-        schema = StructType([
-            StructField("snapshot_id", StringType(), False),
-            StructField("product_id", StringType(), False),
-            StructField("quantity", IntegerType(), True),
-            StructField("snapshot_date", TimestampType(), True),
-            StructField("warehouse_id", StringType(), True),
-            StructField("reorder_level", IntegerType(), True),
-            StructField("max_stock", IntegerType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("snapshot_id", StringType(), False),
+                StructField("product_id", StringType(), False),
+                StructField("quantity", IntegerType(), True),
+                StructField("snapshot_date", TimestampType(), True),
+                StructField("warehouse_id", StringType(), True),
+                StructField("reorder_level", IntegerType(), True),
+                StructField("max_stock", IntegerType(), True),
+            ]
+        )
 
         constraints = [
             DataConstraint(
@@ -432,7 +458,7 @@ class DataContractManager:
                 constraint_type="range",
                 column="quantity",
                 parameters={"min": 0, "max": 1000000},
-                severity=ContractSeverity.ERROR
+                severity=ContractSeverity.ERROR,
             )
         ]
 
@@ -442,19 +468,21 @@ class DataContractManager:
             schema=schema,
             constraints=constraints,
             partition_columns=["snapshot_date"],
-            clustering_columns=["warehouse_id"]
+            clustering_columns=["warehouse_id"],
         )
 
     def _create_fx_rates_contract(self) -> TableContract:
         """Create contract for fx_rates table."""
-        schema = StructType([
-            StructField("rate_id", StringType(), False),
-            StructField("from_currency", StringType(), False),
-            StructField("to_currency", StringType(), False),
-            StructField("rate", DecimalType(10, 6), True),
-            StructField("effective_date", TimestampType(), True),
-            StructField("source", StringType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("rate_id", StringType(), False),
+                StructField("from_currency", StringType(), False),
+                StructField("to_currency", StringType(), False),
+                StructField("rate", DecimalType(10, 6), True),
+                StructField("effective_date", TimestampType(), True),
+                StructField("source", StringType(), True),
+            ]
+        )
 
         constraints = [
             DataConstraint(
@@ -462,7 +490,7 @@ class DataContractManager:
                 constraint_type="range",
                 column="rate",
                 parameters={"min": 0.000001, "max": 1000000},
-                severity=ContractSeverity.ERROR
+                severity=ContractSeverity.ERROR,
             )
         ]
 
@@ -472,16 +500,16 @@ class DataContractManager:
             schema=schema,
             constraints=constraints,
             partition_columns=["effective_date"],
-            clustering_columns=["from_currency", "to_currency"]
+            clustering_columns=["from_currency", "to_currency"],
         )
 
-    def validate_contract(self, df: DataFrame, table_name: str) -> Dict[str, Any]:
+    def validate_contract(self, df: DataFrame, table_name: str) -> dict[str, Any]:
         """Validate DataFrame against its contract."""
         if table_name not in self.contracts:
             return {
                 "valid": False,
                 "error": f"No contract found for table {table_name}",
-                "table_name": table_name
+                "table_name": table_name,
             }
 
         contract = self.contracts[table_name]
@@ -495,7 +523,7 @@ class DataContractManager:
             "schema_violations": [],
             "constraint_violations": [],
             "warnings": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
         try:
@@ -512,8 +540,7 @@ class DataContractManager:
 
             # Overall validation
             validation_result["overall_valid"] = (
-                validation_result["schema_valid"] and
-                validation_result["constraints_valid"]
+                validation_result["schema_valid"] and validation_result["constraints_valid"]
             )
 
             # Generate recommendations
@@ -521,7 +548,9 @@ class DataContractManager:
                 validation_result, contract
             )
 
-            logger.info(f"Contract validation for {table_name}: {'PASSED' if validation_result['overall_valid'] else 'FAILED'}")
+            logger.info(
+                f"Contract validation for {table_name}: {'PASSED' if validation_result['overall_valid'] else 'FAILED'}"
+            )
 
         except Exception as e:
             validation_result["error"] = str(e)
@@ -529,14 +558,14 @@ class DataContractManager:
 
         return validation_result
 
-    def _validate_schema(self, df: DataFrame, contract: TableContract) -> Dict[str, Any]:
+    def _validate_schema(self, df: DataFrame, contract: TableContract) -> dict[str, Any]:
         """Validate DataFrame schema against contract schema."""
         result = {
             "valid": True,
             "violations": [],
             "missing_columns": [],
             "extra_columns": [],
-            "type_mismatches": []
+            "type_mismatches": [],
         }
 
         try:
@@ -551,17 +580,21 @@ class DataContractManager:
             if missing_columns:
                 result["missing_columns"] = list(missing_columns)
                 result["valid"] = False
-                result["violations"].append(f"Missing required columns: {', '.join(missing_columns)}")
+                result["violations"].append(
+                    f"Missing required columns: {', '.join(missing_columns)}"
+                )
 
             # Check for type mismatches
             type_mismatches = []
             for field_name in set(expected_fields.keys()) & set(actual_fields.keys()):
                 if str(expected_fields[field_name]) != str(actual_fields[field_name]):
-                    type_mismatches.append({
-                        "column": field_name,
-                        "expected": str(expected_fields[field_name]),
-                        "actual": str(actual_fields[field_name])
-                    })
+                    type_mismatches.append(
+                        {
+                            "column": field_name,
+                            "expected": str(expected_fields[field_name]),
+                            "actual": str(actual_fields[field_name]),
+                        }
+                    )
 
             if type_mismatches:
                 result["type_mismatches"] = type_mismatches
@@ -583,14 +616,9 @@ class DataContractManager:
 
         return result
 
-    def _validate_constraints(self, df: DataFrame, contract: TableContract) -> Dict[str, Any]:
+    def _validate_constraints(self, df: DataFrame, contract: TableContract) -> dict[str, Any]:
         """Validate DataFrame against contract constraints."""
-        result = {
-            "valid": True,
-            "violations": [],
-            "warnings": [],
-            "constraint_results": {}
-        }
+        result = {"valid": True, "violations": [], "warnings": [], "constraint_results": {}}
 
         try:
             for constraint in contract.constraints:
@@ -603,9 +631,13 @@ class DataContractManager:
                 if not constraint_result["valid"]:
                     if constraint.severity == ContractSeverity.ERROR:
                         result["valid"] = False
-                        result["violations"].append(f"{constraint.name}: {constraint_result['message']}")
+                        result["violations"].append(
+                            f"{constraint.name}: {constraint_result['message']}"
+                        )
                     elif constraint.severity == ContractSeverity.WARNING:
-                        result["warnings"].append(f"{constraint.name}: {constraint_result['message']}")
+                        result["warnings"].append(
+                            f"{constraint.name}: {constraint_result['message']}"
+                        )
 
         except Exception as e:
             result["valid"] = False
@@ -613,13 +645,11 @@ class DataContractManager:
 
         return result
 
-    def _validate_single_constraint(self, df: DataFrame, constraint: DataConstraint) -> Dict[str, Any]:
+    def _validate_single_constraint(
+        self, df: DataFrame, constraint: DataConstraint
+    ) -> dict[str, Any]:
         """Validate a single constraint."""
-        result = {
-            "valid": False,
-            "message": "",
-            "details": {}
-        }
+        result = {"valid": False, "message": "", "details": {}}
 
         try:
             if constraint.constraint_type == "not_null":
@@ -632,7 +662,9 @@ class DataContractManager:
                 total_count = df.count()
                 unique_count = df.select(constraint.column).distinct().count()
                 result["valid"] = total_count == unique_count
-                result["message"] = f"Found {total_count - unique_count} duplicate values in {constraint.column}"
+                result["message"] = (
+                    f"Found {total_count - unique_count} duplicate values in {constraint.column}"
+                )
                 result["details"] = {"total_count": total_count, "unique_count": unique_count}
 
             elif constraint.constraint_type == "range":
@@ -642,20 +674,23 @@ class DataContractManager:
                 if min_val is not None:
                     below_min = df.filter(df[constraint.column] < min_val).count()
                     if below_min > 0:
-                        result["message"] = f"Found {below_min} values below minimum {min_val} in {constraint.column}"
+                        result["message"] = (
+                            f"Found {below_min} values below minimum {min_val} in {constraint.column}"
+                        )
                         result["details"]["below_min_count"] = below_min
                         result["details"]["below_min_values"] = below_min
 
                 if max_val is not None:
                     above_max = df.filter(df[constraint.column] > max_val).count()
                     if above_max > 0:
-                        result["message"] = f"Found {above_max} values above maximum {max_val} in {constraint.column}"
+                        result["message"] = (
+                            f"Found {above_max} values above maximum {max_val} in {constraint.column}"
+                        )
                         result["details"]["above_max_count"] = above_max
                         result["details"]["above_max_values"] = above_max
 
-                result["valid"] = (
-                    (min_val is None or below_min == 0) and
-                    (max_val is None or above_max == 0)
+                result["valid"] = (min_val is None or below_min == 0) and (
+                    max_val is None or above_max == 0
                 )
 
             elif constraint.constraint_type == "regex":
@@ -676,7 +711,9 @@ class DataContractManager:
 
         return result
 
-    def _generate_recommendations(self, validation_result: Dict[str, Any], contract: TableContract) -> List[str]:
+    def _generate_recommendations(
+        self, validation_result: dict[str, Any], contract: TableContract
+    ) -> list[str]:
         """Generate recommendations based on validation results."""
         recommendations = []
 
@@ -686,7 +723,9 @@ class DataContractManager:
                 recommendations.append("Review and fix schema violations before processing data")
 
             if validation_result.get("missing_columns"):
-                recommendations.append(f"Add missing columns: {', '.join(validation_result['missing_columns'])}")
+                recommendations.append(
+                    f"Add missing columns: {', '.join(validation_result['missing_columns'])}"
+                )
 
             if validation_result.get("type_mismatches"):
                 recommendations.append("Review data types and ensure compatibility")
@@ -696,23 +735,24 @@ class DataContractManager:
             if validation_result["constraint_violations"]:
                 recommendations.append("Address constraint violations to ensure data quality")
 
-            recommendations.append("Consider adjusting constraint parameters if violations are expected")
+            recommendations.append(
+                "Consider adjusting constraint parameters if violations are expected"
+            )
 
         # General recommendations
         if contract.schema_evolution_policy == "strict":
-            recommendations.append("Schema evolution policy is strict - changes require contract updates")
+            recommendations.append(
+                "Schema evolution policy is strict - changes require contract updates"
+            )
         elif contract.schema_evolution_policy == "flexible":
             recommendations.append("Schema evolution policy is flexible - new columns are allowed")
 
         return recommendations
 
-    def detect_schema_drift(self, df: DataFrame, table_name: str) -> Dict[str, Any]:
+    def detect_schema_drift(self, df: DataFrame, table_name: str) -> dict[str, Any]:
         """Detect schema drift and suggest evolution."""
         if table_name not in self.contracts:
-            return {
-                "drift_detected": False,
-                "error": f"No contract found for table {table_name}"
-            }
+            return {"drift_detected": False, "error": f"No contract found for table {table_name}"}
 
         contract = contract = self.contracts[table_name]
         drift_result = {
@@ -724,7 +764,7 @@ class DataContractManager:
             "removed_columns": [],
             "type_changes": [],
             "evolution_recommendations": [],
-            "contract_update_needed": False
+            "contract_update_needed": False,
         }
 
         try:
@@ -746,24 +786,24 @@ class DataContractManager:
             type_changes = []
             for field_name in set(expected_fields.keys()) & set(actual_fields.keys()):
                 if str(expected_fields[field_name]) != str(actual_fields[field_name]):
-                    type_changes.append({
-                        "column": field_name,
-                        "old_type": str(expected_fields[field_name]),
-                        "new_type": str(actual_fields[field_name])
-                    })
+                    type_changes.append(
+                        {
+                            "column": field_name,
+                            "old_type": str(expected_fields[field_name]),
+                            "new_type": str(actual_fields[field_name]),
+                        }
+                    )
             drift_result["type_changes"] = type_changes
 
             # Determine if drift was detected
             drift_result["drift_detected"] = (
-                len(new_columns) > 0 or
-                len(removed_columns) > 0 or
-                len(type_changes) > 0
+                len(new_columns) > 0 or len(removed_columns) > 0 or len(type_changes) > 0
             )
 
             # Generate evolution recommendations
             if drift_result["drift_detected"]:
-                drift_result["evolution_recommendations"] = self._generate_evolution_recommendations(
-                    drift_result, contract
+                drift_result["evolution_recommendations"] = (
+                    self._generate_evolution_recommendations(drift_result, contract)
                 )
 
                 # Check if contract update is needed
@@ -771,12 +811,13 @@ class DataContractManager:
                     drift_result["contract_update_needed"] = True
                 elif contract.schema_evolution_policy == "backward_compatible":
                     # Only backward-incompatible changes require updates
-                    drift_result["contract_update_needed"] = (
-                        len(removed_columns) > 0 or
-                        any(self._is_backward_incompatible_change(change) for change in type_changes)
+                    drift_result["contract_update_needed"] = len(removed_columns) > 0 or any(
+                        self._is_backward_incompatible_change(change) for change in type_changes
                     )
 
-            logger.info(f"Schema drift detection for {table_name}: {'DRIFT DETECTED' if drift_result['drift_detected'] else 'NO DRIFT'}")
+            logger.info(
+                f"Schema drift detection for {table_name}: {'DRIFT DETECTED' if drift_result['drift_detected'] else 'NO DRIFT'}"
+            )
 
         except Exception as e:
             drift_result["error"] = str(e)
@@ -784,7 +825,7 @@ class DataContractManager:
 
         return drift_result
 
-    def _is_backward_incompatible_change(self, type_change: Dict[str, Any]) -> bool:
+    def _is_backward_incompatible_change(self, type_change: dict[str, Any]) -> bool:
         """Check if a type change is backward incompatible."""
         old_type = type_change["old_type"]
         new_type = type_change["new_type"]
@@ -797,7 +838,7 @@ class DataContractManager:
         safe_conversions = {
             "IntegerType()": ["LongType()", "DoubleType()", "DecimalType()"],
             "LongType()": ["DoubleType()", "DecimalType()"],
-            "FloatType()": ["DoubleType()", "DecimalType()"]
+            "FloatType()": ["DoubleType()", "DecimalType()"],
         }
 
         if old_type in safe_conversions and new_type in safe_conversions[old_type]:
@@ -805,29 +846,42 @@ class DataContractManager:
 
         return True
 
-    def _generate_evolution_recommendations(self, drift_result: Dict[str, Any], contract: TableContract) -> List[str]:
+    def _generate_evolution_recommendations(
+        self, drift_result: dict[str, Any], contract: TableContract
+    ) -> list[str]:
         """Generate recommendations for schema evolution."""
         recommendations = []
 
         if drift_result["new_columns"]:
             if contract.schema_evolution_policy == "strict":
-                recommendations.append(f"New columns detected: {', '.join(drift_result['new_columns'])}. Update contract to include these columns.")
+                recommendations.append(
+                    f"New columns detected: {', '.join(drift_result['new_columns'])}. Update contract to include these columns."
+                )
             else:
-                recommendations.append(f"New columns detected: {', '.join(drift_result['new_columns'])}. These are allowed by current policy.")
+                recommendations.append(
+                    f"New columns detected: {', '.join(drift_result['new_columns'])}. These are allowed by current policy."
+                )
 
         if drift_result["removed_columns"]:
-            recommendations.append(f"Removed columns detected: {', '.join(drift_result['removed_columns'])}. Review if these columns are still needed.")
+            recommendations.append(
+                f"Removed columns detected: {', '.join(drift_result['removed_columns'])}. Review if these columns are still needed."
+            )
 
         if drift_result["type_changes"]:
-            recommendations.append("Type changes detected. Review compatibility and update contract if needed.")
+            recommendations.append(
+                "Type changes detected. Review compatibility and update contract if needed."
+            )
 
         if contract.schema_evolution_policy == "strict":
-            recommendations.append("Consider relaxing schema evolution policy if frequent schema changes are expected.")
+            recommendations.append(
+                "Consider relaxing schema evolution policy if frequent schema changes are expected."
+            )
 
         return recommendations
 
-    def evolve_contract(self, table_name: str, evolution_type: SchemaChangeType,
-                       details: Dict[str, Any]) -> Dict[str, Any]:
+    def evolve_contract(
+        self, table_name: str, evolution_type: SchemaChangeType, details: dict[str, Any]
+    ) -> dict[str, Any]:
         """Evolve a contract based on schema changes."""
         if table_name not in self.contracts:
             return {"error": f"No contract found for table {table_name}"}
@@ -841,7 +895,7 @@ class DataContractManager:
             "details": details,
             "evolution_time": datetime.now().isoformat(),
             "success": False,
-            "changes_applied": []
+            "changes_applied": [],
         }
 
         try:
@@ -851,24 +905,31 @@ class DataContractManager:
                     name=details["column_name"],
                     dataType=self._type_from_string(details["data_type"]),
                     nullable=details.get("nullable", True),
-                    metadata=details.get("metadata", {})
+                    metadata=details.get("metadata", {}),
                 )
                 contract.schema.fields.append(new_field)
-                evolution_result["changes_applied"].append(f"Added column: {details['column_name']}")
+                evolution_result["changes_applied"].append(
+                    f"Added column: {details['column_name']}"
+                )
 
             elif evolution_type == SchemaChangeType.REMOVE_COLUMN:
                 contract.schema.fields = [
-                    field for field in contract.schema.fields
+                    field
+                    for field in contract.schema.fields
                     if field.name != details["column_name"]
                 ]
-                evolution_result["changes_applied"].append(f"Removed column: {details['column_name']}")
+                evolution_result["changes_applied"].append(
+                    f"Removed column: {details['column_name']}"
+                )
 
             elif evolution_type == SchemaChangeType.CHANGE_TYPE:
                 for field in contract.schema.fields:
                     if field.name == details["column_name"]:
                         field.dataType = self._type_from_string(details["new_data_type"])
                         break
-                evolution_result["changes_applied"].append(f"Changed type of {details['column_name']}")
+                evolution_result["changes_applied"].append(
+                    f"Changed type of {details['column_name']}"
+                )
 
             # Update contract metadata
             contract.version = self._increment_version(contract.version)
@@ -896,7 +957,7 @@ class DataContractManager:
             "double": DoubleType(),
             "timestamp": TimestampType(),
             "boolean": BooleanType(),
-            "date": DateType()
+            "date": DateType(),
         }
         return type_mapping.get(type_string, StringType())
 
@@ -917,17 +978,14 @@ class DataContractManager:
             contract_file = self.contracts_dir / f"{contract.table_name}_contract.json"
 
             # Convert schema to JSON-serializable format
-            schema_json = {
-                "type": "struct",
-                "fields": []
-            }
+            schema_json = {"type": "struct", "fields": []}
 
             for field in contract.schema.fields:
                 field_json = {
                     "name": field.name,
                     "type": str(field.dataType),
                     "nullable": field.nullable,
-                    "metadata": field.metadata
+                    "metadata": field.metadata,
                 }
                 schema_json["fields"].append(field_json)
 
@@ -952,10 +1010,10 @@ class DataContractManager:
                 "owner": contract.owner,
                 "description": contract.description,
                 "tags": contract.tags,
-                "schema_evolution_policy": contract.schema_evolution_policy
+                "schema_evolution_policy": contract.schema_evolution_policy,
             }
 
-            with open(contract_file, 'w') as f:
+            with open(contract_file, "w") as f:
                 json.dump(contract_json, f, indent=2, default=str)
 
             logger.info(f"Contract saved to {contract_file}")
@@ -964,14 +1022,14 @@ class DataContractManager:
             logger.error(f"Failed to save contract: {e}")
             raise
 
-    def get_contract_summary(self) -> Dict[str, Any]:
+    def get_contract_summary(self) -> dict[str, Any]:
         """Get summary of all contracts."""
         summary = {
             "total_contracts": len(self.contracts),
             "tables_with_contracts": list(self.contracts.keys()),
             "contract_versions": {},
             "evolution_policies": {},
-            "last_updated": {}
+            "last_updated": {},
         }
 
         for table_name, contract in self.contracts.items():
@@ -984,11 +1042,11 @@ class DataContractManager:
 
 def main():
     """Main entry point for data contract management."""
-    from .utils import get_spark_session
     from .config_loader import load_config_resolved
+    from .utils import get_spark_session
 
     # Load configuration
-    config = load_config_resolved('config/config-dev.yaml')
+    config = load_config_resolved("config/config-dev.yaml")
 
     # Create Spark session
     spark = get_spark_session(config)
@@ -1005,11 +1063,70 @@ def main():
     print("\nValidating returns_raw contract...")
 
     # Create sample returns data
-    sample_returns = spark.createDataFrame([
-        ("R001", "O001", "C001", "P001", "2024-01-01", "defective", 50.00, 100.00, "processed", "mail", 3, False, "Product was damaged"),
-        ("R002", "O002", "C002", "P002", "2024-01-02", "wrong_size", 25.00, 50.00, "pending", "store", 1, True, "Size too small"),
-        ("R003", None, "C003", "P003", "2024-01-03", "invalid_reason", 75.00, 150.00, "processed", "mail", 5, False, "Customer changed mind")
-    ], ["return_id", "order_id", "customer_id", "product_id", "return_date", "return_reason", "refund_amount", "order_amount", "return_status", "return_method", "processing_time_days", "is_partial_return", "return_notes"])
+    sample_returns = spark.createDataFrame(
+        [
+            (
+                "R001",
+                "O001",
+                "C001",
+                "P001",
+                "2024-01-01",
+                "defective",
+                50.00,
+                100.00,
+                "processed",
+                "mail",
+                3,
+                False,
+                "Product was damaged",
+            ),
+            (
+                "R002",
+                "O002",
+                "C002",
+                "P002",
+                "2024-01-02",
+                "wrong_size",
+                25.00,
+                50.00,
+                "pending",
+                "store",
+                1,
+                True,
+                "Size too small",
+            ),
+            (
+                "R003",
+                None,
+                "C003",
+                "P003",
+                "2024-01-03",
+                "invalid_reason",
+                75.00,
+                150.00,
+                "processed",
+                "mail",
+                5,
+                False,
+                "Customer changed mind",
+            ),
+        ],
+        [
+            "return_id",
+            "order_id",
+            "customer_id",
+            "product_id",
+            "return_date",
+            "return_reason",
+            "refund_amount",
+            "order_amount",
+            "return_status",
+            "return_method",
+            "processing_time_days",
+            "is_partial_return",
+            "return_notes",
+        ],
+    )
 
     # Validate against contract
     validation_result = contract_manager.validate_contract(sample_returns, "returns_raw")

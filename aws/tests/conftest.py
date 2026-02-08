@@ -1,8 +1,10 @@
 """
 Pytest configuration for aws/ tests.
 """
-import pytest
+
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
@@ -27,4 +29,3 @@ def jobs_dir(aws_root):
 def config_dir(aws_root):
     """Return config directory path."""
     return aws_root / "config"
-

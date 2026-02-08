@@ -1,0 +1,38 @@
+{
+  "columns": {
+    "event_id": {
+      "type": "string",
+      "nullable": false,
+      "description": "Unique event identifier"
+    },
+    "customer_id": {
+      "type": "string",
+      "nullable": false,
+      "description": "Customer identifier"
+    },
+    "event_type": {
+      "type": "string",
+      "nullable": false,
+      "description": "Event type (page_view, purchase, etc.)"
+    },
+    "event_ts": {
+      "type": "timestamp",
+      "nullable": false,
+      "description": "Event timestamp"
+    },
+    "session_id": {
+      "type": "string",
+      "nullable": true,
+      "description": "Session identifier"
+    },
+    "properties": {
+      "type": "string",
+      "nullable": true,
+      "description": "JSON properties"
+    }
+  },
+  "required_columns": ["event_id", "customer_id", "event_type", "event_ts"],
+  "primary_key": ["event_id"],
+  "partition_columns": ["event_ts"]
+}
+

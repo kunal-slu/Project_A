@@ -16,7 +16,8 @@ import tempfile
 import time
 import uuid
 
-from pyspark.sql.functions import col, lit, to_date
+from pyspark.sql import functions as F
+from pyspark.sql.functions import col, current_timestamp, lit, to_date
 from pyspark.sql.types import (
     DateType,
     DoubleType,
@@ -143,12 +144,12 @@ def main(args):
         # 2. Apply range checks
         # 3. Route bad rows to error lane
         df_clean = df_raw.filter(
-            col("trade_date").isNotNull()
-            & col("base_ccy").isNotNull()
-            & col("quote_ccy").isNotNull()
-            & col("rate").isNotNull()
-            & (col("rate") > 0.0001)
-            & (col("rate") < 1000)
+            col("date").isNotNull()
+            & col("base_currency").isNotNull()
+            & col("target_currency").isNotNull()
+            & col("exchange_rate").isNotNull()
+            & (col("exchange_rate") > 0.0001)
+            & (col("exchange_rate") < 1000)
         )
 
         bad = df_raw.exceptAll(df_clean)
@@ -166,11 +167,14 @@ def main(args):
             run_date = datetime.utcnow().strftime("%Y-%m-%d")
 
         # Add metadata columns
-        df_clean = df_clean.withColumn("as_of_date", to_date(col("trade_date")))
+        df_clean = df_clean.withColumn("as_of_date", to_date(col("date")))
 
         # Add ingest timestamp if not already present
         if "_ingest_ts" not in df_clean.columns:
-            df_clean = df_clean.withColumn("_ingest_ts", lit(None).cast("timestamp"))
+            df_clean = df_clean.withColumn(
+                "_ingest_ts",
+                F.coalesce(col("ingest_timestamp").cast("timestamp"), current_timestamp()),
+            )
 
         # Add other metadata
         df_clean = (
@@ -185,11 +189,11 @@ def main(args):
 
         # Write to bronze as Delta with contract-driven partitioning
         # Partition by trade_date for downstream pruning (senior pattern)
-        df_partitioned = df_clean.repartition(col("trade_date"))
+        df_partitioned = df_clean.repartition(col("date"))
 
         df_partitioned.write.format("delta").mode("overwrite").option("mergeSchema", "true").option(
             "delta.autoOptimize.optimizeWrite", "true"
-        ).partitionBy("trade_date", "_run_date").save(output_path)
+        ).partitionBy("date", "_run_date").save(output_path)
 
         rows_out = df_clean.count()
         duration_seconds = time.time() - start_time

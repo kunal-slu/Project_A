@@ -5,13 +5,15 @@ Emits data lineage events to track data flow through the pipeline.
 Supports both Marquez and generic OpenLineage backends.
 """
 
-import logging
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Optional, Dict, List
 import json
+import logging
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ class LineageEmitter:
     Emits lineage events to OpenLineage/Marquez backend.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """
         Initialize lineage emitter from config.
 
@@ -44,7 +46,7 @@ class LineageEmitter:
             logger.warning("⚠️  Lineage enabled but no URL configured")
             self.enabled = False
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         """Get HTTP headers for API requests."""
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -62,11 +64,11 @@ class LineageEmitter:
         self,
         job_name: str,
         run_id: str,
-        inputs: List[str],
-        outputs: List[str],
+        inputs: list[str],
+        outputs: list[str],
         status: str = "SUCCESS",
-        error_message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        error_message: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Emit a lineage event for a job run.
@@ -117,7 +119,7 @@ class LineageEmitter:
                                 "uri": (
                                     input_name
                                     if input_name.startswith(("s3://", "file://", "s3a://"))
-                                    else f"s3://{(config or self.config if hasattr(self, 'config') and self.config else {}).get('buckets', {}).get('lake', 'unknown-bucket')}/{input_name.replace('.', '/')}"
+                                    else f"s3://{(self.config if self.config else {}).get('buckets', {}).get('lake', 'unknown-bucket')}/{input_name.replace('.', '/')}"
                                 ),
                             }
                         },
@@ -134,7 +136,7 @@ class LineageEmitter:
                                 "uri": (
                                     output_name
                                     if output_name.startswith(("s3://", "file://", "s3a://"))
-                                    else f"s3://{(config or self.config if hasattr(self, 'config') and self.config else {}).get('buckets', {}).get('lake', 'unknown-bucket')}/{output_name.replace('.', '/')}"
+                                    else f"s3://{(self.config if self.config else {}).get('buckets', {}).get('lake', 'unknown-bucket')}/{output_name.replace('.', '/')}"
                                 ),
                             }
                         },
@@ -175,7 +177,7 @@ class LineageEmitter:
             logger.warning("⚠️  Unexpected error emitting lineage: %s", exc)
 
 
-def load_lineage_config(config_path: str) -> Dict[str, Any]:
+def load_lineage_config(config_path: str) -> dict[str, Any]:
     """
     Load lineage configuration from YAML file (local or S3).
 
@@ -211,3 +213,66 @@ def load_lineage_config(config_path: str) -> Dict[str, Any]:
         else:
             logger.warning(f"⚠️  Lineage config file not found: {config_path}")
             return {"enabled": False}
+
+
+def emit_lineage_event(
+    event_type: str,
+    job_name: str,
+    inputs: list[dict[str, Any]],
+    outputs: list[dict[str, Any]],
+    config: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> bool:
+    """Compatibility helper used by legacy jobs/tests."""
+    lineage_cfg = (config or {}).get("lineage", {})
+    if not lineage_cfg.get("enabled", False):
+        return False
+
+    url = lineage_cfg.get("url", "")
+    if not url:
+        return False
+
+    payload = {
+        "eventType": event_type,
+        "jobName": job_name,
+        "inputs": inputs,
+        "outputs": outputs,
+        "metadata": metadata or {},
+        "error": error,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": (config or {}).get("environment", "dev"),
+    }
+
+    try:
+        resp = requests.post(url, json=payload, timeout=5)
+        resp.raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
+def emit_start(
+    job_name: str, inputs: list[dict[str, Any]], outputs: list[dict[str, Any]], config: dict[str, Any]
+) -> bool:
+    return emit_lineage_event("START", job_name, inputs, outputs, config)
+
+
+def emit_complete(
+    job_name: str,
+    inputs: list[dict[str, Any]],
+    outputs: list[dict[str, Any]],
+    config: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
+) -> bool:
+    return emit_lineage_event("COMPLETE", job_name, inputs, outputs, config, metadata=metadata)
+
+
+def emit_fail(
+    job_name: str,
+    inputs: list[dict[str, Any]],
+    outputs: list[dict[str, Any]],
+    config: dict[str, Any],
+    error: str,
+) -> bool:
+    return emit_lineage_event("FAIL", job_name, inputs, outputs, config, error=error)

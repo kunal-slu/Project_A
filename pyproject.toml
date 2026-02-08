@@ -80,6 +80,13 @@ project_a = ["schemas/*.py", "utils/*.py", "extract/*.py", "monitoring/*.py"]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+extend-exclude = [
+    "src/project_a/legacy",
+    "src/project_a/pyspark_interview_project",
+    "src/dq",
+    "aws/dags_legacy",
+    "aws/jobs_legacy",
+]
 
 [tool.ruff.lint]
 select = [
@@ -121,12 +128,19 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+exclude = "(^src/project_a/legacy/|^src/project_a/pyspark_interview_project/|^src/dq/)"
 
 [[tool.mypy.overrides]]
 module = [
     "delta.*",
     "great_expectations.*",
     "airflow.*",
+    "boto3.*",
+    "botocore.*",
+    "yaml.*",
+    "pandas.*",
+    "psutil.*",
+    "dateutil.*",
 ]
 ignore_missing_imports = true
 

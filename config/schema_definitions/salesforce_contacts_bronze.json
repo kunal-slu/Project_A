@@ -1,0 +1,31 @@
+{
+  "table": "salesforce_contacts_bronze",
+  "primary_key": "contact_id",
+  "columns": {
+    "contact_id": "string",
+    "account_id": "string",
+    "first_name": "string",
+    "last_name": "string",
+    "email": "string",
+    "phone": "string",
+    "mobile_phone": "string",
+    "title": "string",
+    "department": "string",
+    "lead_source": "string",
+    "status": "string",
+    "created_date": "string",
+    "last_modified_date": "string",
+    "owner_id": "string",
+    "email_opt_out": "boolean",
+    "do_not_call": "boolean",
+    "last_activity_date": "string"
+  },
+  "required_non_null": ["contact_id", "account_id", "first_name", "last_name", "email", "created_date"],
+  "freshness_column": "last_modified_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": {
+    "email_format": "email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'",
+    "valid_status": "status IN ('Active', 'Inactive', 'Unqualified')",
+    "valid_lead_source": "lead_source IN ('Website', 'Referral', 'Advertisement', 'Partner', 'Cold Call', 'Trade Show')"
+  }
+}

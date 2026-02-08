@@ -41,6 +41,32 @@ dq:
   config_file: config/dq.yaml
   enabled: true
   strict_mode: true  # Strict for production
+  sampling:
+    enabled: true
+    fraction: 0.01
+    max_rows: 500000
+    seed: 42
+  profiling:
+    enabled: true
+    output_path: "s3a://my-etl-lake-demo/metrics/dq_profiles"
+    max_columns: 100
+    top_values: 10
+  reconciliation:
+    enabled: true
+  realism:
+    enabled: true
+    max_future_days: 1
+    max_past_years: 10
+    fail_on_violation: true
+
+schema_evolution:
+  enabled: true
+  baseline_path: "s3a://my-etl-lake-demo/metrics/schema_baselines"
+  update_baseline: false
+  policies:
+    bronze: "backward_compatible"
+    silver: "backward_compatible"
+    gold: "strict"
 
 # Lineage Configuration
 lineage:
@@ -102,6 +128,16 @@ monitoring:
   metrics_export: cloudwatch
   log_level: INFO
   pipeline_metrics: true
+  metrics_enabled: true
+  thresholds:
+    bronze_to_silver_duration_seconds: 7200
+    silver_to_gold_duration_seconds: 7200
+
+contracts:
+  path: "config/contracts/silver_contracts.yaml"
+
+incremental:
+  orders_lookback_days: 3
 
 # SLA Configuration
 sla:

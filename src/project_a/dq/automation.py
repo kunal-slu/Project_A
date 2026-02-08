@@ -3,16 +3,18 @@ Automated Data Quality Framework for Project_A
 
 Provides comprehensive data quality checks, profiling, and anomaly detection.
 """
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Union
-from dataclasses import dataclass
-from enum import Enum
 import json
 import logging
-from pathlib import Path
 import warnings
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
 warnings.filterwarnings('ignore')
 
 
@@ -32,19 +34,19 @@ class QualityResult:
     check_name: str
     passed: bool
     score: float  # 0.0 to 1.0
-    details: Dict[str, Any]
+    details: dict[str, Any]
     timestamp: datetime
 
 
 class DataQualityProfiler:
     """Profile datasets for quality metrics"""
-    
+
     def __init__(self, profile_path: str = "data/profiles"):
         self.profile_path = Path(profile_path)
         self.profile_path.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
-    
-    def profile_dataset(self, df: pd.DataFrame, dataset_name: str) -> Dict[str, Any]:
+
+    def profile_dataset(self, df: pd.DataFrame, dataset_name: str) -> dict[str, Any]:
         """Generate comprehensive profile for a dataset"""
         profile = {
             'dataset_name': dataset_name,
@@ -58,23 +60,23 @@ class DataQualityProfiler:
             'correlations': self._calculate_correlations(df),
             'quality_score': 0.0
         }
-        
+
         # Calculate overall quality score
         profile['quality_score'] = self._calculate_quality_score(profile)
-        
+
         # Save profile
         self._save_profile(profile)
-        
+
         return profile
-    
-    def _extract_schema(self, df: pd.DataFrame) -> Dict[str, str]:
+
+    def _extract_schema(self, df: pd.DataFrame) -> dict[str, str]:
         """Extract schema information"""
         schema = {}
         for col in df.columns:
             schema[col] = str(df[col].dtype)
         return schema
-    
-    def _calculate_basic_stats(self, df: pd.DataFrame) -> Dict[str, Any]:
+
+    def _calculate_basic_stats(self, df: pd.DataFrame) -> dict[str, Any]:
         """Calculate basic statistics"""
         stats = {
             'total_records': len(df),
@@ -83,7 +85,7 @@ class DataQualityProfiler:
             'categorical_columns': [],
             'date_columns': []
         }
-        
+
         for col in df.columns:
             if pd.api.types.is_numeric_dtype(df[col]):
                 stats['numeric_columns'].append(col)
@@ -91,78 +93,78 @@ class DataQualityProfiler:
                 stats['date_columns'].append(col)
             else:
                 stats['categorical_columns'].append(col)
-        
+
         return stats
-    
-    def _calculate_completeness(self, df: pd.DataFrame) -> Dict[str, float]:
+
+    def _calculate_completeness(self, df: pd.DataFrame) -> dict[str, float]:
         """Calculate completeness scores per column"""
         completeness = {}
         total_records = len(df)
-        
+
         for col in df.columns:
             non_null_count = df[col].notna().sum()
             completeness[col] = non_null_count / total_records if total_records > 0 else 0.0
-        
+
         return completeness
-    
-    def _calculate_uniqueness(self, df: pd.DataFrame) -> Dict[str, float]:
+
+    def _calculate_uniqueness(self, df: pd.DataFrame) -> dict[str, float]:
         """Calculate uniqueness scores per column"""
         uniqueness = {}
-        
+
         for col in df.columns:
             if len(df) == 0:
                 uniqueness[col] = 1.0
             else:
                 unique_count = df[col].nunique()
                 uniqueness[col] = unique_count / len(df)
-        
+
         return uniqueness
-    
-    def _analyze_data_types(self, df: pd.DataFrame) -> Dict[str, Dict[str, int]]:
+
+    def _analyze_data_types(self, df: pd.DataFrame) -> dict[str, dict[str, int]]:
         """Analyze data types and their distributions"""
         type_analysis = {}
-        
+
         for col in df.columns:
             series = df[col].dropna()
             if len(series) == 0:
                 type_analysis[col] = {'consistent': True, 'types': {}}
                 continue
-            
+
             # Determine the most common type
             type_counts = {}
             for val in series.head(1000):  # Sample to improve performance
                 val_type = type(val).__name__
                 type_counts[val_type] = type_counts.get(val_type, 0) + 1
-            
+
             most_common_type = max(type_counts, key=type_counts.get) if type_counts else 'unknown'
             consistent = len(type_counts) <= 1
-            
+
             type_analysis[col] = {
                 'consistent': consistent,
                 'most_common_type': most_common_type,
                 'type_distribution': type_counts
             }
-        
+
         return type_analysis
-    
-    def _detect_outliers(self, df: pd.DataFrame, method: str = 'iqr') -> Dict[str, List[int]]:
+
+    def _detect_outliers(self, df: pd.DataFrame, method: str = 'iqr') -> dict[str, list[int]]:
         """Detect outliers in numeric columns"""
         outliers = {}
-        
+
         for col in df.columns:
             if pd.api.types.is_numeric_dtype(df[col]):
                 series = df[col].dropna()
                 if len(series) == 0:
                     outliers[col] = []
                     continue
-                
+
                 if method == 'iqr':
                     Q1 = series.quantile(0.25)
                     Q3 = series.quantile(0.75)
                     IQR = Q3 - Q1
                     lower_bound = Q1 - 1.5 * IQR
                     upper_bound = Q3 + 1.5 * IQR
-                    
+
                     outlier_indices = df[(df[col] < lower_bound) | (df[col] > upper_bound)].index.tolist()
                     outliers[col] = outlier_indices
                 else:  # z-score method
@@ -171,24 +173,24 @@ class DataQualityProfiler:
                     if std_val == 0:
                         outliers[col] = []
                         continue
-                    
+
                     z_scores = abs((series - mean_val) / std_val)
                     outlier_indices = df[z_scores > 3].index.tolist()
                     outliers[col] = outlier_indices
             else:
                 outliers[col] = []
-        
+
         return outliers
-    
-    def _calculate_correlations(self, df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
+
+    def _calculate_correlations(self, df: pd.DataFrame) -> dict[str, dict[str, float]]:
         """Calculate correlations between numeric columns"""
         numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
         if len(numeric_cols) < 2:
             return {}
-        
+
         corr_matrix = df[numeric_cols].corr()
         correlations = {}
-        
+
         for col1 in numeric_cols:
             for col2 in numeric_cols:
                 if col1 != col2:
@@ -197,62 +199,62 @@ class DataQualityProfiler:
                         if col1 not in correlations:
                             correlations[col1] = {}
                         correlations[col1][col2] = corr_val
-        
+
         return correlations
-    
-    def _calculate_quality_score(self, profile: Dict[str, Any]) -> float:
+
+    def _calculate_quality_score(self, profile: dict[str, Any]) -> float:
         """Calculate overall quality score based on profile"""
         scores = []
-        
+
         # Completeness score (weight: 0.3)
         avg_completeness = sum(profile['completeness'].values()) / len(profile['completeness']) if profile['completeness'] else 0
         scores.append(avg_completeness * 0.3)
-        
+
         # Uniqueness score (weight: 0.2)
         avg_uniqueness = sum(profile['uniqueness'].values()) / len(profile['uniqueness']) if profile['uniqueness'] else 0
         scores.append(avg_uniqueness * 0.2)
-        
+
         # Data type consistency score (weight: 0.2)
-        consistent_types = sum(1 for v in profile['data_types'].values() if v['consistent']) 
+        consistent_types = sum(1 for v in profile['data_types'].values() if v['consistent'])
         type_consistency = consistent_types / len(profile['data_types']) if profile['data_types'] else 0
         scores.append(type_consistency * 0.2)
-        
+
         # Missing data score (weight: 0.3)
         min_completeness = min(profile['completeness'].values()) if profile['completeness'] else 1
         scores.append(min_completeness * 0.3)
-        
+
         return sum(scores)
-    
-    def _save_profile(self, profile: Dict[str, Any]):
+
+    def _save_profile(self, profile: dict[str, Any]):
         """Save profile to file"""
         filename = f"profile_{profile['dataset_name']}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
         filepath = self.profile_path / filename
-        
+
         with open(filepath, 'w') as f:
             json.dump(profile, f, indent=2, default=str)
 
 
 class DataQualityChecker:
     """Performs specific quality checks on datasets"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.checks_history = []
-    
-    def run_completeness_check(self, df: pd.DataFrame, required_columns: List[str] = None) -> QualityResult:
+
+    def run_completeness_check(self, df: pd.DataFrame, required_columns: list[str] = None) -> QualityResult:
         """Check completeness of required columns"""
         if required_columns is None:
             required_columns = df.columns.tolist()
-        
-        total_required = len(required_columns)
+
+        len(required_columns)
         complete_records = 0
-        
-        for idx, row in df.iterrows():
+
+        for _idx, row in df.iterrows():
             if all(pd.notna(row[col]) for col in required_columns if col in df.columns):
                 complete_records += 1
-        
+
         completeness_score = complete_records / len(df) if len(df) > 0 else 1.0
-        
+
         result = QualityResult(
             check_type=QualityCheckType.COMPLETENESS,
             check_name='completeness_check',
@@ -267,21 +269,21 @@ class DataQualityChecker:
             },
             timestamp=datetime.utcnow()
         )
-        
+
         self.checks_history.append(result)
         return result
-    
-    def run_uniqueness_check(self, df: pd.DataFrame, unique_columns: List[str]) -> QualityResult:
+
+    def run_uniqueness_check(self, df: pd.DataFrame, unique_columns: list[str]) -> QualityResult:
         """Check uniqueness of specified columns"""
         duplicate_records = 0
         total_records = len(df)
-        
+
         if unique_columns:
             duplicates = df.duplicated(subset=unique_columns, keep=False)
             duplicate_records = duplicates.sum()
-        
+
         uniqueness_score = (total_records - duplicate_records) / total_records if total_records > 0 else 1.0
-        
+
         result = QualityResult(
             check_type=QualityCheckType.UNIQUENESS,
             check_name='uniqueness_check',
@@ -296,30 +298,30 @@ class DataQualityChecker:
             },
             timestamp=datetime.utcnow()
         )
-        
+
         self.checks_history.append(result)
         return result
-    
+
     def run_range_check(self, df: pd.DataFrame, column: str, min_val: float = None, max_val: float = None) -> QualityResult:
         """Check if values in a column fall within expected range"""
         if column not in df.columns:
             raise ValueError(f"Column {column} not found in dataframe")
-        
+
         series = df[column]
         if min_val is not None:
             below_min = (series < min_val).sum()
         else:
             below_min = 0
-            
+
         if max_val is not None:
             above_max = (series > max_val).sum()
         else:
             above_max = 0
-        
+
         total_out_of_range = below_min + above_max
         total_valid = len(series) - total_out_of_range
         range_score = total_valid / len(series) if len(series) > 0 else 1.0
-        
+
         result = QualityResult(
             check_type=QualityCheckType.VALIDITY,
             check_name=f'range_check_{column}',
@@ -338,22 +340,22 @@ class DataQualityChecker:
             },
             timestamp=datetime.utcnow()
         )
-        
+
         self.checks_history.append(result)
         return result
-    
+
     def run_pattern_check(self, df: pd.DataFrame, column: str, pattern: str) -> QualityResult:
         """Check if values in a column match expected pattern (regex)"""
         import re
-        
+
         if column not in df.columns:
             raise ValueError(f"Column {column} not found in dataframe")
-        
+
         series = df[column].astype(str)
         matches = series.apply(lambda x: bool(re.match(pattern, x)) if pd.notna(x) else False)
         matches_count = matches.sum()
         pattern_score = matches_count / len(series) if len(series) > 0 else 1.0
-        
+
         result = QualityResult(
             check_type=QualityCheckType.VALIDITY,
             check_name=f'pattern_check_{column}',
@@ -369,11 +371,11 @@ class DataQualityChecker:
             },
             timestamp=datetime.utcnow()
         )
-        
+
         self.checks_history.append(result)
         return result
-    
-    def generate_quality_report(self, dataset_name: str) -> Dict[str, Any]:
+
+    def generate_quality_report(self, dataset_name: str) -> dict[str, Any]:
         """Generate a comprehensive quality report"""
         report = {
             'dataset_name': dataset_name,
@@ -393,7 +395,7 @@ class DataQualityChecker:
                 } for r in self.checks_history
             ]
         }
-        
+
         return report
 
 
@@ -421,7 +423,7 @@ def get_checker() -> DataQualityChecker:
     return _checker
 
 
-def profile_dataset(df: pd.DataFrame, dataset_name: str) -> Dict[str, Any]:
+def profile_dataset(df: pd.DataFrame, dataset_name: str) -> dict[str, Any]:
     """Profile a dataset for quality metrics"""
     profiler = get_profiler()
     return profiler.profile_dataset(df, dataset_name)
@@ -430,29 +432,29 @@ def profile_dataset(df: pd.DataFrame, dataset_name: str) -> Dict[str, Any]:
 def run_quality_check(check_type: str, df: pd.DataFrame, **kwargs) -> QualityResult:
     """Run a specific quality check"""
     checker = get_checker()
-    
+
     if check_type == 'completeness':
         return checker.run_completeness_check(df, kwargs.get('required_columns'))
     elif check_type == 'uniqueness':
         return checker.run_uniqueness_check(df, kwargs.get('unique_columns', []))
     elif check_type == 'range':
         return checker.run_range_check(
-            df, 
-            kwargs['column'], 
-            kwargs.get('min_val'), 
+            df,
+            kwargs['column'],
+            kwargs.get('min_val'),
             kwargs.get('max_val')
         )
     elif check_type == 'pattern':
         return checker.run_pattern_check(
-            df, 
-            kwargs['column'], 
+            df,
+            kwargs['column'],
             kwargs['pattern']
         )
     else:
         raise ValueError(f"Unknown check type: {check_type}")
 
 
-def generate_quality_report(dataset_name: str) -> Dict[str, Any]:
+def generate_quality_report(dataset_name: str) -> dict[str, Any]:
     """Generate a comprehensive quality report"""
     checker = get_checker()
     return checker.generate_quality_report(dataset_name)

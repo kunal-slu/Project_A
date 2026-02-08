@@ -1,7 +1,6 @@
 import os
 
-from project_a.load import (write_avro, write_json,
-                                            write_parquet)
+from project_a.load import write_avro, write_json, write_parquet
 
 
 def test_write_parquet(spark, tmp_path):

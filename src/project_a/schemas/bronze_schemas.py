@@ -237,12 +237,15 @@ FX_RATES_SCHEMA = StructType(
         StructField("base_ccy", StringType(), nullable=True),  # JSON format (will be normalized)
         StructField("base_currency", StringType(), nullable=True),  # CSV format (target)
         StructField("quote_ccy", StringType(), nullable=True),  # JSON format (will be normalized)
+        StructField("counter_ccy", StringType(), nullable=True),  # JSON alternative field
         StructField("target_currency", StringType(), nullable=True),  # CSV format (target)
         StructField("rate", DoubleType(), nullable=True),  # JSON format (will be normalized)
         StructField("exchange_rate", DoubleType(), nullable=True),  # CSV format (target)
         StructField("source", StringType(), nullable=True),  # Optional metadata
         StructField("record_source", StringType(), nullable=True),  # Normalized source identifier
-        StructField("ingest_timestamp", StringType(), nullable=True),  # Will be converted to timestamp
+        StructField(
+            "ingest_timestamp", StringType(), nullable=True
+        ),  # Will be converted to timestamp
         StructField("bid_rate", DoubleType(), nullable=True),  # Optional
         StructField("ask_rate", DoubleType(), nullable=True),  # Optional
         StructField("mid_rate", DoubleType(), nullable=True),  # Optional

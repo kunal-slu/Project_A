@@ -1,0 +1,42 @@
+{
+  "columns": {
+    "customer_id": {
+      "type": "string",
+      "nullable": false,
+      "description": "Unique customer identifier"
+    },
+    "email": {
+      "type": "string",
+      "nullable": false,
+      "description": "Customer email"
+    },
+    "country": {
+      "type": "string",
+      "nullable": false,
+      "description": "Customer country"
+    },
+    "first_name": {
+      "type": "string",
+      "nullable": true,
+      "description": "Customer first name"
+    },
+    "last_name": {
+      "type": "string",
+      "nullable": true,
+      "description": "Customer last name"
+    },
+    "created_at": {
+      "type": "timestamp",
+      "nullable": false,
+      "description": "Customer creation timestamp"
+    },
+    "last_modified_ts": {
+      "type": "timestamp",
+      "nullable": false,
+      "description": "Last modification timestamp"
+    }
+  },
+  "required_columns": ["customer_id", "email", "country"],
+  "primary_key": ["customer_id"],
+  "partition_columns": ["country"]
+}

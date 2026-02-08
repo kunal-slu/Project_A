@@ -49,6 +49,8 @@ sources:
     base_path: "s3://my-etl-lake-demo-424570854632/bronze/redshift"
     files:
       behavior: "redshift_customer_behavior_50000.csv"
+    incremental_dirs:
+      behavior: "s3://my-etl-lake-demo-424570854632/bronze/redshift/behavior/daily"
   
   snowflake:
     base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes"
@@ -56,6 +58,8 @@ sources:
       customers: "snowflake_customers_50000.csv"
       orders: "snowflake_orders_100000.csv"
       products: "snowflake_products_10000.csv"
+    incremental_dirs:
+      orders: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes/orders/daily"
   
   fx:
     type: json
@@ -73,6 +77,12 @@ sources:
     base_path: "s3://my-etl-lake-demo-424570854632/bronze/kafka"
     files:
       orders_seed: "stream_kafka_events_100000.csv"
+    incremental_dirs:
+      events: "s3://my-etl-lake-demo-424570854632/bronze/kafka/events/daily"
+
+  kafka:
+    local_bootstrap_servers: "localhost:9092"
+    topic: "orders_events"
 
 # Table name definitions for Silver and Gold layers
 tables:
@@ -94,6 +104,44 @@ dq:
   mode: "strict"           # stop pipeline on critical failures
   fail_on_error: true
   alert_on_warning: true
+  sampling:
+    enabled: true
+    fraction: 0.02
+    max_rows: 200000
+    seed: 42
+  profiling:
+    enabled: true
+    output_path: "artifacts/dq/profiles"
+    max_columns: 50
+    top_values: 10
+  reconciliation:
+    enabled: true
+  realism:
+    enabled: true
+    max_future_days: 3
+    max_past_years: 5
+    fail_on_violation: true
+
+schema_evolution:
+  enabled: true
+  baseline_path: "artifacts/schema_baselines"
+  update_baseline: false
+  policies:
+    bronze: "backward_compatible"
+    silver: "backward_compatible"
+    gold: "strict"
+
+contracts:
+  path: "config/contracts/silver_contracts.yaml"
+
+incremental:
+  orders_lookback_days: 3
+
+monitoring:
+  metrics_enabled: true
+  thresholds:
+    bronze_to_silver_duration_seconds: 2700
+    silver_to_gold_duration_seconds: 2700
 
 sinks:
   redshift:

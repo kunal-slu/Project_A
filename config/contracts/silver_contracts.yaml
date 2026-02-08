@@ -1,0 +1,61 @@
+version: 1
+
+tables:
+  customers_silver:
+    owner: data-engineering
+    primary_key: [customer_id]
+    required_columns:
+      - customer_id
+      - first_name
+      - last_name
+      - email
+      - country
+      - registration_date
+    breaking_change_policy:
+      remove_column: "2_week_notice"
+      type_change: "major_version_bump"
+      add_column: "backward_compatible"
+
+  products_silver:
+    owner: data-engineering
+    primary_key: [product_id]
+    required_columns:
+      - product_id
+      - product_name
+      - category
+      - price_usd
+      - cost_usd
+      - supplier_id
+    breaking_change_policy:
+      remove_column: "2_week_notice"
+      type_change: "major_version_bump"
+      add_column: "backward_compatible"
+
+  orders_silver:
+    owner: data-engineering
+    primary_key: [order_id]
+    required_columns:
+      - order_id
+      - customer_id
+      - product_id
+      - order_date
+      - total_amount
+      - quantity
+      - status
+      - updated_at
+    relationships:
+      - column: customer_id
+        parent_table: customers_silver
+        parent_column: customer_id
+    ranges:
+      - column: total_amount
+        min: 0
+    late_data:
+      lookback_days: 3
+    idempotency:
+      dedupe_key: order_id
+      latest_record_column: updated_at
+    breaking_change_policy:
+      remove_column: "2_week_notice"
+      type_change: "major_version_bump"
+      add_column: "backward_compatible"

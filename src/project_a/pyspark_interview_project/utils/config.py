@@ -2,25 +2,26 @@
 Configuration loader with YAML and environment variable support.
 """
 
-import os
-import yaml
 import logging
-from typing import Dict, Any
+import os
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
 
-def load_conf(env_path: str) -> Dict[str, Any]:
+def load_conf(env_path: str) -> dict[str, Any]:
     """
     Load configuration from YAML file and overlay with environment variables.
-    
+
     Args:
         env_path: Path to configuration file
-        
+
     Returns:
         Resolved configuration dictionary
-        
+
     Raises:
         FileNotFoundError: If config file doesn't exist
         ValueError: If required configuration keys are missing
@@ -28,23 +29,24 @@ def load_conf(env_path: str) -> Dict[str, Any]:
     config_path = Path(env_path)
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {env_path}")
-    
+
     # Load YAML configuration
-    with open(config_path, 'r') as f:
+    with open(config_path) as f:
         config = yaml.safe_load(f)
-    
+
     # Overlay environment variables
     config = _overlay_env_vars(config)
-    
+
     # Validate required keys
     _validate_config(config)
-    
+
     logger.info(f"Configuration loaded from {env_path}")
     return config
 
 
-def _overlay_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
+def _overlay_env_vars(config: dict[str, Any]) -> dict[str, Any]:
     """Overlay environment variables on configuration and resolve template variables."""
+
     def _resolve_vars(obj):
         if isinstance(obj, dict):
             return {k: _resolve_vars(v) for k, v in obj.items()}
@@ -60,19 +62,19 @@ def _overlay_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
             return obj
         else:
             return obj
-    
+
     return _resolve_vars(config)
 
 
-def _resolve_template_variables(value: str, config: Dict[str, Any]) -> str:
+def _resolve_template_variables(value: str, config: dict[str, Any]) -> str:
     """Resolve template variables like ${project}-${environment} in string values."""
     import re
-    
+
     def replace_var(match):
         var_path = match.group(1)
-        if '.' in var_path:
+        if "." in var_path:
             # Handle nested variables like s3.data_lake_bucket
-            parts = var_path.split('.')
+            parts = var_path.split(".")
             current = config
             for part in parts:
                 if isinstance(current, dict) and part in current:
@@ -85,33 +87,33 @@ def _resolve_template_variables(value: str, config: Dict[str, Any]) -> str:
             if var_path in config:
                 return str(config[var_path])
             return match.group(0)  # Return original if not found
-    
-    return re.sub(r'\$\{([^}]+)\}', replace_var, value)
+
+    return re.sub(r"\$\{([^}]+)\}", replace_var, value)
 
 
-def _validate_config(config: Dict[str, Any]) -> None:
+def _validate_config(config: dict[str, Any]) -> None:
     """Validate required configuration keys."""
     required_keys = [
         "env",
         "lake.bronze_path",
-        "lake.silver_path", 
+        "lake.silver_path",
         "lake.gold_path",
         "runtime.shuffle_partitions",
-        "runtime.app_name"
+        "runtime.app_name",
     ]
-    
+
     missing_keys = []
     for key in required_keys:
         if not _get_nested_value(config, key):
             missing_keys.append(key)
-    
+
     if missing_keys:
         raise ValueError(f"Missing required configuration keys: {missing_keys}")
 
 
-def _get_nested_value(config: Dict[str, Any], key: str) -> Any:
+def _get_nested_value(config: dict[str, Any], key: str) -> Any:
     """Get nested value from configuration using dot notation."""
-    keys = key.split('.')
+    keys = key.split(".")
     value = config
     for k in keys:
         if isinstance(value, dict) and k in value:

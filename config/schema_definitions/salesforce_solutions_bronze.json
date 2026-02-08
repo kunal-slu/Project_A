@@ -1,0 +1,36 @@
+{
+  "table": "salesforce_solutions_bronze",
+  "primary_key": "solution_id",
+  "columns": {
+    "solution_id": "string",
+    "solution_name": "string",
+    "solution_number": "string",
+    "description": "string",
+    "category": "string",
+    "status": "string",
+    "created_date": "string",
+    "last_modified_date": "string",
+    "owner_id": "string",
+    "is_published": "boolean",
+    "record_source": "string",
+    "record_table": "string",
+    "ingest_timestamp": "timestamp"
+  },
+  "required_non_null": ["solution_id", "solution_name", "solution_number"],
+  "freshness_column": "created_date",
+  "max_lag_minutes": 1440,
+  "data_quality_rules": [
+    {
+      "name": "solution_name_not_empty",
+      "rule": "solution_name IS NOT NULL AND solution_name != ''"
+    },
+    {
+      "name": "solution_number_format",
+      "rule": "solution_number REGEXP '^SOL-[0-9]{4}$'"
+    },
+    {
+      "name": "valid_status",
+      "rule": "status IN ('Draft', 'Published', 'Archived')"
+    }
+  ]
+}

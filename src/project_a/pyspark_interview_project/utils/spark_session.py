@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
 
 from pyspark.sql import SparkSession
 
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def build_spark(
     app_name: str = "project_a",
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> SparkSession:
     """
     Create a real SparkSession for both local and EMR Serverless.
@@ -23,8 +23,7 @@ def build_spark(
     cfg = (config or {}).get("spark", {}) if config else {}
 
     builder = (
-        SparkSession.builder
-        .appName(app_name)
+        SparkSession.builder.appName(app_name)
         # Critical: disable event logs that were causing IOExceptions on EMR
         .config("spark.eventLog.enabled", "false")
     )
@@ -33,28 +32,24 @@ def build_spark(
     # Default: False for local, True for AWS/EMR
     environment = (config or {}).get("environment") or (config or {}).get("env", "local")
     is_local = environment in ("local", "dev_local")
-    
+
     # Enable Delta only if explicitly requested OR if not local
     enable_delta = cfg.get("enable_delta", not is_local)
-    
+
     if enable_delta:
-        builder = (
-            builder
-            .config(
-                "spark.sql.extensions",
-                "io.delta.sql.DeltaSparkSessionExtension",
-            )
-            .config(
-                "spark.sql.catalog.spark_catalog",
-                "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-            )
+        builder = builder.config(
+            "spark.sql.extensions",
+            "io.delta.sql.DeltaSparkSessionExtension",
+        ).config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
         logger.info("Delta Lake extensions enabled")
     else:
         logger.info("Delta Lake extensions disabled for local execution (using Parquet)")
 
     # Apply any extra configs from YAML (spark.extra_conf)
-    extra_conf: Dict[str, str] = cfg.get("extra_conf", {}) if cfg else {}
+    extra_conf: dict[str, str] = cfg.get("extra_conf", {}) if cfg else {}
     for k, v in extra_conf.items():
         builder = builder.config(k, v)
 

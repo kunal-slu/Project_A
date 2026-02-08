@@ -1,0 +1,56 @@
+{
+  "schema_name": "fx_rates_bronze",
+  "source": "fx_vendor",
+  "layer": "bronze",
+  "description": "Schema contract for FX rates ingestion",
+  "version": "1.0.0",
+  "required_columns": [
+    "date",
+    "base_currency",
+    "target_currency",
+    "exchange_rate"
+  ],
+  "columns": {
+    "date": {
+      "type": "date",
+      "nullable": false,
+      "description": "Exchange rate date"
+    },
+    "base_currency": {
+      "type": "string",
+      "nullable": false,
+      "description": "Base currency code (ISO 4217)"
+    },
+    "target_currency": {
+      "type": "string",
+      "nullable": false,
+      "description": "Target currency code (ISO 4217)"
+    },
+    "exchange_rate": {
+      "type": "decimal(10,6)",
+      "nullable": false,
+      "description": "Exchange rate value"
+    },
+    "record_source": {
+      "type": "string",
+      "nullable": false,
+      "description": "Source system identifier"
+    },
+    "record_table": {
+      "type": "string",
+      "nullable": false,
+      "description": "Source table identifier"
+    },
+    "ingest_timestamp": {
+      "type": "timestamp",
+      "nullable": false,
+      "description": "Data ingestion timestamp"
+    }
+  },
+  "data_quality": {
+    "min_row_count": 1,
+    "max_null_percentage": 0.0,
+    "freshness_hours_max": 24
+  }
+}
+

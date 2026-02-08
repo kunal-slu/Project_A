@@ -7,20 +7,19 @@ across the pipeline to ensure data integrity and fail early on issues.
 
 import json
 import logging
-from typing import Dict, List, Any, Optional
 from datetime import datetime
+from typing import Any
 
-from pyspark.sql import DataFrame, functions as F
+from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
 from pyspark.sql.types import StructType
 
 logger = logging.getLogger(__name__)
 
 
 def require_not_null(
-    df: DataFrame,
-    columns: List[str],
-    fail_on_violation: bool = True
-) -> Dict[str, Any]:
+    df: DataFrame, columns: list[str], fail_on_violation: bool = True
+) -> dict[str, Any]:
     """
     Check that specified columns contain no null values.
 
@@ -47,7 +46,7 @@ def require_not_null(
             "null_count": null_count,
             "total_count": total_count,
             "null_percentage": (null_count / total_count * 100) if total_count > 0 else 0,
-            "passed": null_count == 0
+            "passed": null_count == 0,
         }
 
         results[column] = result
@@ -62,10 +61,8 @@ def require_not_null(
 
 
 def require_unique_keys(
-    df: DataFrame,
-    key_columns: List[str],
-    fail_on_violation: bool = True
-) -> Dict[str, Any]:
+    df: DataFrame, key_columns: list[str], fail_on_violation: bool = True
+) -> dict[str, Any]:
     """
     Check that specified key columns form unique combinations.
 
@@ -89,10 +86,9 @@ def require_unique_keys(
     distinct_count = df.select(*key_columns).distinct().count()
 
     # Find duplicates
-    duplicates = (df.groupBy(*key_columns)
-                 .count()
-                 .filter("count > 1")
-                 .orderBy("count", ascending=False))
+    duplicates = (
+        df.groupBy(*key_columns).count().filter("count > 1").orderBy("count", ascending=False)
+    )
 
     duplicate_count = duplicates.count()
     duplicate_rows = duplicates.limit(10).collect()  # Limit to avoid memory issues
@@ -104,7 +100,7 @@ def require_unique_keys(
         "distinct_count": distinct_count,
         "duplicate_count": duplicate_count,
         "duplicate_combinations": duplicate_rows,
-        "passed": duplicate_count == 0
+        "passed": duplicate_count == 0,
     }
 
     if fail_on_violation and duplicate_count > 0:
@@ -119,10 +115,10 @@ def require_unique_keys(
 def control_total(
     df: DataFrame,
     value_column: str,
-    expected_total: Optional[float] = None,
+    expected_total: float | None = None,
     tolerance_percentage: float = 0.01,  # 1% tolerance
-    fail_on_violation: bool = True
-) -> Dict[str, Any]:
+    fail_on_violation: bool = True,
+) -> dict[str, Any]:
     """
     Check control total for a numeric column.
 
@@ -148,7 +144,7 @@ def control_total(
         "column": value_column,
         "actual_total": actual_total,
         "expected_total": expected_total,
-        "passed": True
+        "passed": True,
     }
 
     if expected_total is not None:
@@ -156,12 +152,14 @@ def control_total(
         deviation = abs(actual_total - expected_total)
         deviation_percentage = (deviation / expected_total * 100) if expected_total != 0 else 0
 
-        result.update({
-            "deviation": deviation,
-            "deviation_percentage": deviation_percentage,
-            "tolerance_percentage": tolerance_percentage,
-            "passed": deviation_percentage <= tolerance_percentage
-        })
+        result.update(
+            {
+                "deviation": deviation,
+                "deviation_percentage": deviation_percentage,
+                "tolerance_percentage": tolerance_percentage,
+                "passed": deviation_percentage <= tolerance_percentage,
+            }
+        )
 
         if fail_on_violation and deviation_percentage > tolerance_percentage:
             raise ValueError(
@@ -174,11 +172,8 @@ def control_total(
 
 
 def validate_schema(
-    df: DataFrame,
-    expected_schema: StructType,
-    strict: bool = True,
-    fail_on_violation: bool = True
-) -> Dict[str, Any]:
+    df: DataFrame, expected_schema: StructType, strict: bool = True, fail_on_violation: bool = True
+) -> dict[str, Any]:
     """
     Validate DataFrame schema against expected schema.
 
@@ -192,8 +187,8 @@ def validate_schema(
         Dictionary with validation results
     """
     actual_schema = df.schema
-    actual_fields = set(field.name for field in actual_schema.fields)
-    expected_fields = set(field.name for field in expected_schema.fields)
+    actual_fields = {field.name for field in actual_schema.fields}
+    expected_fields = {field.name for field in expected_schema.fields}
 
     missing_fields = expected_fields - actual_fields
     extra_fields = actual_fields - expected_fields
@@ -202,7 +197,7 @@ def validate_schema(
         "check": "schema_validation",
         "missing_fields": list(missing_fields),
         "extra_fields": list(extra_fields),
-        "passed": len(missing_fields) == 0 and (not strict or len(extra_fields) == 0)
+        "passed": len(missing_fields) == 0 and (not strict or len(extra_fields) == 0),
     }
 
     if fail_on_violation and not result["passed"]:
@@ -217,10 +212,8 @@ def validate_schema(
 
 
 def run_dq_checks(
-    df: DataFrame,
-    checks: List[Dict[str, Any]],
-    fail_fast: bool = True
-) -> Dict[str, Any]:
+    df: DataFrame, checks: list[dict[str, Any]], fail_fast: bool = True
+) -> dict[str, Any]:
     """
     Run multiple data quality checks on a DataFrame.
 
@@ -236,11 +229,7 @@ def run_dq_checks(
         "timestamp": datetime.now().isoformat(),
         "checks": {},
         "overall_passed": True,
-        "summary": {
-            "total_checks": len(checks),
-            "passed_checks": 0,
-            "failed_checks": 0
-        }
+        "summary": {"total_checks": len(checks), "passed_checks": 0, "failed_checks": 0},
     }
 
     for i, check_config in enumerate(checks):
@@ -250,15 +239,11 @@ def run_dq_checks(
         try:
             if check_type == "not_null":
                 check_result = require_not_null(
-                    df,
-                    check_config["columns"],
-                    fail_on_violation=fail_fast
+                    df, check_config["columns"], fail_on_violation=fail_fast
                 )
             elif check_type == "unique_keys":
                 check_result = require_unique_keys(
-                    df,
-                    check_config["key_columns"],
-                    fail_on_violation=fail_fast
+                    df, check_config["key_columns"], fail_on_violation=fail_fast
                 )
             elif check_type == "control_total":
                 check_result = control_total(
@@ -266,14 +251,14 @@ def run_dq_checks(
                     check_config["value_column"],
                     expected_total=check_config.get("expected_total"),
                     tolerance_percentage=check_config.get("tolerance_percentage", 0.01),
-                    fail_on_violation=fail_fast
+                    fail_on_violation=fail_fast,
                 )
             elif check_type == "schema":
                 check_result = validate_schema(
                     df,
                     check_config["expected_schema"],
                     strict=check_config.get("strict", True),
-                    fail_on_violation=fail_fast
+                    fail_on_violation=fail_fast,
                 )
             else:
                 raise ValueError(f"Unknown check type: {check_type}")
@@ -288,10 +273,7 @@ def run_dq_checks(
                 results["overall_passed"] = False
 
         except Exception as e:
-            results["checks"][check_name] = {
-                "error": str(e),
-                "passed": False
-            }
+            results["checks"][check_name] = {"error": str(e), "passed": False}
             results["summary"]["failed_checks"] += 1
             results["overall_passed"] = False
 
@@ -301,10 +283,7 @@ def run_dq_checks(
     return results
 
 
-def generate_dq_report(
-    results: Dict[str, Any],
-    output_path: Optional[str] = None
-) -> str:
+def generate_dq_report(results: dict[str, Any], output_path: str | None = None) -> str:
     """
     Generate a compact JSON DQ report.
 
@@ -320,7 +299,7 @@ def generate_dq_report(
             "timestamp": results["timestamp"],
             "overall_passed": results["overall_passed"],
             "summary": results["summary"],
-            "checks": {}
+            "checks": {},
         }
     }
 
@@ -329,26 +308,32 @@ def generate_dq_report(
         if isinstance(check_result, dict):
             report["dq_report"]["checks"][check_name] = {
                 "passed": check_result.get("passed", False),
-                "check_type": check_result.get("check", "unknown")
+                "check_type": check_result.get("check", "unknown"),
             }
 
             # Add relevant details based on check type
             if check_result.get("check") == "not_null":
-                report["dq_report"]["checks"][check_name]["null_count"] = check_result.get("null_count", 0)
+                report["dq_report"]["checks"][check_name]["null_count"] = check_result.get(
+                    "null_count", 0
+                )
             elif check_result.get("check") == "unique_keys":
-                report["dq_report"]["checks"][check_name]["duplicate_count"] = check_result.get("duplicate_count", 0)
+                report["dq_report"]["checks"][check_name]["duplicate_count"] = check_result.get(
+                    "duplicate_count", 0
+                )
             elif check_result.get("check") == "control_total":
-                report["dq_report"]["checks"][check_name]["actual_total"] = check_result.get("actual_total", 0)
+                report["dq_report"]["checks"][check_name]["actual_total"] = check_result.get(
+                    "actual_total", 0
+                )
         else:
             report["dq_report"]["checks"][check_name] = {
                 "passed": False,
-                "error": str(check_result)
+                "error": str(check_result),
             }
 
     report_json = json.dumps(report, indent=2)
 
     if output_path:
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(report_json)
         logger.info(f"DQ report saved to {output_path}")
 

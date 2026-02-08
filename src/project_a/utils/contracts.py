@@ -14,8 +14,7 @@ from pathlib import Path
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField
-from typing import List, Dict, Optional
+from pyspark.sql.types import StructType
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +24,9 @@ class TableContract:
     """Data contract for a table."""
 
     name: str
-    primary_key: List[str]
-    columns: Dict[str, str]
-    required: List[str]
+    primary_key: list[str]
+    columns: dict[str, str]
+    required: list[str]
 
     @classmethod
     def from_json(cls, payload: dict) -> TableContract:
@@ -40,7 +39,7 @@ class TableContract:
         )
 
 
-def load_contract(contract_name: str, base_path: Optional[str] = None) -> TableContract:
+def load_contract(contract_name: str, base_path: str | None = None) -> TableContract:
     """
     Load a contract from config/schema_definitions/bronze/.
 
@@ -80,7 +79,7 @@ def validate_schema(df: DataFrame, contract: TableContract) -> None:
         raise ValueError(f"DataFrame for {contract.name} is missing required columns: {missing}")
 
 
-def enforce_not_null(df: DataFrame, cols: List[str]) -> DataFrame:
+def enforce_not_null(df: DataFrame, cols: list[str]) -> DataFrame:
     """
     Filter out rows where any of the given columns are NULL.
 
@@ -121,31 +120,28 @@ def validate_primary_key(df: DataFrame, contract: TableContract) -> DataFrame:
 
 
 def validate_dataframe_schema(
-    df: DataFrame,
-    expected_schema: StructType,
-    table_name: str,
-    fail_on_mismatch: bool = True
+    df: DataFrame, expected_schema: StructType, table_name: str, fail_on_mismatch: bool = True
 ) -> None:
     """
     Validate that a DataFrame matches an expected StructType schema.
-    
+
     Checks:
     - Required columns exist
     - Data types match (using simpleString() comparison)
-    
+
     Args:
         df: DataFrame to validate
         expected_schema: Expected StructType schema
         table_name: Logical table name for error messages
         fail_on_mismatch: If True, raise exception on mismatch; if False, log warning
-        
+
     Raises:
         ValueError: If schema validation fails and fail_on_mismatch=True
     """
     df_schema = df.schema
     df_cols = {f.name: f.dataType.simpleString() for f in df_schema.fields}
     expected_cols = {f.name: f.dataType.simpleString() for f in expected_schema.fields}
-    
+
     # Check for missing columns
     missing_cols = set(expected_cols.keys()) - set(df_cols.keys())
     if missing_cols:
@@ -155,7 +151,7 @@ def validate_dataframe_schema(
         else:
             logger.warning(error_msg)
             return
-    
+
     # Check for type mismatches in common columns
     type_mismatches = []
     for col_name in expected_cols.keys():
@@ -164,7 +160,7 @@ def validate_dataframe_schema(
                 type_mismatches.append(
                     f"{col_name}: expected {expected_cols[col_name]}, got {df_cols[col_name]}"
                 )
-    
+
     if type_mismatches:
         error_msg = f"Schema validation FAILED for {table_name}: Type mismatches: {', '.join(type_mismatches)}"
         if fail_on_mismatch:
@@ -172,5 +168,5 @@ def validate_dataframe_schema(
         else:
             logger.warning(error_msg)
             return
-    
+
     logger.info(f"✅ Schema validation PASSED for {table_name}: {len(expected_cols)} columns match")

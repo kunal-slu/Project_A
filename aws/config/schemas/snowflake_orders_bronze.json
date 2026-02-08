@@ -1,0 +1,62 @@
+{
+  "schema_name": "snowflake_orders_bronze",
+  "source": "snowflake",
+  "layer": "bronze",
+  "description": "Schema contract for Snowflake orders ingestion",
+  "version": "1.0.0",
+  "required_columns": [
+    "order_id",
+    "customer_id",
+    "product_id",
+    "order_date",
+    "total_amount"
+  ],
+  "columns": {
+    "order_id": {
+      "type": "string",
+      "nullable": false,
+      "description": "Unique order identifier (primary key)"
+    },
+    "customer_id": {
+      "type": "string",
+      "nullable": false,
+      "description": "Customer identifier"
+    },
+    "product_id": {
+      "type": "string",
+      "nullable": false,
+      "description": "Product identifier"
+    },
+    "order_date": {
+      "type": "date",
+      "nullable": false,
+      "description": "Order date"
+    },
+    "total_amount": {
+      "type": "decimal(10,2)",
+      "nullable": false,
+      "description": "Order total amount"
+    },
+    "record_source": {
+      "type": "string",
+      "nullable": false,
+      "description": "Source system identifier"
+    },
+    "record_table": {
+      "type": "string",
+      "nullable": false,
+      "description": "Source table identifier"
+    },
+    "ingest_timestamp": {
+      "type": "timestamp",
+      "nullable": false,
+      "description": "Data ingestion timestamp"
+    }
+  },
+  "data_quality": {
+    "min_row_count": 1000,
+    "max_null_percentage": 0.01,
+    "freshness_hours_max": 6
+  }
+}
+

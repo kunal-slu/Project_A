@@ -10,13 +10,13 @@ Provides:
 from project_a.io.reader import (
     read_bronze_table,
     read_csv_with_schema,
-    read_json_with_schema,
     read_delta_table,
+    read_json_with_schema,
 )
 from project_a.io.writer import (
-    write_silver_table,
-    write_gold_table,
     validate_schema_before_write,
+    write_gold_table,
+    write_silver_table,
 )
 
 __all__ = [
@@ -28,4 +28,3 @@ __all__ = [
     "write_gold_table",
     "validate_schema_before_write",
 ]
-
