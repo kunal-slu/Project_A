@@ -16,6 +16,10 @@ apache-airflow-providers-http==4.15.0
 # Data Quality
 great-expectations==1.0.1
 
+# dbt (optional, Spark)
+dbt-core>=1.6,<2.0
+dbt-spark>=1.6,<2.0
+
 # AWS
 boto3==1.35.15
 botocore==1.35.15

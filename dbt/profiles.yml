@@ -1,11 +1,29 @@
 spark:
-  target: local
+  target: local_iceberg
   outputs:
-    local:
+    local_iceberg:
       type: spark
       method: session
+      database: local
       schema: default
-      host: localhost
-      port: 10000
       user: "{{ env_var('DBT_SPARK_USER', 'spark') }}"
       connect_timeout: 30
+      threads: 4
+      spark_config:
+        spark.sql.extensions: "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+        spark.sql.catalog.local: "org.apache.iceberg.spark.SparkCatalog"
+        spark.sql.catalog.local.type: "hadoop"
+        spark.sql.catalog.local.warehouse: "{{ env_var('DBT_ICEBERG_WAREHOUSE', 'file:///opt/project/data/iceberg') }}"
+        spark.sql.defaultCatalog: "local"
+
+    local_delta:
+      type: spark
+      method: session
+      database: spark_catalog
+      schema: default
+      user: "{{ env_var('DBT_SPARK_USER', 'spark') }}"
+      connect_timeout: 30
+      threads: 4
+      spark_config:
+        spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+        spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"

@@ -257,6 +257,14 @@ class SilverToGoldJob(BaseJob):
                 spark, orders_df, customer_dim, product_dim, fx_rates_df, gold_path
             )
 
+            # Build Date Dimension
+            logger.info("Building Date Dimension...")
+            self.build_dim_date(spark, fact_orders, gold_path)
+
+            # Build Product Performance
+            logger.info("Building Product Performance...")
+            self.build_product_performance(spark, product_dim, fact_orders, gold_path)
+
             # Build Customer 360 View
             logger.info("Building Customer 360 View...")
             self.build_customer_360(spark, customer_dim, fact_orders, behavior_df, gold_path)
@@ -292,9 +300,11 @@ class SilverToGoldJob(BaseJob):
                     "account_dim",
                     "contact_dim",
                     "product_dim",
+                    "dim_date",
                     "fact_orders",
                     "customer_360",
                     "behavior_analytics",
+                    "product_performance",
                     "fact_opportunity",
                     "fact_order_events",
                 ],
@@ -834,6 +844,145 @@ class SilverToGoldJob(BaseJob):
         # Write to gold
         self._write_gold(spark, fact_orders, "fact_orders", f"{gold_path}/fact_orders")
         return fact_orders
+
+    def build_dim_date(self, spark, fact_orders, gold_path: str):
+        """Build Date Dimension from fact orders."""
+        from datetime import date, timedelta
+
+        from pyspark.sql import functions as F
+        from pyspark.sql.types import (
+            BooleanType,
+            DateType,
+            IntegerType,
+            StructField,
+            StructType,
+        )
+
+        date_col = "order_date" if "order_date" in fact_orders.columns else None
+
+        if date_col:
+            min_max = fact_orders.agg(
+                F.min(F.col(date_col)).alias("min_date"),
+                F.max(F.col(date_col)).alias("max_date"),
+            ).collect()[0]
+            start_date = min_max["min_date"]
+            end_date = min_max["max_date"]
+        else:
+            start_date = None
+            end_date = None
+
+        if start_date is None or end_date is None:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=730)
+        else:
+            if hasattr(start_date, "date"):
+                start_date = start_date.date()
+            if hasattr(end_date, "date"):
+                end_date = end_date.date()
+
+            days_diff = (end_date - start_date).days
+            if days_diff < 730:
+                center = start_date + timedelta(days=days_diff // 2)
+                start_date = center - timedelta(days=365)
+                end_date = center + timedelta(days=365)
+
+        num_days = (end_date - start_date).days + 1
+        start_date_str = start_date.strftime("%Y-%m-%d")
+
+        dim_date = (
+            spark.range(0, num_days)
+            .withColumn("date", F.expr(f"date_add('{start_date_str}', cast(id as int))"))
+            .select("date")
+            .filter(F.col("date").isNotNull())
+            .withColumn("date_sk", F.date_format("date", "yyyyMMdd").cast("int"))
+            .withColumn("year", F.year("date"))
+            .withColumn("quarter", F.quarter("date"))
+            .withColumn("month", F.month("date"))
+            .withColumn("day_of_week", F.dayofweek("date"))
+            .withColumn("is_weekend", F.when(F.col("day_of_week").isin([1, 7]), True).otherwise(False))
+            .select("date_sk", "date", "year", "quarter", "month", "day_of_week", "is_weekend")
+            .orderBy("date")
+        )
+
+        expected_schema = StructType(
+            [
+                StructField("date_sk", IntegerType(), True),
+                StructField("date", DateType(), True),
+                StructField("year", IntegerType(), True),
+                StructField("quarter", IntegerType(), True),
+                StructField("month", IntegerType(), True),
+                StructField("day_of_week", IntegerType(), True),
+                StructField("is_weekend", BooleanType(), True),
+            ]
+        )
+        self._assert_non_null(dim_date, ["date_sk", "date"], "dim_date")
+        self._validate_gold_schema(dim_date, "dim_date", expected_schema, pk="date_sk")
+
+        self._write_gold(spark, dim_date, "dim_date", f"{gold_path}/dim_date")
+        return dim_date
+
+    def build_product_performance(self, spark, product_dim, fact_orders, gold_path: str):
+        """Build Product Performance analytics table."""
+        from pyspark.sql import functions as F
+        from pyspark.sql.types import (
+            BooleanType,
+            DateType,
+            DoubleType,
+            LongType,
+            StringType,
+            StructField,
+            StructType,
+        )
+
+        product_agg = fact_orders.groupBy("product_id").agg(
+            F.countDistinct("order_id").alias("total_orders"),
+            F.sum("order_amount_usd").alias("total_revenue_usd"),
+            F.avg("order_amount_usd").alias("avg_order_value_usd"),
+            F.sum("quantity").alias("total_quantity_sold"),
+            F.max("order_date").alias("last_sale_date"),
+        )
+
+        current_products = product_dim.filter(F.col("is_current") == F.lit(True)).select(
+            "product_id",
+            "product_name",
+            "category",
+            "price_usd",
+        )
+        product_performance = current_products.join(product_agg, "product_id", "left")
+        product_performance = product_performance.fillna(
+            {
+                "total_orders": 0,
+                "total_revenue_usd": 0.0,
+                "avg_order_value_usd": 0.0,
+                "total_quantity_sold": 0,
+            }
+        ).withColumn(
+            "is_active", F.when(F.col("total_orders") > 0, F.lit(True)).otherwise(F.lit(False))
+        )
+
+        expected_schema = StructType(
+            [
+                StructField("product_id", StringType(), True),
+                StructField("product_name", StringType(), True),
+                StructField("category", StringType(), True),
+                StructField("price_usd", DoubleType(), True),
+                StructField("is_active", BooleanType(), True),
+                StructField("total_orders", LongType(), True),
+                StructField("total_revenue_usd", DoubleType(), True),
+                StructField("avg_order_value_usd", DoubleType(), True),
+                StructField("total_quantity_sold", LongType(), True),
+                StructField("last_sale_date", DateType(), True),
+            ]
+        )
+        self._assert_non_null(product_performance, ["product_id"], "product_performance")
+        self._validate_gold_schema(
+            product_performance, "product_performance", expected_schema, pk="product_id"
+        )
+
+        self._write_gold(
+            spark, product_performance, "product_performance", f"{gold_path}/product_performance"
+        )
+        return product_performance
 
     def build_fact_opportunity(self, spark, opportunities_df, account_dim, contact_dim, gold_path: str):
         """Build CRM Opportunity Fact table."""

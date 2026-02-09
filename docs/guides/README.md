@@ -25,11 +25,11 @@ cp .env.example .env
 ### Run Pipeline
 ```bash
 # Run complete pipeline
-python -m pyspark_interview_project.pipeline --env local
+python run_complete_etl.py --config local/config/local.yaml --env local --with-validation
 
 # Run specific jobs
-python src/pyspark_interview_project/jobs/hubspot_to_bronze.py
-python src/pyspark_interview_project/jobs/fx_bronze_to_silver.py
+python -m project_a.pipeline.run_pipeline --job fx_json_to_bronze --env local --config local/config/local.yaml
+python -m project_a.pipeline.run_pipeline --job bronze_to_silver --env local --config local/config/local.yaml
 ```
 
 ### Local Testing
@@ -157,7 +157,7 @@ airflow dags list
 aws logs describe-log-groups --log-group-name-prefix /aws/emr-serverless
 
 # Check data freshness
-python src/pyspark_interview_project/utils/freshness_guards.py
+python run_complete_etl.py --config local/config/local.yaml --env local --with-slo
 ```
 
 ### Support

@@ -37,7 +37,7 @@ with orders as (
     
     {% if is_incremental() %}
     -- Reprocess last 3 days to handle late-arriving data
-    where order_date >= dateadd(day, -3, current_date())
+    where order_date >= date_sub(current_date(), 3)
     {% endif %}
 ),
 

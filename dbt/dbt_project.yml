@@ -20,8 +20,8 @@ clean-targets:
 # Spark/Delta Lake configuration
 models:
   project_a:
-    +file_format: delta
-    +location_root: /user/hive/warehouse
+    +file_format: "{{ env_var('DBT_FILE_FORMAT', 'iceberg') }}"
+    +location_root: "{{ env_var('DBT_LOCATION_ROOT', '/opt/project/data/iceberg') }}"
     
     staging:
       +materialized: view
@@ -47,4 +47,3 @@ seeds:
   project_a:
     +schema: gold
     +quote_columns: false
-

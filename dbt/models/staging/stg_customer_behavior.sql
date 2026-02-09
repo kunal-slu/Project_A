@@ -3,27 +3,20 @@
 /*
 Staging model for customer behavior data.
 
-Reads from Snowflake raw source and performs basic cleaning/validation.
+Reads from Silver layer and performs basic cleaning/validation.
 */
 
 select
-    event_id,
     customer_id,
-    event_name,
+    event_type,
     event_ts,
     session_id,
-    url_1,
-    url_2,
     device_type,
     browser,
-    country,
     revenue,
-    _run_id,
-    _exec_date
+    time_spent_seconds
 
-from {{ source('raw', 'customer_behavior') }}
+from {{ source('silver', 'customer_behavior_silver') }}
 
-where event_id is not null
-  and customer_id is not null
+where customer_id is not null
   and event_ts is not null
-

@@ -7,17 +7,19 @@ Transformation jobs will normalize these to Silver schemas.
 
 from pyspark.sql.types import (
     BooleanType,
+    DateType,
     DoubleType,
     IntegerType,
     StringType,
     StructField,
     StructType,
+    TimestampType,
 )
 
 # CRM Schemas - match actual CSV headers
 CRM_ACCOUNTS_SCHEMA = StructType(
     [
-        StructField("Id", StringType(), nullable=False),  # account_id
+        StructField("Id", StringType(), nullable=True),  # account_id (nullable in raw)
         StructField("Name", StringType(), nullable=True),  # account_name
         StructField("Phone", StringType(), nullable=True),
         StructField("Website", StringType(), nullable=True),
@@ -51,7 +53,7 @@ CRM_ACCOUNTS_SCHEMA = StructType(
 
 CRM_CONTACTS_SCHEMA = StructType(
     [
-        StructField("Id", StringType(), nullable=False),  # contact_id
+        StructField("Id", StringType(), nullable=True),  # contact_id (nullable in raw)
         StructField("LastName", StringType(), nullable=True),
         StructField("AccountId", StringType(), nullable=True),  # account_id
         StructField("FirstName", StringType(), nullable=True),
@@ -80,7 +82,7 @@ CRM_CONTACTS_SCHEMA = StructType(
 
 CRM_OPPORTUNITIES_SCHEMA = StructType(
     [
-        StructField("Id", StringType(), nullable=False),  # opportunity_id
+        StructField("Id", StringType(), nullable=True),  # opportunity_id (nullable in raw)
         StructField("Name", StringType(), nullable=True),  # opportunity_name
         StructField("AccountId", StringType(), nullable=True),  # account_id
         StructField("StageName", StringType(), nullable=True),  # stage
@@ -108,8 +110,8 @@ CRM_OPPORTUNITIES_SCHEMA = StructType(
 # Redshift Behavior Schema - match actual CSV headers
 REDSHIFT_BEHAVIOR_SCHEMA = StructType(
     [
-        StructField("behavior_id", StringType(), nullable=False),
-        StructField("customer_id", StringType(), nullable=False),
+        StructField("behavior_id", StringType(), nullable=True),
+        StructField("customer_id", StringType(), nullable=True),
         StructField("event_name", StringType(), nullable=True),
         StructField("event_timestamp", StringType(), nullable=True),  # event_date
         StructField("session_id", StringType(), nullable=True),
@@ -138,7 +140,7 @@ REDSHIFT_BEHAVIOR_SCHEMA = StructType(
 # Snowflake Schemas - match actual CSV headers
 SNOWFLAKE_CUSTOMERS_SCHEMA = StructType(
     [
-        StructField("customer_id", StringType(), nullable=False),
+        StructField("customer_id", StringType(), nullable=True),
         StructField("first_name", StringType(), nullable=True),
         StructField("last_name", StringType(), nullable=True),
         StructField("email", StringType(), nullable=True),
@@ -166,7 +168,7 @@ SNOWFLAKE_CUSTOMERS_SCHEMA = StructType(
 
 SNOWFLAKE_ORDERS_SCHEMA = StructType(
     [
-        StructField("order_id", StringType(), nullable=False),
+        StructField("order_id", StringType(), nullable=True),
         StructField("customer_id", StringType(), nullable=True),
         StructField("product_id", StringType(), nullable=True),
         StructField("order_date", StringType(), nullable=True),
@@ -203,7 +205,7 @@ SNOWFLAKE_ORDERS_SCHEMA = StructType(
 
 SNOWFLAKE_PRODUCTS_SCHEMA = StructType(
     [
-        StructField("product_id", StringType(), nullable=False),
+        StructField("product_id", StringType(), nullable=True),
         StructField("sku", StringType(), nullable=True),
         StructField("product_name", StringType(), nullable=True),
         StructField("category", StringType(), nullable=True),
@@ -254,10 +256,35 @@ FX_RATES_SCHEMA = StructType(
     ]
 )
 
+# Normalized Bronze FX schema (post-read normalization used in DQ)
+FX_RATES_BRONZE_SCHEMA = StructType(
+    [
+        StructField("date", DateType(), nullable=True),
+        StructField("trade_date", DateType(), nullable=True),
+        StructField("base_ccy", StringType(), nullable=True),
+        StructField("base_currency", StringType(), nullable=True),
+        StructField("quote_ccy", StringType(), nullable=True),
+        StructField("counter_ccy", StringType(), nullable=True),
+        StructField("target_currency", StringType(), nullable=True),
+        StructField("rate", DoubleType(), nullable=True),
+        StructField("exchange_rate", DoubleType(), nullable=True),
+        StructField("source", StringType(), nullable=True),
+        StructField("record_source", StringType(), nullable=True),
+        StructField("ingest_timestamp", TimestampType(), nullable=True),
+        StructField("bid_rate", DoubleType(), nullable=True),
+        StructField("ask_rate", DoubleType(), nullable=True),
+        StructField("mid_rate", DoubleType(), nullable=True),
+        StructField("fx_rate", DoubleType(), nullable=True),
+        StructField("fx_mid_rate", DoubleType(), nullable=True),
+        StructField("fx_bid_rate", DoubleType(), nullable=True),
+        StructField("fx_ask_rate", DoubleType(), nullable=True),
+    ]
+)
+
 # Kafka Events Schema - match actual CSV headers
 KAFKA_EVENTS_SCHEMA = StructType(
     [
-        StructField("event_id", StringType(), nullable=False),
+        StructField("event_id", StringType(), nullable=True),
         StructField("topic", StringType(), nullable=True),
         StructField("partition", IntegerType(), nullable=True),
         StructField("offset", IntegerType(), nullable=True),

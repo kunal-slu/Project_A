@@ -1,41 +1,41 @@
 ======================================================================
 COMPREHENSIVE DATA QUALITY REPORT
 ======================================================================
-Generated: 2026-02-09T03:42:57.771709
+Generated: 2026-02-09T18:31:54.817622
 
 
 ======================================================================
 LAYER: BRONZE
 ======================================================================
-Status: FAIL
+Status: PASS
 
   Table: accounts
     Row Count: 2,000
-    Schema: ❌
+    Schema: ✅
   Table: contacts
     Row Count: 2,000
-    Schema: ❌
+    Schema: ✅
   Table: opportunities
-    Row Count: 500
-    Schema: ❌
+    Row Count: 505
+    Schema: ✅
   Table: customers
     Row Count: 2,000
-    Schema: ❌
+    Schema: ✅
   Table: orders
-    Row Count: 5,000
-    Schema: ❌
+    Row Count: 5,001
+    Schema: ✅
   Table: products
     Row Count: 500
-    Schema: ❌
+    Schema: ✅
   Table: behavior
-    Row Count: 2,000
-    Schema: ❌
+    Row Count: 2,080
+    Schema: ✅
   Table: kafka_events
-    Row Count: 5,000
-    Schema: ❌
+    Row Count: 5,050
+    Schema: ✅
   Table: fx_rates
     Row Count: 9,864
-    Schema: ❌
+    Schema: ✅
 
 ======================================================================
 LAYER: SILVER
@@ -45,15 +45,15 @@ Status: PASS
   Table: customers
     Row Count: 2,000
   Table: orders
-    Row Count: 5,000
+    Row Count: 5,001
   Table: products
     Row Count: 500
   Table: behavior
-    Row Count: 2,060
+    Row Count: 2,080
   Table: fx_rates
-    Row Count: 3,650
+    Row Count: 9,864
   Table: order_events
-    Row Count: 5,000
+    Row Count: 5,050
   Relationships:
     ✅ orders_customers: 0 orphaned keys
     ✅ orders_products: 0 orphaned keys
@@ -61,7 +61,7 @@ Status: PASS
     ✅ bronze.customers -> silver.customers: left_only=0, right_only=0
     ✅ bronze.orders -> silver.orders: left_only=0, right_only=0
     ✅ bronze.products -> silver.products: left_only=0, right_only=0
-    ❌ bronze.behavior -> silver.behavior: left_only=0, right_only=54
+    ✅ bronze.behavior -> silver.behavior: left_only=0, right_only=0
 
 ======================================================================
 LAYER: GOLD
@@ -69,7 +69,7 @@ LAYER: GOLD
 Status: PASS
 
   Table: fact_orders
-    Row Count: 5,000
+    Row Count: 5,001
   Table: dim_customer
     Row Count: 2,000
   Table: dim_product

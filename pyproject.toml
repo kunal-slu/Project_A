@@ -68,8 +68,8 @@ run-pipeline = "project_a.pipeline.run_pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-# Explicitly include both project_a and pyspark_interview_project packages
-include = ["project_a*", "pyspark_interview_project*"]
+# Canonical package only
+include = ["project_a*"]
 
 [tool.setuptools.package-dir]
 "" = "src"
@@ -81,8 +81,7 @@ project_a = ["schemas/*.py", "utils/*.py", "extract/*.py", "monitoring/*.py"]
 target-version = "py310"
 line-length = 100
 extend-exclude = [
-    "src/project_a/legacy",
-    "src/project_a/pyspark_interview_project",
+    "archive",
     "src/dq",
     "aws/dags_legacy",
     "aws/jobs_legacy",

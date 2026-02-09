@@ -1,52 +1,55 @@
 # Project Overview
 
-This interview-ready PySpark project demonstrates a complete ETL pipeline with Delta Lake and a lakehouse layout (bronze, silver, gold), including Airflow orchestration, streaming demos, and tests.
+This interview‑ready PySpark project demonstrates a complete lakehouse pipeline with **Iceberg** as the primary table format (Bronze → Silver → Gold), local Airflow orchestration, and production‑style data quality gates.
 
 ## Highlights
 
-- Extraction with schema enforcement from CSV and JSON sources
-- Data quality checks (non-null, unique, referential integrity)
-- Transformations: joins, skew mitigation, partitioning, window functions, UDFs
-- SQL vs DataFrame DSL comparisons
-- Loading to Parquet and Delta, partitioned for performance
-- Validation of outputs
+- Multi‑source ingestion (CRM, Snowflake, Redshift, Kafka, FX)
+- Bronze → Silver cleaning and contract validation
+- Gold dimensional models + analytics views
+- DQ gates + Gold Truth Tests (PK/joins/reconciliation)
+- Iceberg tables for ACID, time travel, and schema evolution
+- Optional dbt for SQL governance and tests
 
 ## Flow Diagram
 
 ```mermaid
 flowchart TD
-    A[Start Pipeline] --> B[Extract Customers CSV]
-    A --> C[Extract Products CSV]
-    A --> D[Extract Orders JSON]
-    B --> E[Data Quality Checks]
-    C --> E
-    D --> E
-    E --> F[Transform Demos]
-    F --> G[Write Parquet/Delta]
-    G --> H[Validate Outputs]
-    H --> I[End Pipeline]
+    A[Sources] --> B[Bronze (Parquet)]
+    B --> C[Silver (Iceberg)]
+    C --> D[Gold (Iceberg)]
+    D --> E[BI / Analytics]
 ```
 
-## Running the Project
+## Running the Project (Local)
 
-1. Ensure input files exist under `data/input_data/` (see `config/config-dev.yaml`).
-2. Install dependencies and the package:
+1. Create a virtual environment and install dependencies:
    ```bash
    python3 -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt && pip install -e .
    ```
-3. Run tests:
+2. Run tests:
    ```bash
-   env -u SPARK_HOME pytest -q | cat
+   pytest -q
    ```
-4. Run the pipeline:
+3. Run the full pipeline:
    ```bash
-   env -u SPARK_HOME python -m pyspark_interview_project config/config-dev.yaml | cat
+   python run_complete_etl.py --config local/config/local.yaml --env local --with-validation
+   ```
+4. Or run individual stages:
+   ```bash
+   python -m project_a.pipeline.run_pipeline --job bronze_to_silver --env local --config local/config/local.yaml
+   python -m project_a.pipeline.run_pipeline --job silver_to_gold --env local --config local/config/local.yaml
+   python -m project_a.pipeline.run_pipeline --job gold_truth_tests --env local --config local/config/local.yaml
    ```
 
-Airflow: see `README.md` for simple local setup with `airflow standalone` or use `docker-compose.yml` for a containerized scheduler/webserver.
+## Interview Canonical Stack
 
+For interviews (especially regulated companies like TransUnion), keep the narrative tight:
 
+- **Spark** for compute
+- **Iceberg** for Silver/Gold
+- **Airflow** for orchestration
+- **Contracts + DQ + Truth Tests** for governance
 
-
-
+See `docs/interview/TRANSUNION_INTERVIEW_BRIEF.md` for the full interview framing.

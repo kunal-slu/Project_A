@@ -21,16 +21,16 @@ sources:
       contacts: "contacts.csv"
       opportunities: "opportunities.csv"
     incremental_dirs:
-      accounts: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm/accounts/daily"
-      contacts: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm/contacts/daily"
-      opportunities: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm/opportunities/daily"
+      accounts: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/_incremental/crm/accounts/daily"
+      contacts: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/_incremental/crm/contacts/daily"
+      opportunities: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/_incremental/crm/opportunities/daily"
 
   redshift:
     base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/redshift"
     files:
       behavior: "redshift_customer_behavior_50000.csv"
     incremental_dirs:
-      behavior: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/redshift/behavior/daily"
+      behavior: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/_incremental/redshift/behavior/daily"
 
   snowflake:
     base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake"
@@ -39,7 +39,7 @@ sources:
       orders: "snowflake_orders_100000.csv"
       products: "snowflake_products_10000.csv"
     incremental_dirs:
-      orders: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake/orders/daily"
+      orders: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/_incremental/snowflake/orders/daily"
 
   fx:
     type: json
@@ -58,7 +58,7 @@ sources:
     files:
       orders_seed: "stream_kafka_events_100000.csv"
     incremental_dirs:
-      events: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka/events/daily"
+      events: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/_incremental/kafka/events/daily"
 
   kafka:
     local_bootstrap_servers: "localhost:9092"

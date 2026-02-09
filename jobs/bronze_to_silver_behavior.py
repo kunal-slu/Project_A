@@ -91,8 +91,20 @@ def _write_silver_behavior(df, silver_path: str, config: dict[str, Any]) -> None
 
 
 def transform_bronze_to_silver_behavior(spark, config: dict):
-    bronze_base = config.get("data_lake", {}).get("bronze_path", "")
-    silver_base = config.get("data_lake", {}).get("silver_path", "")
+    paths_cfg = config.get("paths", {}) or {}
+    data_lake_cfg = config.get("data_lake", {}) or {}
+    bronze_base = (
+        paths_cfg.get("bronze_root")
+        or paths_cfg.get("bronze")
+        or data_lake_cfg.get("bronze_path")
+        or "data/bronze"
+    )
+    silver_base = (
+        paths_cfg.get("silver_root")
+        or paths_cfg.get("silver")
+        or data_lake_cfg.get("silver_path")
+        or "data/silver"
+    )
     bronze_path = f"{bronze_base}/redshift/behavior"
     silver_path = f"{silver_base}/behavior"
 

@@ -153,15 +153,33 @@ def main() -> int:
                     if max_date:
                         from datetime import date, datetime, time as dt_time, timezone
 
-                        if isinstance(max_date, str):
+                        if hasattr(max_date, "to_pydatetime"):
+                            # pandas Timestamp
+                            max_dt = max_date.to_pydatetime()
+                        elif isinstance(max_date, str):
                             max_dt = datetime.fromisoformat(max_date)
                         elif isinstance(max_date, date) and not isinstance(max_date, datetime):
                             max_dt = datetime.combine(max_date, dt_time.min)
                         else:
                             max_dt = max_date
 
-                        if getattr(max_dt, "tzinfo", None) is None:
-                            max_dt = max_dt.replace(tzinfo=timezone.utc)
+                        if isinstance(max_dt, datetime):
+                            if getattr(max_dt, "tzinfo", None) is None:
+                                max_dt = max_dt.replace(tzinfo=timezone.utc)
+                        else:
+                            # Fallback for numpy datetime64 or other types
+                            try:
+                                import numpy as np
+
+                                if isinstance(max_dt, np.datetime64):
+                                    seconds = max_dt.astype("datetime64[s]").astype(int)
+                                    max_dt = datetime.fromtimestamp(seconds, tz=timezone.utc)
+                                else:
+                                    max_dt = datetime.fromtimestamp(
+                                        getattr(max_dt, "timestamp", lambda: 0)(), tz=timezone.utc
+                                    )
+                            except Exception:
+                                max_dt = datetime.fromtimestamp(0, tz=timezone.utc)
 
                         age_hours = (
                             datetime.now(timezone.utc) - max_dt

@@ -6,7 +6,11 @@ Runs the full local pipeline using the project job runner.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
+
+# Ensure DAG imports do not depend on Airflow SDK-only XCom backends
+os.environ.setdefault("AIRFLOW__CORE__XCOM_BACKEND", "airflow.models.xcom.BaseXCom")
 
 from airflow import DAG
 from airflow.operators.bash import BashOperator
@@ -30,6 +34,19 @@ def gold_truth_cmd() -> str:
     return (
         f"PYTHONPATH={PROJECT_SRC} {PYTHON_BIN} -m project_a.pipeline.run_pipeline "
         f"--job gold_truth_tests --env {ENV_NAME} --config {DEFAULT_CONFIG}"
+    )
+
+
+def dbt_build_cmd() -> str:
+    return (
+        "DBT_PROFILES_DIR=/opt/project/dbt "
+        "DBT_PROJECT_DIR=/opt/project/dbt "
+        "DBT_TARGET=local_iceberg "
+        "DBT_FILE_FORMAT=iceberg "
+        "DBT_LOCATION_ROOT=file:///opt/project/data/iceberg "
+        "DBT_ICEBERG_WAREHOUSE=file:///opt/project/data/iceberg "
+        "dbt deps --project-dir /opt/project/dbt --profiles-dir /opt/project/dbt && "
+        "dbt build --project-dir /opt/project/dbt --profiles-dir /opt/project/dbt"
     )
 
 
@@ -119,6 +136,12 @@ gold_truth_tests = BashOperator(
     dag=dag,
 )
 
+dbt_build = BashOperator(
+    task_id="dbt_build",
+    bash_command=dbt_build_cmd(),
+    dag=dag,
+)
+
 end = EmptyOperator(task_id="end", dag=dag)
 
 start >> [
@@ -129,4 +152,4 @@ start >> [
     ingest_kafka,
 ] >> ingest_done
 
-ingest_done >> bronze_to_silver >> dq_silver_gate >> silver_to_gold >> dq_gold_gate >> gold_truth_tests >> end
+ingest_done >> bronze_to_silver >> dq_silver_gate >> silver_to_gold >> dq_gold_gate >> gold_truth_tests >> dbt_build >> end

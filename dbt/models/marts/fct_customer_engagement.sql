@@ -14,29 +14,29 @@ with base as (
 agg as (
     select
         customer_id,
-        
+
         -- Event counts
         count(*) as total_events,
-        count_if(event_name = 'page_view') as page_views,
-        count_if(event_name = 'product_view') as product_views,
-        count_if(event_name = 'add_to_cart') as add_to_carts,
-        count_if(event_name = 'purchase') as purchase_events,
-        count_if(event_name = 'email_open') as email_opens,
-        count_if(event_name = 'email_click') as email_clicks,
-        
+        sum(case when event_type = 'page_view' then 1 else 0 end) as page_views,
+        sum(case when event_type = 'product_view' then 1 else 0 end) as product_views,
+        sum(case when event_type = 'add_to_cart' then 1 else 0 end) as add_to_carts,
+        sum(case when event_type = 'purchase' then 1 else 0 end) as purchase_events,
+        sum(case when event_type = 'email_open' then 1 else 0 end) as email_opens,
+        sum(case when event_type = 'email_click' then 1 else 0 end) as email_clicks,
+
         -- Time metrics
         min(event_ts) as first_event_date,
         max(event_ts) as last_event_date,
-        
+
         -- Revenue
         sum(coalesce(revenue, 0)) as total_revenue,
-        
+
         -- Engagement
         count(distinct session_id) as total_sessions,
-        count(distinct date(event_ts)) as active_days,
+        count(distinct to_date(event_ts)) as active_days,
         count(distinct browser) as browsers_used,
         count(distinct device_type) as devices_used
-        
+
     from base
     group by 1
 ),
@@ -54,9 +54,9 @@ engagement_scores as (
         )) as engagement_score,
         
         -- Calculate conversion rate
-        case 
-            when add_to_carts > 0 
-            then purchase_events::float / add_to_carts * 100
+        case
+            when add_to_carts > 0
+            then cast(purchase_events as double) / add_to_carts * 100
             else 0
         end as cart_to_purchase_rate
         
@@ -64,4 +64,3 @@ engagement_scores as (
 )
 
 select * from engagement_scores
-

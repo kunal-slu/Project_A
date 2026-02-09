@@ -918,10 +918,10 @@ class BronzeToSilverJob(BaseJob):
         table_contracts: dict[str, dict[str, Any]],
     ):
         """Transform FX data from bronze to silver."""
-        # Read bronze FX data
-        fx_df = self._read_bronze_parquet(
-            spark, f"{bronze_path}/fx/fx_rates", "bronze.fx.fx_rates"
-        )
+        # Read bronze FX data (prefer normalized Delta output)
+        from project_a.extract.fx_json_reader import read_fx_rates_from_bronze
+
+        fx_df = read_fx_rates_from_bronze(spark, self.config)
         if fx_df.rdd.isEmpty():
             raise ValueError("FX rates input is empty - cannot build fx_rates_silver")
 

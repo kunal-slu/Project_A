@@ -12,6 +12,20 @@ This is not just another ETL pipeline—it's a **production-ready data platform*
 - **Scalability**: Incremental processing handles growing data volumes efficiently
 - **Observability**: Audit logs + metrics, optional lineage tracking for compliance
 
+## 🧭 Interview Canonical Stack (TransUnion‑Ready)
+
+If you want a **clean, consistent story** for interviews (especially in a regulated company like TransUnion), use this stack:
+
+- **Compute**: Spark (PySpark)
+- **Storage**: **Iceberg** (primary table format)
+- **Orchestration**: Airflow (Docker for local)
+- **Governance**: Data contracts + DQ gates + Gold Truth Tests
+- **dbt**: Optional (SQL governance/tests if enabled)
+
+Everything else (Delta, EMR, Step Functions) is **optional/legacy** and should only be mentioned if asked directly.
+For the exact interview narrative, see `docs/interview/TRANSUNION_INTERVIEW_BRIEF.md`.
+For canonical vs legacy scope, see `docs/INTERVIEW_SCOPE.md`.
+
 ## 🏗️ Architecture Overview
 
 ```
@@ -23,12 +37,14 @@ Sources (CRM, Snowflake, Redshift, Kafka, FX)
     - Purpose: Immutable source of truth
          ↓
     Silver Layer (Cleaned, Validated)
-    - Format: Iceberg (default local) / Delta (optional) / Parquet
+    - Format: Iceberg (primary) / Parquet (fallback)
+    - Optional: Delta (legacy compatibility)
     - Strategy: Cleaning + CDC if present + contract validation
     - Purpose: Single source of truth for analytics
          ↓
     Gold Layer (Business Logic)
-    - Format: Iceberg / Delta / Parquet (configurable)
+    - Format: Iceberg (primary) / Parquet (fallback)
+    - Optional: Delta (legacy compatibility)
     - Strategy: Spark-built dims/facts; dbt models optional
     - Purpose: Analytics-ready dimensional models
          ↓
@@ -42,13 +58,13 @@ Sources (CRM, Snowflake, Redshift, Kafka, FX)
 - No schema enforcement needed
 - Cheap storage for compliance/auditing
 
-**Silver = Iceberg (default local) / Delta (optional)**  
+**Silver = Iceberg (primary)**  
 ✅ **This is the senior-level signal**
 - ACID guarantees for data consistency
 - Schema evolution without breaking consumers
 - Time travel for debugging and recovery
 - Merge operations for handling late data
-- Interview line: *"We keep Bronze as raw files, but Silver uses an ACID table format (Iceberg/Delta) to support schema evolution and late-arriving data."*
+- Interview line: *"We keep Bronze as raw files, but Silver uses Iceberg for ACID guarantees, schema evolution, and late-arriving data handling."*
 
 **Gold = Spark-built dimensional models (dbt optional)**
 - Business logic is implemented in Spark jobs (dims/facts/analytics)
@@ -77,9 +93,9 @@ dedupe_latest = row_number(partitionBy=order_id, orderBy=updated_at desc)
 - Safe for late corrections without full reload
 - Interview line: *"We reprocess a rolling window to safely handle late events."*
 
-### 2. Delta Lake vs Iceberg
+### 2. Iceberg (Primary) vs Delta (Optional)
 
-**Decision**: Iceberg enabled by default locally; Delta supported as an option
+**Decision**: Iceberg is the canonical storage format. Delta is supported as an optional/legacy path.
 
 **Why:**
 - Spark-native integration
@@ -93,6 +109,8 @@ dedupe_latest = row_number(partitionBy=order_id, orderBy=updated_at desc)
 - Petabyte-scale metadata management
 
 **Current Local Config**: Iceberg is enabled (`local/config/local.yaml`)
+
+**Interview guidance**: Lead with Iceberg. Mention Delta only if asked about alternatives.
 
 ### 3. dbt for Gold Layer (Optional)
 
@@ -134,13 +152,10 @@ Interview line: *"Pipelines fail fast if data quality checks don't pass."*
 
 ### 5. Orchestration
 
-**Current**: Local Airflow (Docker) + EMR Serverless job runner
-**Future**: Expand Airflow in AWS when orchestration needs grow
+**Current**: Local Airflow (Docker) orchestrating Spark jobs  
+**Optional**: AWS Spark runtime (e.g., EMR Serverless) for production scale
 
-**Why this approach:**
-- Start simple (EMR steps work)
-- Add Airflow when complexity demands it
-- Interview line: *"Airflow handles orchestration, EMR handles compute."*
+**Interview line**: *"Airflow orchestrates Spark jobs; the same pipeline runs locally or in AWS."*
 
 ### 6. Observability
 
@@ -188,12 +203,12 @@ pyspark_data_engineer_project/
 │   ├── utils/                   # Spark + helpers
 │   └── observability/           # Audit + alerts
 │
-├── jobs/                        # EMR job wrappers
+├── jobs/                        # Job wrappers (local + AWS optional)
 ├── airflow/                     # Local Airflow DAGs/configs
 ├── aws/
-│   ├── infra/terraform/        # Infrastructure as code
-│   ├── scripts/                 # Deployment scripts
-│   └── emr_configs/            # EMR configuration
+│   ├── infra/terraform/        # Infrastructure as code (optional)
+│   ├── scripts/                 # Deployment scripts (optional)
+│   └── emr_configs/            # EMR configuration (optional)
 │
 ├── tests/                       # Test suite
 ├── notebooks/                   # Jupyter notebooks
@@ -250,6 +265,16 @@ Then open the UI at `http://localhost:8080` and trigger the DAG:
 - `project_a_local_etl` (runs Bronze → Silver → Gold + DQ + Gold Truth Tests)
 
 Airflow uses a container-friendly config at `airflow/config/local_airflow.yaml`.
+
+### dbt (Local, Spark/Iceberg)
+
+Use the helper script:
+
+```bash
+scripts/run_dbt_local.sh
+```
+
+This runs `dbt build` using the project’s Spark/Iceberg profile in `dbt/profiles.yml`.
 
 ### AWS Deployment
 
@@ -418,7 +443,7 @@ aws emr terminate-clusters \
 
 **Import errors:**
 - Verify wheel is uploaded: `aws s3 ls s3://my-etl-artifacts-demo-424570854632/packages/project_a-0.1.0-py3-none-any.whl`
-- Check job scripts use canonical imports: `from project_a.pyspark_interview_project.*`
+- Check job scripts use canonical imports: `from project_a.*`
 
 **Delta Lake errors:**
 - Verify JARs are uploaded and paths match in step JSON
@@ -507,10 +532,7 @@ MIT License
 ### Quick Start
 ```bash
 # Run complete pipeline locally
-python -m pyspark_interview_project.cli \
-  --config config/local.yaml \
-  --env local \
-  --cmd full
+python run_complete_etl.py --config local/config/local.yaml --env local --with-validation
 
 # Deploy to AWS
 # See AWS_COMPLETE_DEPLOYMENT_GUIDE.md for step-by-step instructions

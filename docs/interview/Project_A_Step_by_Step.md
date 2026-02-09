@@ -13,6 +13,21 @@ It is written for beginners with **step‑by‑step instructions**, **simple exp
 
 ---
 
+## 0. Interview Framing (TransUnion‑Ready)
+
+This project is designed to be **interview‑ready for a regulated data company** like TransUnion.
+
+**Canonical stack (keep it simple):**
+- **Compute**: Spark (PySpark)
+- **Storage**: **Iceberg** (primary table format)
+- **Orchestration**: Airflow (Docker locally)
+- **Governance**: Data contracts + DQ gates + Gold Truth Tests
+- **dbt**: Optional (SQL governance/testing if enabled)
+
+**Important**: Delta is **optional/legacy**. Only mention it if the interviewer asks about alternatives.
+
+---
+
 ## 1. Big‑Picture Architecture (Plain English)
 
 Project A is a **data engineering pipeline** with three layers:
@@ -31,8 +46,9 @@ Project A is a **data engineering pipeline** with three layers:
    - These are the tables used for dashboards and analytics.
 
 **Storage formats**
-- Local runs can use **Parquet** or **Delta**.
-- **Iceberg** is supported for ACID + time travel.
+- **Iceberg is the primary format** for Silver + Gold (ACID, time travel, schema evolution).
+- **Parquet** is used for Bronze (raw files).
+- **Delta** is optional/legacy and not part of the canonical interview story.
 
 ---
 
@@ -67,7 +83,7 @@ flowchart TB
 
     subgraph Storage
         S3_or_Local[(S3 or Local Files)]
-        Iceberg[(Iceberg / Delta / Parquet)]
+        Iceberg[(Iceberg - primary)]
     end
 
     subgraph Governance
@@ -96,7 +112,7 @@ Spark is a distributed compute engine. It lets us process large data quickly usi
 A DataFrame is a table‑like structure (rows and columns). Spark DataFrames are lazy, meaning transformations are not run until an action like `count()` or `show()` is called.
 
 **Why not just use CSV?**
-CSV is simple but slow and unstructured. Parquet, Delta, and Iceberg are columnar formats that are fast, efficient, and better for analytics.
+CSV is simple but slow and unstructured. Parquet and Iceberg are columnar formats that are fast, efficient, and better for analytics. Delta is an optional alternative if a team already standardizes on it.
 
 ---
 
@@ -169,7 +185,7 @@ This section explains **what every major folder and key file does**. I am skippi
 | `src/project_a/contracts/` | Data contracts | “Schema + quality contract definitions.” |
 | `src/project_a/dq/` | DQ engine | “Rules and checks used by DQ jobs.” |
 | `src/project_a/iceberg_utils.py` | Iceberg helpers | “Creates and writes Iceberg tables.” |
-| `src/project_a/delta_utils.py` | Delta helpers | “Delta‑format IO utilities.” |
+| `src/project_a/delta_utils.py` | Delta helpers (legacy) | “Optional Delta‑format IO utilities.” |
 | `src/project_a/pipeline/` | Orchestration helpers | “Runs jobs in correct order.” |
 | `aws/` | AWS deployment artifacts | “Glue/EMR configs, Airflow DAGs, Terraform.” |
 | `aws/dags/` | Airflow DAGs | “Schedules batch pipeline runs.” |
@@ -195,7 +211,7 @@ This section explains **what every major folder and key file does**. I am skippi
 | `jobs/dq/dq_gate.py` | DQ job runner | Runs contract checks |
 | `local/config/local.yaml` | Local config | Paths + storage format + DQ settings |
 | `config/contracts/*.yaml` | Contracts | Column definitions + rules |
-| `src/project_a/utils/spark_session.py` | Spark builder | Configures Spark + Iceberg/Delta |
+| `src/project_a/utils/spark_session.py` | Spark builder | Configures Spark + Iceberg (Delta optional) |
 | `src/project_a/utils/schema_validator.py` | Schema validator | Enforces schema consistency |
 | `src/project_a/utils/watermark_utils.py` | Watermarking | Tracks latest processed time |
 | `src/project_a/iceberg_utils.py` | Iceberg writes | Creates and writes Iceberg tables |
@@ -218,8 +234,8 @@ This project uses a mix of **data engineering tools** and **supporting tools**. 
 **Core data tools**
 - **Apache Spark (via PySpark)**: The main engine that reads, transforms, and writes large datasets. It works on DataFrames (like tables).
 - **Parquet**: A fast columnar file format. Great for analytics but not ACID.
-- **Delta Lake**: Parquet + a transaction log. Adds ACID, time travel, and schema enforcement.
-- **Apache Iceberg**: A table format with ACID, time travel, and schema evolution; works with catalogs.
+- **Apache Iceberg**: The primary table format here. ACID, time travel, schema evolution; works with catalogs.
+- **Delta Lake**: Optional alternative table format (not required for this project’s canonical flow).
 
 **Orchestration and modeling**
 - **Apache Airflow**: Schedules and runs jobs in order. Adds retries, SLAs, and dependencies.
@@ -330,7 +346,7 @@ Local configuration lives here:
 
 This file controls:
 - Paths to data (`paths.bronze_root`, `paths.silver_root`, `paths.gold_root`)
-- Storage format (Iceberg/Delta/Parquet)
+- Storage format (Iceberg primary; Parquet fallback; Delta optional)
 - Spark options
 - DQ strictness
 
@@ -348,8 +364,8 @@ dq:
 ## 9. How Spark is Built (Important)
 
 This project automatically builds Spark with:
-- Delta Lake support (if `delta-spark` is installed)
-- Iceberg support (if enabled in config)
+- Iceberg support (enabled by default in local config)
+- Delta Lake support (optional, only if `delta-spark` is installed and configured)
 
 Local runs are forced to use **PySpark’s bundled Spark** (not Homebrew Spark 4), to avoid version conflicts.
 
@@ -551,15 +567,15 @@ This checks:
 
 ---
 
-## 20. Iceberg vs Delta vs Parquet (Beginner Explanation)
+## 20. Iceberg vs Parquet (Delta Optional)
 
 - **Parquet** = file format only (fast, simple, not ACID)
-- **Delta Lake** = Parquet + transaction log (ACID, time travel)
 - **Iceberg** = table format with ACID + catalog integration
+- **Delta Lake** = optional alternative (also ACID), not required in this project’s canonical flow
 
 In this project:
-- Local runs can use Parquet or Iceberg.
-- If Iceberg is enabled, Silver/Gold use Iceberg tables.
+- Local runs use Iceberg by default; Bronze stays Parquet.
+- Delta is only used if you explicitly enable it.
 
 ---
 
@@ -662,7 +678,7 @@ A: Iceberg adds ACID guarantees, time travel, schema evolution, and catalog inte
 A: Deduplication logic in Silver + merge/upsert strategies.
 
 **Q5: How does this scale in production?**
-A: Spark on EMR with S3 storage, partitioned datasets, orchestration via Airflow.
+A: Spark on a managed runtime (local or AWS), Iceberg tables in object storage, and Airflow for orchestration.
 
 **Q6: What happens if a job fails halfway?**
 A: Jobs are idempotent, use overwrite/merge patterns, and produce run audits for recovery.
@@ -688,7 +704,7 @@ When asked to explain this project, say:
 - It ingests multi‑source data into Bronze (raw).
 - Standardizes to Silver with explicit schema and data contracts.
 - Builds Gold fact/dim tables (analytics‑ready).
-- Includes DQ gates, lineage logging, and Iceberg/Delta support.
-- Designed for AWS EMR with S3 + Glue catalog.
+- Includes DQ gates, lineage logging, and Iceberg (primary) with optional Delta.
+- Runs locally with Airflow and can scale to AWS when needed.
 
 This gives you a strong, production‑grade story.

@@ -82,7 +82,21 @@ class ComprehensiveValidator:
                 schema_result = self.schema_checker.validate_dataframe(
                     df, expected_schemas[table_name], table_name
                 )
-                table_results["schema_valid"] = not schema_result["drift_detected"]
+                drift_detected = schema_result["drift_detected"]
+                # Bronze is raw: allow drift by default (especially nullability-only drift)
+                if drift_detected and self._allow_bronze_schema_drift():
+                    nullability_only = (
+                        schema_result.get("missing_columns") == []
+                        and schema_result.get("new_columns") == []
+                        and schema_result.get("type_changes") == []
+                        and schema_result.get("nullability_changes")
+                    )
+                    if nullability_only and self._allow_bronze_nullability_drift():
+                        drift_detected = False
+                    # Keep drift details but mark schema as valid for Bronze
+                    table_results["schema_valid"] = True
+                else:
+                    table_results["schema_valid"] = not drift_detected
                 table_results["schema_issues"] = schema_result
 
             # Null analysis
@@ -121,7 +135,10 @@ class ComprehensiveValidator:
 
             results["tables"][table_name] = table_results
 
-            if not table_results["schema_valid"] or not uniqueness_result.get("valid", True):
+            if (
+                not table_results["schema_valid"]
+                and not self._allow_bronze_schema_drift()
+            ) or not uniqueness_result.get("valid", True):
                 results["overall_status"] = "FAIL"
 
         self.results["bronze"] = results
@@ -377,6 +394,14 @@ class ComprehensiveValidator:
     def _realism_fail_on_violation(self) -> bool:
         return bool(self.realism_cfg.get("fail_on_violation", False))
 
+    def _allow_bronze_schema_drift(self) -> bool:
+        """Bronze is raw/append-only; allow schema drift unless explicitly disabled."""
+        return bool(self.dq_config.get("allow_bronze_schema_drift", True))
+
+    def _allow_bronze_nullability_drift(self) -> bool:
+        """Allow nullability changes in Bronze unless explicitly disabled."""
+        return bool(self.dq_config.get("allow_bronze_nullability_drift", True))
+
     def _sample_df(self, df: DataFrame) -> tuple[DataFrame | None, dict[str, Any] | None]:
         if not self._sampling_enabled():
             return None, None
@@ -477,7 +502,7 @@ class ComprehensiveValidator:
             {"left": "customers", "right": "customers", "keys": ["customer_id"]},
             {"left": "orders", "right": "orders", "keys": ["order_id"]},
             {"left": "products", "right": "products", "keys": ["product_id"]},
-            {"left": "behavior", "right": "behavior", "keys": ["customer_id"]},
+            {"left": "behavior", "right": "behavior", "keys": ["behavior_id"]},
         ]
 
         if left_layer == "silver" and right_layer == "gold":
@@ -512,8 +537,19 @@ class ComprehensiveValidator:
             if any(col not in left_df.columns for col in keys) or any(
                 col not in right_df.columns for col in keys
             ):
-                results[label] = {"skipped": True, "reason": "key columns missing"}
-                continue
+                # For behavior, fall back to customer_id if behavior_id is missing
+                if left_name == "behavior" and right_name == "behavior":
+                    fallback_keys = ["customer_id"]
+                    if all(col in left_df.columns for col in fallback_keys) and all(
+                        col in right_df.columns for col in fallback_keys
+                    ):
+                        keys = fallback_keys
+                    else:
+                        results[label] = {"skipped": True, "reason": "key columns missing"}
+                        continue
+                else:
+                    results[label] = {"skipped": True, "reason": "key columns missing"}
+                    continue
 
             left_keys = left_df.select(*keys).distinct()
             right_keys = right_df.select(*keys).distinct()

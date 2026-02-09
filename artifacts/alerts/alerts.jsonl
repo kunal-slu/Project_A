@@ -16,3 +16,5 @@
 {"timestamp_utc": "2026-02-09T01:01:52.624972Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 22.35s", "environment": "local", "metadata": {}}
 {"timestamp_utc": "2026-02-09T01:24:39.311851Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 39.99s", "environment": "local", "metadata": {}}
 {"timestamp_utc": "2026-02-09T03:43:58.100661Z", "level": "WARN", "title": "Data freshness anomaly", "message": "Data freshness check found future-dated records: max order_date is 212636.27h ahead of current time", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T18:06:40.306076Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 19.57s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T18:12:59.894270Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 35.85s", "environment": "local", "metadata": {}}

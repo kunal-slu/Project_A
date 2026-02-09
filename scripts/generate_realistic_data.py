@@ -60,6 +60,10 @@ def _random_timestamp(rng: np.random.Generator, d: date) -> str:
     return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _cap_date(value: date, max_date: date) -> date:
+    return value if value <= max_date else max_date
+
+
 def _write_csv(df: pd.DataFrame, path: Path) -> None:
     _ensure_dir(path.parent)
     df.to_csv(path, index=False)
@@ -120,11 +124,12 @@ def generate_data(
     order_ids = [f"ORD{idx:08d}" for idx in range(1, n_orders + 1)]
 
     # Reset incremental directories to avoid double-counting
+    incremental_base = output_base / "_incremental"
     for daily_dir in [
-        output_base / "snowflake" / "orders" / "daily",
-        output_base / "redshift" / "behavior" / "daily",
-        output_base / "kafka" / "events" / "daily",
-        output_base / "crm" / "opportunities" / "daily",
+        incremental_base / "snowflake" / "orders" / "daily",
+        incremental_base / "redshift" / "behavior" / "daily",
+        incremental_base / "kafka" / "events" / "daily",
+        incremental_base / "crm" / "opportunities" / "daily",
     ]:
         if daily_dir.exists():
             shutil.rmtree(daily_dir)
@@ -318,6 +323,14 @@ def generate_data(
     accounts = []
     for idx, cid in enumerate(customer_ids, start=1):
         created = _random_dates(rng, start_date, end_date - timedelta(days=180), 1)[0]
+        last_modified = _cap_date(
+            created + timedelta(days=int(rng.integers(0, 365))),
+            end_date,
+        )
+        last_activity = _cap_date(
+            created + timedelta(days=int(rng.integers(1, 365))),
+            end_date,
+        )
         accounts.append(
             {
                 "Id": cid,
@@ -343,12 +356,12 @@ def generate_data(
                 "TickerSymbol": "",
                 "YearStarted": int(rng.integers(1980, 2020)),
                 "CreatedDate": created.isoformat(),
-                "LastModifiedDate": (created + timedelta(days=int(rng.integers(0, 365)))).isoformat(),
+                "LastModifiedDate": last_modified.isoformat(),
                 "OwnerId": f"OWN{rng.integers(1, 300):04d}",
                 "CustomerSegment": random.choice(segments),
                 "GeographicRegion": random.choice(["NA", "EMEA", "APAC", "LATAM"]),
                 "AccountStatus": random.choice(["active", "on_hold", "churned"]),
-                "LastActivityDate": (created + timedelta(days=int(rng.integers(1, 365)))).isoformat(),
+                "LastActivityDate": last_activity.isoformat(),
             }
         )
 
@@ -361,6 +374,10 @@ def generate_data(
         first = faker.first_name()
         last = faker.last_name()
         created = _random_dates(rng, start_date, end_date - timedelta(days=90), 1)[0]
+        last_modified = _cap_date(
+            created + timedelta(days=int(rng.integers(1, 180))),
+            end_date,
+        )
         contacts.append(
             {
                 "Id": f"CON{idx:07d}",
@@ -382,7 +399,7 @@ def generate_data(
                 "HasOptedOutOfEmail": False,
                 "Description": "",
                 "CreatedDate": created.isoformat(),
-                "LastModifiedDate": (created + timedelta(days=int(rng.integers(1, 180)))).isoformat(),
+                "LastModifiedDate": last_modified.isoformat(),
                 "OwnerId": f"OWN{rng.integers(1, 300):04d}",
                 "ContactRole": random.choice(["Primary", "Billing", "Technical"]),
                 "ContactLevel": random.choice(["L1", "L2", "L3"]),
@@ -403,6 +420,8 @@ def generate_data(
         is_won = stage == "Closed Won"
         is_closed = stage in ("Closed Won", "Closed Lost")
         created = close_dt - timedelta(days=int(rng.integers(10, 120)))
+        if created < start_date:
+            created = start_date
         opps.append(
             {
                 "Id": f"OPP{idx:07d}",
@@ -512,7 +531,7 @@ def generate_data(
     inc_dates = _date_range(end_date - timedelta(days=increment_days - 1), end_date)
 
     # Orders incremental
-    daily_orders_dir = output_base / "snowflake" / "orders" / "daily"
+    daily_orders_dir = incremental_base / "snowflake" / "orders" / "daily"
     next_order_idx = n_orders + 1
     for d in inc_dates:
         daily = []
@@ -653,7 +672,7 @@ def generate_data(
         _write_csv(daily_df, daily_path)
 
     # Redshift behavior incremental
-    daily_behavior_dir = output_base / "redshift" / "behavior" / "daily"
+    daily_behavior_dir = incremental_base / "redshift" / "behavior" / "daily"
     for d in inc_dates:
         inc_rows = []
         for _ in range(int(n_behavior / 100)):
@@ -691,7 +710,7 @@ def generate_data(
         _write_csv(inc_df, inc_path)
 
     # Kafka events incremental
-    daily_events_dir = output_base / "kafka" / "events" / "daily"
+    daily_events_dir = incremental_base / "kafka" / "events" / "daily"
     for d in inc_dates:
         inc_events = []
         for _ in range(int(n_events / 100)):
@@ -724,12 +743,12 @@ def generate_data(
         _write_csv(inc_df, inc_path)
 
     # CRM incremental (new opportunities)
-    daily_opps_dir = output_base / "crm" / "opportunities" / "daily"
+    daily_opps_dir = incremental_base / "crm" / "opportunities" / "daily"
     for d in inc_dates:
         inc_opps = []
         for _ in range(int(n_opps / 100)):
             account_id = random.choice(customer_ids)
-            close_dt = d + timedelta(days=int(rng.integers(10, 90)))
+            close_dt = _cap_date(d + timedelta(days=int(rng.integers(10, 90))), end_date)
             stage = random.choice(["Prospecting", "Qualification", "Proposal", "Closed Won", "Closed Lost"])
             is_won = stage == "Closed Won"
             is_closed = stage in ("Closed Won", "Closed Lost")

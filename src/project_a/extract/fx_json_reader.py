@@ -66,15 +66,19 @@ def read_fx_json(
 
     # Standardize and clean
     # Rename JSON columns (base_ccy, quote_ccy, rate) to schema standard (base_currency, target_currency, exchange_rate)
+    def _try_ts(col_name: str, fmt: str) -> F.Column:
+        # Spark 3.5+ supports try_to_timestamp; use SQL expr to avoid parse exceptions.
+        return F.expr(f"try_to_timestamp(`{col_name}`, '{fmt}')")
+
     df = (
         df.withColumn(
             "date",
             F.to_date(
                 F.coalesce(
-                    F.to_timestamp("date", "yyyy-MM-dd HH:mm:ss"),
-                    F.to_timestamp("date", "yyyy-MM-dd"),
-                    F.to_timestamp("trade_date", "yyyy-MM-dd HH:mm:ss"),
-                    F.to_timestamp("trade_date", "yyyy-MM-dd"),
+                    _try_ts("date", "yyyy-MM-dd HH:mm:ss"),
+                    _try_ts("date", "yyyy-MM-dd"),
+                    _try_ts("trade_date", "yyyy-MM-dd HH:mm:ss"),
+                    _try_ts("trade_date", "yyyy-MM-dd"),
                 )
             ),
         )
@@ -153,27 +157,29 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
     from project_a.schemas.bronze_schemas import FX_RATES_SCHEMA
 
     # Handle both config dict and string path
-    if isinstance(bronze_root_or_config, dict):
+    if isinstance(bronze_root_or_config, dict) or hasattr(bronze_root_or_config, "get"):
         # Backward compatibility: extract path from config
         from project_a.utils.path_resolver import resolve_data_path
 
         config = bronze_root_or_config
-        fx_cfg = config.get("sources", {}).get("fx", {})
-        bronze_root = fx_cfg.get("raw_path", fx_cfg.get("base_path", ""))
+        fx_cfg = (config.get("sources", {}) or {}).get("fx", {})
+        bronze_root = (
+            fx_cfg.get("bronze_path")
+            or fx_cfg.get("raw_path")
+            or fx_cfg.get("base_path")
+            or ""
+        )
         if not bronze_root:
             bronze_root = resolve_data_path(config, "bronze")
     else:
         bronze_root = bronze_root_or_config
 
     # Handle both bronze paths (s3://.../bronze) and source paths (local file paths)
-    if "/fx/" in bronze_root or bronze_root.endswith("/fx"):
-        # Already includes /fx, use as-is
+    if "/fx/" in bronze_root or bronze_root.endswith("/fx") or bronze_root.endswith("/fx/delta"):
         fx_base = bronze_root.rstrip("/")
     elif bronze_root.endswith(".json") or bronze_root.endswith(".csv"):
-        # Direct file path, use as-is
         fx_base = str(Path(bronze_root).parent)
     else:
-        # Add /fx suffix
         fx_base = f"{bronze_root.rstrip('/')}/fx"
 
     # Try multiple possible JSON locations
@@ -188,12 +194,23 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
     df_raw: DataFrame = None
 
     # Try Delta first (in case a normalized Delta table already exists)
-    delta_path = fx_base
-    try:
-        df_raw = spark.read.format("delta").load(delta_path)
-        logger.info("✅ Loaded FX rates from Delta at %s", delta_path)
-    except Exception as e:
-        logger.debug("Delta not found: %s", e)
+    delta_candidates = []
+    if fx_base.endswith("/delta"):
+        delta_candidates.append(fx_base)
+    else:
+        delta_candidates.append(f"{fx_base}/delta")
+        delta_candidates.append(fx_base)
+
+    for delta_path in delta_candidates:
+        try:
+            df_raw = spark.read.format("delta").load(delta_path)
+            logger.info("✅ Loaded FX rates from Delta at %s", delta_path)
+            break
+        except Exception as e:
+            logger.debug("Delta not found at %s: %s", delta_path, e)
+            df_raw = None
+
+    if df_raw is None:
         # Try JSON paths
         for json_path in json_paths:
             try:
@@ -217,15 +234,42 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
                 # Create empty DataFrame with schema
                 df_raw = spark.createDataFrame([], FX_RATES_SCHEMA)
 
-    # Standardize date column
-    df = df_raw.withColumn(
+    # Ensure core columns exist to avoid unresolved references
+    df = df_raw
+    ensure_cols = {
+        "date": "string",
+        "trade_date": "string",
+        "base_ccy": "string",
+        "base_currency": "string",
+        "quote_ccy": "string",
+        "counter_ccy": "string",
+        "target_currency": "string",
+        "rate": "double",
+        "exchange_rate": "double",
+        "source": "string",
+        "record_source": "string",
+        "ingest_timestamp": "string",
+        "bid_rate": "double",
+        "ask_rate": "double",
+        "mid_rate": "double",
+    }
+    for col_name, dtype in ensure_cols.items():
+        if col_name not in df.columns:
+            df = df.withColumn(col_name, F.lit(None).cast(dtype))
+
+    # Standardize date column (defensive against missing columns)
+    date_col = F.col("date") if "date" in df.columns else F.lit(None).cast("string")
+    trade_col = (
+        F.col("trade_date") if "trade_date" in df.columns else F.lit(None).cast("string")
+    )
+    df = df.withColumn(
         "date",
         F.to_date(
             F.coalesce(
-                F.to_timestamp("date", "yyyy-MM-dd HH:mm:ss"),
-                F.to_timestamp("date", "yyyy-MM-dd"),
-                F.to_timestamp("trade_date", "yyyy-MM-dd HH:mm:ss"),
-                F.to_timestamp("trade_date", "yyyy-MM-dd"),
+                F.to_timestamp(date_col, "yyyy-MM-dd HH:mm:ss"),
+                F.to_timestamp(date_col, "yyyy-MM-dd"),
+                F.to_timestamp(trade_col, "yyyy-MM-dd HH:mm:ss"),
+                F.to_timestamp(trade_col, "yyyy-MM-dd"),
             )
         ),
     )
@@ -265,6 +309,19 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
         )
     )
 
+    if "counter_ccy" not in df.columns:
+        df = df.withColumn("counter_ccy", F.col("quote_ccy"))
+    if "base_currency" not in df.columns:
+        df = df.withColumn("base_currency", F.col("base_ccy"))
+    if "target_currency" not in df.columns:
+        df = df.withColumn("target_currency", F.col("quote_ccy"))
+    if "exchange_rate" not in df.columns:
+        df = df.withColumn("exchange_rate", F.col("rate"))
+    if "source" not in df.columns:
+        df = df.withColumn("source", F.lit(None).cast("string"))
+    if "record_source" not in df.columns:
+        df = df.withColumn("record_source", F.col("source"))
+
     # Provide normalized "fx_*" aliases while keeping original columns
     if "rate" in df.columns and "fx_rate" not in df.columns:
         df = df.withColumn("fx_rate", F.col("rate"))
@@ -284,5 +341,46 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
         & (F.col("rate") > 0)
     )
 
-    logger.info("✅ Loaded FX Bronze DataFrame with %s rows", df.count())
-    return df
+    df = (
+        df.withColumn(
+            "trade_date",
+            F.to_date(F.coalesce(F.col("trade_date"), F.col("date"))),
+        )
+        .withColumn("date", F.to_date("date"))
+        .withColumn("base_currency", F.coalesce(F.col("base_currency"), F.col("base_ccy")))
+        .withColumn(
+            "target_currency",
+            F.coalesce(F.col("target_currency"), F.col("quote_ccy"), F.col("counter_ccy")),
+        )
+        .withColumn("exchange_rate", F.coalesce(F.col("exchange_rate"), F.col("rate")))
+        .withColumn("ingest_timestamp", F.to_timestamp("ingest_timestamp"))
+    )
+
+    for col_name in ["bid_rate", "ask_rate", "mid_rate", "fx_rate", "fx_mid_rate", "fx_bid_rate", "fx_ask_rate"]:
+        if col_name not in df.columns:
+            df = df.withColumn(col_name, F.lit(None).cast("double"))
+
+    df_out = df.select(
+        "date",
+        "trade_date",
+        "base_ccy",
+        "base_currency",
+        "quote_ccy",
+        "counter_ccy",
+        "target_currency",
+        "rate",
+        "exchange_rate",
+        "source",
+        "record_source",
+        "ingest_timestamp",
+        "bid_rate",
+        "ask_rate",
+        "mid_rate",
+        "fx_rate",
+        "fx_mid_rate",
+        "fx_bid_rate",
+        "fx_ask_rate",
+    )
+
+    logger.info("✅ Loaded FX Bronze DataFrame with %s rows", df_out.count())
+    return df_out

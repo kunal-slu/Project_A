@@ -36,7 +36,7 @@ from project_a.schemas.bronze_schemas import (
     CRM_ACCOUNTS_SCHEMA,
     CRM_CONTACTS_SCHEMA,
     CRM_OPPORTUNITIES_SCHEMA,
-    FX_RATES_SCHEMA,
+    FX_RATES_BRONZE_SCHEMA,
     KAFKA_EVENTS_SCHEMA,
     REDSHIFT_BEHAVIOR_SCHEMA,
     SNOWFLAKE_CUSTOMERS_SCHEMA,
@@ -111,29 +111,45 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
     missing: list[str] = []
     fmt = _layer_format(config, "bronze")
 
+    def _read_bronze_output(path: str) -> Any:
+        # Attempt to read from Bronze output folder first (parquet/delta/iceberg).
+        try:
+            return spark.read.parquet(path)
+        except Exception:
+            try:
+                return spark.read.format("delta").load(path)
+            except Exception:
+                return None
+
+    def _read_csv_source(path: str, schema):
+        return spark.read.option("header", "true").schema(schema).csv(path)
+
     # Load CRM
     try:
         crm_cfg = sources.get("crm", {})
         crm_base = crm_cfg.get("base_path", f"{bronze_root}/crm")
         crm_files = crm_cfg.get("files", {})
-        bronze_data["accounts"] = _read_table(
-            spark,
-            fmt,
-            f"{crm_base}/{crm_files.get('accounts', 'accounts.csv')}",
-            schema=CRM_ACCOUNTS_SCHEMA,
-        )
-        bronze_data["contacts"] = _read_table(
-            spark,
-            fmt,
-            f"{crm_base}/{crm_files.get('contacts', 'contacts.csv')}",
-            schema=CRM_CONTACTS_SCHEMA,
-        )
-        bronze_data["opportunities"] = _read_table(
-            spark,
-            fmt,
-            f"{crm_base}/{crm_files.get('opportunities', 'opportunities.csv')}",
-            schema=CRM_OPPORTUNITIES_SCHEMA,
-        )
+        accounts = _read_bronze_output(f"{bronze_root}/crm/accounts")
+        if accounts is None:
+            accounts = _read_csv_source(
+                f"{crm_base}/{crm_files.get('accounts', 'accounts.csv')}", CRM_ACCOUNTS_SCHEMA
+            )
+        bronze_data["accounts"] = accounts
+
+        contacts = _read_bronze_output(f"{bronze_root}/crm/contacts")
+        if contacts is None:
+            contacts = _read_csv_source(
+                f"{crm_base}/{crm_files.get('contacts', 'contacts.csv')}", CRM_CONTACTS_SCHEMA
+            )
+        bronze_data["contacts"] = contacts
+
+        opportunities = _read_bronze_output(f"{bronze_root}/crm/opportunities")
+        if opportunities is None:
+            opportunities = _read_csv_source(
+                f"{crm_base}/{crm_files.get('opportunities', 'opportunities.csv')}",
+                CRM_OPPORTUNITIES_SCHEMA,
+            )
+        bronze_data["opportunities"] = opportunities
     except Exception as e:
         missing.extend(["crm.accounts", "crm.contacts", "crm.opportunities"])
         logger.error(f"Could not load CRM bronze: {e}")
@@ -143,24 +159,29 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
         snowflake_cfg = sources.get("snowflake", {})
         snowflake_base = snowflake_cfg.get("base_path", f"{bronze_root}/snowflake")
         snowflake_files = snowflake_cfg.get("files", {})
-        bronze_data["customers"] = _read_table(
-            spark,
-            fmt,
-            f"{snowflake_base}/{snowflake_files.get('customers', 'customers.csv')}",
-            schema=SNOWFLAKE_CUSTOMERS_SCHEMA,
-        )
-        bronze_data["orders"] = _read_table(
-            spark,
-            fmt,
-            f"{snowflake_base}/{snowflake_files.get('orders', 'orders.csv')}",
-            schema=SNOWFLAKE_ORDERS_SCHEMA,
-        )
-        bronze_data["products"] = _read_table(
-            spark,
-            fmt,
-            f"{snowflake_base}/{snowflake_files.get('products', 'products.csv')}",
-            schema=SNOWFLAKE_PRODUCTS_SCHEMA,
-        )
+        customers = _read_bronze_output(f"{bronze_root}/snowflake/customers")
+        if customers is None:
+            customers = _read_csv_source(
+                f"{snowflake_base}/{snowflake_files.get('customers', 'customers.csv')}",
+                SNOWFLAKE_CUSTOMERS_SCHEMA,
+            )
+        bronze_data["customers"] = customers
+
+        orders = _read_bronze_output(f"{bronze_root}/snowflake/orders")
+        if orders is None:
+            orders = _read_csv_source(
+                f"{snowflake_base}/{snowflake_files.get('orders', 'orders.csv')}",
+                SNOWFLAKE_ORDERS_SCHEMA,
+            )
+        bronze_data["orders"] = orders
+
+        products = _read_bronze_output(f"{bronze_root}/snowflake/products")
+        if products is None:
+            products = _read_csv_source(
+                f"{snowflake_base}/{snowflake_files.get('products', 'products.csv')}",
+                SNOWFLAKE_PRODUCTS_SCHEMA,
+            )
+        bronze_data["products"] = products
     except Exception as e:
         missing.extend(["snowflake.customers", "snowflake.orders", "snowflake.products"])
         logger.error(f"Could not load Snowflake bronze: {e}")
@@ -170,12 +191,13 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
         redshift_cfg = sources.get("redshift", {})
         redshift_base = redshift_cfg.get("base_path", f"{bronze_root}/redshift")
         redshift_files = redshift_cfg.get("files", {})
-        bronze_data["behavior"] = _read_table(
-            spark,
-            fmt,
-            f"{redshift_base}/{redshift_files.get('behavior', 'redshift_customer_behavior_50000.csv')}",
-            schema=REDSHIFT_BEHAVIOR_SCHEMA,
-        )
+        behavior = _read_bronze_output(f"{bronze_root}/redshift/customer_behavior")
+        if behavior is None:
+            behavior = _read_csv_source(
+                f"{redshift_base}/{redshift_files.get('behavior', 'redshift_customer_behavior_50000.csv')}",
+                REDSHIFT_BEHAVIOR_SCHEMA,
+            )
+        bronze_data["behavior"] = behavior
     except Exception as e:
         missing.append("redshift.behavior")
         logger.error(f"Could not load Redshift bronze: {e}")
@@ -185,13 +207,11 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
         kafka_cfg = sources.get("kafka_sim", {})
         kafka_base = kafka_cfg.get("base_path", f"{bronze_root}/kafka")
         kafka_files = kafka_cfg.get("files", {})
-        kafka_path = f"{kafka_base}/{kafka_files.get('orders_seed', 'stream_kafka_events_100000.csv')}"
-        bronze_data["kafka_events"] = _read_table(
-            spark,
-            fmt,
-            kafka_path,
-            schema=KAFKA_EVENTS_SCHEMA,
-        )
+        events = _read_bronze_output(f"{bronze_root}/kafka/events")
+        if events is None:
+            kafka_path = f"{kafka_base}/{kafka_files.get('orders_seed', 'stream_kafka_events_100000.csv')}"
+            events = _read_csv_source(kafka_path, KAFKA_EVENTS_SCHEMA)
+        bronze_data["kafka_events"] = events
     except Exception as e:
         missing.append("kafka.events")
         logger.error(f"Could not load Kafka bronze: {e}")
@@ -200,7 +220,11 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
     try:
         from project_a.extract.fx_json_reader import read_fx_rates_from_bronze
 
-        bronze_data["fx_rates"] = read_fx_rates_from_bronze(spark, config)
+        # Prefer bronze output path (delta/parquet) if present
+        fx_output = _read_bronze_output(f"{bronze_root}/fx")
+        if fx_output is None:
+            fx_output = read_fx_rates_from_bronze(spark, config)
+        bronze_data["fx_rates"] = fx_output
     except Exception as e:
         missing.append("fx.rates")
         logger.error(f"Could not load FX bronze: {e}")
@@ -315,7 +339,7 @@ def main():
             "orders": SNOWFLAKE_ORDERS_SCHEMA,
             "products": SNOWFLAKE_PRODUCTS_SCHEMA,
             "kafka_events": KAFKA_EVENTS_SCHEMA,
-            "fx_rates": FX_RATES_SCHEMA,
+            "fx_rates": FX_RATES_BRONZE_SCHEMA,
         }
 
         # Validate based on layer

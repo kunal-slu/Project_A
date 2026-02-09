@@ -8,6 +8,15 @@ This allows both import styles to work:
 """
 
 import sys
+import warnings
+
+# Mark as legacy/compatibility so interviewers focus on project_a.*
+warnings.warn(
+    "pyspark_interview_project is a legacy compatibility layer. "
+    "Use project_a.* modules for the canonical pipeline.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 # Import everything from the real package
 from project_a.pyspark_interview_project import *  # noqa: F401,F403

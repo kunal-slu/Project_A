@@ -5,13 +5,13 @@
 ### **1. Run ETL Pipeline**
 ```bash
 # Full pipeline
-python -m pyspark_interview_project.cli --config config/local.yaml --env local --cmd full
+python run_complete_etl.py --config local/config/local.yaml --env local --with-validation
 
 # Individual stages
-python -m pyspark_interview_project.cli --config config/local.yaml --env local --cmd ingest
-python -m pyspark_interview_project.cli --config config/local.yaml --env local --cmd transform
-python -m pyspark_interview_project.cli --config config/local.yaml --env local --cmd validate
-python -m pyspark_interview_project.cli --config config/local.yaml --env local --cmd load
+python -m project_a.pipeline.run_pipeline --job fx_json_to_bronze --env local --config local/config/local.yaml
+python -m project_a.pipeline.run_pipeline --job bronze_to_silver --env local --config local/config/local.yaml
+python -m project_a.pipeline.run_pipeline --job silver_to_gold --env local --config local/config/local.yaml
+python -m project_a.pipeline.run_pipeline --job gold_truth_tests --env local --config local/config/local.yaml
 ```
 
 ### **2. Start Monitoring Stack**
@@ -35,7 +35,7 @@ docker-compose -f docker-compose-monitoring.yml logs -f
 ### **3. Run Tests**
 ```bash
 # All tests with coverage
-pytest tests/ --cov=src/pyspark_interview_project --cov-report=html --cov-report=term-missing -v
+pytest tests/ --cov=src/project_a --cov-report=html --cov-report=term-missing -v
 
 # Specific test file
 pytest tests/test_safe_writer.py -v
@@ -65,11 +65,11 @@ docker-compose -f docker-compose-monitoring.yml ps
 
 ## 📊 Monitoring Commands
 
-### **Push Metrics**
+### **Emit Metrics (Example)**
 ```python
-from pyspark_interview_project.monitoring import push_metrics_to_gateway
+from project_a.monitoring.metrics_collector import emit_metrics
 
-push_metrics_to_gateway("localhost:9091", "my_etl_job")
+emit_metrics("my_etl_job", rows_in=100, rows_out=95, duration_seconds=3.2, dq_status="pass", config={})
 ```
 
 ### **Query Prometheus**
@@ -313,21 +313,16 @@ deactivate
 
 ### **End-to-End Test**
 ```bash
-# 1. Clean data
-rm -rf data/lakehouse_delta/*
+# 1. Run ETL (local)
+python run_complete_etl.py --config local/config/local.yaml --env local --with-validation
 
-# 2. Run ETL
-python -m pyspark_interview_project.cli --config config/local.yaml --env local --cmd full
+# 2. Verify outputs
+ls -la data/bronze/
+ls -la data/silver/
+ls -la data/gold/
 
-# 3. Verify
-ls -la data/lakehouse_delta/bronze/
-ls -la data/lakehouse_delta/silver/
-ls -la data/lakehouse_delta/gold/
-
-# 4. Count versions
-find data/lakehouse_delta -name "_delta_log" -type d | wc -l
-
-# Expected: 6 directories (2 bronze + 2 silver + 2 gold)
+# 3. Check gold truth report
+ls -la artifacts/run_audit/
 ```
 
 ---

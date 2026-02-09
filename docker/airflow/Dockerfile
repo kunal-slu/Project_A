@@ -15,4 +15,6 @@ RUN pip install --no-cache-dir \
     pyarrow==17.0.0 \
     pandas==2.1.4 \
     boto3==1.34.162 \
-    botocore==1.34.162
+    botocore==1.34.162 \
+    dbt-core>=1.6,<2.0 \
+    dbt-spark>=1.6,<2.0

@@ -210,27 +210,34 @@ def main(args):
         except Exception as e:
             logger.warning(f"⚠️  Failed to emit metrics: {e}")
 
-        # Emit lineage event
+        # Emit lineage event (skip when disabled or config path missing)
         try:
-            lineage_config_path = (
-                config.get("lineage", {}).get("config_path")
-                or f"s3://{config.get('buckets', {}).get('artifacts', '')}/config/lineage.yaml"
-            )
-            lineage_config = load_lineage_config(lineage_config_path)
-            emitter = LineageEmitter(lineage_config)
+            lineage_cfg = config.get("lineage", {}) if isinstance(config, dict) else {}
+            if lineage_cfg.get("enabled", False):
+                lineage_config_path = lineage_cfg.get("config_path")
+                if not lineage_config_path:
+                    artifacts_bucket = config.get("buckets", {}).get("artifacts", "")
+                    if artifacts_bucket:
+                        lineage_config_path = f"s3://{artifacts_bucket}/config/lineage.yaml"
 
-            emitter.emit_job(
-                job_name="fx_json_to_bronze",
-                run_id=run_id,
-                inputs=["fx_json.raw"],
-                outputs=["bronze.fx.rates"],
-                status="SUCCESS",
-                metadata={
-                    "rows_in": rows_in,
-                    "rows_out": rows_out,
-                    "duration_seconds": duration_seconds,
-                },
-            )
+                if lineage_config_path:
+                    lineage_config = load_lineage_config(lineage_config_path)
+                    emitter = LineageEmitter(lineage_config)
+
+                    emitter.emit_job(
+                        job_name="fx_json_to_bronze",
+                        run_id=run_id,
+                        inputs=["fx_json.raw"],
+                        outputs=["bronze.fx.rates"],
+                        status="SUCCESS",
+                        metadata={
+                            "rows_in": rows_in,
+                            "rows_out": rows_out,
+                            "duration_seconds": duration_seconds,
+                        },
+                    )
+                else:
+                    logger.info("Lineage enabled but no config path provided; skipping emission")
         except Exception as e:
             logger.warning(f"⚠️  Failed to emit lineage: {e}")
 
@@ -277,21 +284,26 @@ def main(args):
 
         # Emit failure lineage event
         try:
-            lineage_config_path = (
-                config.get("lineage", {}).get("config_path")
-                or f"s3://{config.get('buckets', {}).get('artifacts', '')}/config/lineage.yaml"
-            )
-            lineage_config = load_lineage_config(lineage_config_path)
-            emitter = LineageEmitter(lineage_config)
+            lineage_cfg = config.get("lineage", {}) if isinstance(config, dict) else {}
+            if lineage_cfg.get("enabled", False):
+                lineage_config_path = lineage_cfg.get("config_path")
+                if not lineage_config_path:
+                    artifacts_bucket = config.get("buckets", {}).get("artifacts", "")
+                    if artifacts_bucket:
+                        lineage_config_path = f"s3://{artifacts_bucket}/config/lineage.yaml"
 
-            emitter.emit_job(
-                job_name="fx_json_to_bronze",
-                run_id=run_id,
-                inputs=["fx_json.raw"],
-                outputs=["bronze.fx.rates"],
-                status="FAILED",
-                error_message=str(e),
-            )
+                if lineage_config_path:
+                    lineage_config = load_lineage_config(lineage_config_path)
+                    emitter = LineageEmitter(lineage_config)
+
+                    emitter.emit_job(
+                        job_name="fx_json_to_bronze",
+                        run_id=run_id,
+                        inputs=["fx_json.raw"],
+                        outputs=["bronze.fx.rates"],
+                        status="FAILED",
+                        error_message=str(e),
+                    )
         except Exception as e:
             logger.warning(f"Failed to emit metrics: {e}")
 
