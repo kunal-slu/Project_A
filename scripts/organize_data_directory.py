@@ -27,7 +27,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path("/Users/kunal/IdeaProjects/Project_A")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 AWS_DATA_DIR = PROJECT_ROOT / "aws" / "data"
 SAMPLES_DIR = DATA_DIR / "samples"
@@ -176,4 +176,3 @@ def organize_data_directory():
 
 if __name__ == "__main__":
     organize_data_directory()
-

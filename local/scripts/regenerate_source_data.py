@@ -446,6 +446,8 @@ def generate_snowflake_orders(num_orders: int = 100000) -> List[Dict[str, Any]]:
             "payment_method": random.choice(["CREDIT_CARD", "DEBIT_CARD", "PAYPAL", "BANK_TRANSFER"]),
             "shipping_method": random.choice(["GROUND", "2_DAY", "OVERNIGHT"]),
             "status": status,
+            "op": "INSERT",
+            "is_deleted": False,
             "shipping_address": maybe_null(f"{random.randint(1,9999)} Order St", NULL_RATE_MED),
             "billing_address": maybe_null(f"{random.randint(1,9999)} Billing St", NULL_RATE_MED),
             "discount_percent": discount_percent,
@@ -679,6 +681,12 @@ def generate_order_updates(
         updated["updated_at"] = updated_time
         updated["order_timestamp"] = updated_time
         updated["status"] = random.choice(["COMPLETED", "SHIPPED", "CANCELLED"])
+        if random.random() < 0.1:
+            updated["op"] = "DELETE"
+            updated["is_deleted"] = True
+        else:
+            updated["op"] = "UPDATE"
+            updated["is_deleted"] = False
         updated["ingestion_timestamp"] = NOW.strftime("%Y-%m-%d %H:%M:%S.%f")
         updates.append(updated)
 

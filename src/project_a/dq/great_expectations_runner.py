@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +29,15 @@ class GreatExpectationsRunner:
 
     def run_checkpoint(self, checkpoint_name: str, fail_on_error: bool = True) -> dict[str, Any]:
         if self.context is None:
+            if fail_on_error and os.getenv("PROJECT_A_ALLOW_GE_SKIP") != "1":
+                raise RuntimeError(
+                    "Great Expectations context not found. "
+                    "Set PROJECT_A_ALLOW_GE_SKIP=1 to allow skipping."
+                )
+            logging.getLogger(__name__).warning(
+                "Great Expectations context not found; skipping checkpoint %s",
+                checkpoint_name,
+            )
             return {"success": True, "skipped": True, "checkpoint": checkpoint_name}
 
         checkpoint = self.context.get_checkpoint(checkpoint_name)
@@ -42,4 +53,3 @@ def run_dq_checkpoint(checkpoint_name: str, fail_on_error: bool = True) -> dict[
     runner = GreatExpectationsRunner()
     runner.init_context()
     return runner.run_checkpoint(checkpoint_name, fail_on_error=fail_on_error)
-

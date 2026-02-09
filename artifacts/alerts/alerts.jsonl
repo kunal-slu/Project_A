@@ -1,0 +1,18 @@
+{"timestamp_utc": "2026-02-08T20:20:49.693990Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 9.18s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T20:39:30.386982Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 196.39s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T20:43:49.056007Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 6.02s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T21:02:27.841389Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 32.64s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T21:04:49.849299Z", "level": "ERROR", "title": "Job failed: kafka_events_to_bronze", "message": "KafkaEventsToBronzeJob failed after 3.91s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T21:39:28.679778Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 11.52s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T21:41:23.525906Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 2.88s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T21:43:15.862315Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 6.06s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T21:54:46.198025Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 170.85s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T23:19:08.640858Z", "level": "ERROR", "title": "Job failed: crm_to_bronze", "message": "CrmToBronzeJob failed after 6.61s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-08T23:38:29.574781Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 118.16s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T00:50:10.711224Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 17.93s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T00:51:30.890029Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 19.85s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T00:52:03.322371Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 21.98s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T01:01:18.687398Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 16.96s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T01:01:52.624972Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 22.35s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T01:24:39.311851Z", "level": "ERROR", "title": "Job failed: silver_to_gold", "message": "SilverToGoldJob failed after 39.99s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-09T03:43:58.100661Z", "level": "WARN", "title": "Data freshness anomaly", "message": "Data freshness check found future-dated records: max order_date is 212636.27h ahead of current time", "environment": "local", "metadata": {}}

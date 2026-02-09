@@ -116,7 +116,7 @@ def main(args):
     start_time = time.time()
 
     # Build Spark session
-    spark = build_spark(config)
+    spark = build_spark(app_name="fx_json_to_bronze", config=config)
 
     try:
         # Get paths from config

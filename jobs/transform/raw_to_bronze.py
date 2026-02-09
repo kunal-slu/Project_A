@@ -12,7 +12,7 @@ from typing import Any
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import current_timestamp, lit, to_date
 
-from project_a.schema_validator import validate_schema
+from project_a.pyspark_interview_project.utils.schema_validator import validate_schema
 from project_a.utils.config import load_conf
 from project_a.utils.spark_session import build_spark
 

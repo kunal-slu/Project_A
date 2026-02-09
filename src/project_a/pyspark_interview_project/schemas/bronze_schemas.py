@@ -81,6 +81,8 @@ SNOWFLAKE_ORDERS_SCHEMA = StructType(
         StructField("amount", DoubleType(), nullable=True),
         StructField("currency", StringType(), nullable=True),
         StructField("quantity", IntegerType(), nullable=True),
+        StructField("op", StringType(), nullable=True),
+        StructField("is_deleted", BooleanType(), nullable=True),
     ]
 )
 

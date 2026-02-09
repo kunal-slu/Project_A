@@ -38,6 +38,7 @@ try:
         dq_gold_gate,
         dq_silver_gate,
         fx_json_to_bronze,
+        gold_truth_tests,
         kafka_csv_to_bronze,
         publish_gold_to_redshift,
         publish_gold_to_snowflake,
@@ -64,6 +65,7 @@ except ImportError as import_error:
     dq_silver_gate = DummyModule()
     silver_to_gold = DummyModule()
     dq_gold_gate = DummyModule()
+    gold_truth_tests = DummyModule()
     publish_gold_to_redshift = DummyModule()
     publish_gold_to_snowflake = DummyModule()
 
@@ -81,6 +83,7 @@ JOB_MAP = {
     # DQ gate jobs
     "dq_silver_gate": dq_silver_gate.main,
     "dq_gold_gate": dq_gold_gate.main,
+    "gold_truth_tests": gold_truth_tests.main,
     # Publish jobs
     "publish_gold_to_redshift": publish_gold_to_redshift.main,
     "publish_gold_to_snowflake": publish_gold_to_snowflake.main,

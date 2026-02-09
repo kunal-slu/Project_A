@@ -23,7 +23,11 @@ def _local_path_missing(path: str) -> bool:
 
 
 def _read_csv_with_incremental(spark, schema, snapshot_path: str, incremental_dir: str | None):
-    reader = spark.read.schema(schema).option("header", "true")
+    reader = (
+        spark.read.schema(schema)
+        .option("header", "true")
+        .option("ignoreMissingFiles", "true")
+    )
     paths = [snapshot_path]
     if incremental_dir and not _local_path_missing(incremental_dir):
         reader = reader.option("recursiveFileLookup", "true")
@@ -69,7 +73,8 @@ class RedshiftToBronzeJob(BaseJob):
             )
             behavior_df = _read_csv_with_incremental(
                 spark, REDSHIFT_BEHAVIOR_SCHEMA, behavior_path, incremental_dirs.get("behavior")
-            )
+            ).cache()
+            behavior_count = behavior_df.count()
             behavior_df.write.mode("overwrite").parquet(f"{bronze_path}/customer_behavior")
 
             # Apply data quality checks
@@ -81,12 +86,12 @@ class RedshiftToBronzeJob(BaseJob):
             self.log_lineage(
                 source="redshift",
                 target="bronze.redshift",
-                records_processed={"customer_behavior": behavior_df.count()},
+                records_processed={"customer_behavior": behavior_count},
             )
 
             result = {
                 "status": "success",
-                "records_processed": {"customer_behavior": behavior_df.count()},
+                "records_processed": {"customer_behavior": behavior_count},
                 "output_path": bronze_path,
             }
 

@@ -1,0 +1,17 @@
+metrics:
+  total_revenue:
+    description: "Sum of total_amount in fact_orders"
+    expression: "SUM(total_amount)"
+    grain: "order_id"
+  avg_order_value:
+    description: "Average order value"
+    expression: "AVG(total_amount)"
+    grain: "order_id"
+  repeat_customer_rate:
+    description: "Percent of customers with 2+ orders"
+    expression: "COUNT(DISTINCT CASE WHEN customer_order_count >= 2 THEN customer_id END) / COUNT(DISTINCT customer_id)"
+    grain: "customer_id"
+  churn_risk:
+    description: "Customers inactive in last 90 days"
+    expression: "COUNT(DISTINCT CASE WHEN last_order_date < date_sub(current_date(), 90) THEN customer_id END)"
+    grain: "customer_id"

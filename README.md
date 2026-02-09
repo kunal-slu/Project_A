@@ -6,11 +6,11 @@
 
 This is not just another ETL pipeline—it's a **production-ready data platform** that solves real engineering challenges:
 
-- **Late-Arriving Data**: 3-day rolling window with merge strategy ensures corrections don't break reports
-- **Schema Evolution**: Delta Lake + dbt contracts support backward-compatible changes without downtime
-- **Data Quality**: Automated validation gates prevent bad data from poisoning downstream systems
+- **Late-Arriving Data**: Configurable rolling window + CDC-aware merge logic (orders) when enabled
+- **Schema Evolution**: Schema baselines + runtime validation, with storage format configurable (Iceberg/Delta/Parquet)
+- **Data Quality**: Automated validation gates + Gold Truth Tests, with strictness configurable
 - **Scalability**: Incremental processing handles growing data volumes efficiently
-- **Observability**: Comprehensive logging, metrics, and lineage tracking for debugging and compliance
+- **Observability**: Audit logs + metrics, optional lineage tracking for compliance
 
 ## 🏗️ Architecture Overview
 
@@ -19,17 +19,17 @@ Sources (CRM, Snowflake, Redshift, Kafka, FX)
          ↓
     Bronze Layer (Raw, Append-Only)
     - Format: Parquet
-    - Strategy: Full ingestion with watermarking
+    - Strategy: Full ingestion + optional incremental dirs / CDC fields
     - Purpose: Immutable source of truth
          ↓
     Silver Layer (Cleaned, Validated)
-    - Format: Delta Lake  ← ACID + Schema Evolution
-    - Strategy: Incremental with CDC
+    - Format: Iceberg (default local) / Delta (optional) / Parquet
+    - Strategy: Cleaning + CDC if present + contract validation
     - Purpose: Single source of truth for analytics
          ↓
     Gold Layer (Business Logic)
-    - Format: Delta Lake
-    - Strategy: dbt owns this layer  ← Business logic as code
+    - Format: Iceberg / Delta / Parquet (configurable)
+    - Strategy: Spark-built dims/facts; dbt models optional
     - Purpose: Analytics-ready dimensional models
          ↓
     BI Tools / ML / Data Products
@@ -42,19 +42,19 @@ Sources (CRM, Snowflake, Redshift, Kafka, FX)
 - No schema enforcement needed
 - Cheap storage for compliance/auditing
 
-**Silver = Delta Lake**  
+**Silver = Iceberg (default local) / Delta (optional)**  
 ✅ **This is the senior-level signal**
 - ACID guarantees for data consistency
 - Schema evolution without breaking consumers
 - Time travel for debugging and recovery
 - Merge operations for handling late data
-- Interview line: *"We keep Bronze as raw files, but Silver uses Delta Lake to support schema evolution and late-arriving data."*
+- Interview line: *"We keep Bronze as raw files, but Silver uses an ACID table format (Iceberg/Delta) to support schema evolution and late-arriving data."*
 
-**Gold = dbt + Delta Lake**
-- Business logic version-controlled as SQL
-- Data contracts enforced at build time
-- Automated testing (not_null, unique, referential integrity)
-- Interview line: *"dbt enforces data contracts and business logic at the Gold layer."*
+**Gold = Spark-built dimensional models (dbt optional)**
+- Business logic is implemented in Spark jobs (dims/facts/analytics)
+- Contracts and schema baselines enforced at runtime
+- dbt project exists for SQL-based modeling/testing if enabled
+- Interview line: *"Gold models are built in Spark, with optional dbt for SQL governance and tests."*
 
 ## 🔑 Key Technical Decisions
 
@@ -62,12 +62,13 @@ Sources (CRM, Snowflake, Redshift, Kafka, FX)
 
 **Problem**: Orders can be updated after initial load (refunds, corrections)
 
-**Solution**: Rolling 3-day window with merge strategy
-```sql
--- In dbt model
-{% if is_incremental() %}
-where order_date >= dateadd(day, -3, current_date())
-{% endif %}
+**Solution**: Rolling window + merge/dedupe logic in Spark jobs (orders)
+```python
+cutoff_date = current_date - lookback_days
+reprocess_existing = existing_orders.filter(order_date >= cutoff_date)
+reprocess_incoming = incoming_orders.filter(order_date >= cutoff_date)
+merge_candidates = reprocess_existing.unionByName(reprocess_incoming)
+dedupe_latest = row_number(partitionBy=order_id, orderBy=updated_at desc)
 ```
 
 **Why This Works:**
@@ -78,22 +79,22 @@ where order_date >= dateadd(day, -3, current_date())
 
 ### 2. Delta Lake vs Iceberg
 
-**Decision**: Delta Lake for Silver/Gold layers
+**Decision**: Iceberg enabled by default locally; Delta supported as an option
 
 **Why:**
-- Excellent Spark integration (we're Spark-native)
+- Spark-native integration
 - Mature ACID support
-- Meets our needs: schema evolution, time travel, merges
-- Simpler operations (fewer moving parts)
+- Meets needs: schema evolution, time travel, merges
+- Configurable per environment
 
 **When to use Iceberg:**
 - Multi-engine access (Trino + Flink + Spark)
 - Hidden partitioning requirements
 - Petabyte-scale metadata management
 
-**Current Scale**: Delta Lake handles our workload efficiently
+**Current Local Config**: Iceberg is enabled (`local/config/local.yaml`)
 
-### 3. dbt for Gold Layer
+### 3. dbt for Gold Layer (Optional)
 
 **Why dbt:**
 - Business logic as version-controlled SQL
@@ -103,17 +104,18 @@ where order_date >= dateadd(day, -3, current_date())
 - Industry standard for analytics engineering
 
 **What We Built:**
-- ✅ Dimension tables with SCD Type 1
-- ✅ Incremental fact tables with late-data handling
-- ✅ Comprehensive schema.yml with tests
-- ✅ Data contracts with ownership and SLAs
+- ✅ Dimension tables with SCD2 fields (effective_start/end, is_current)
+- ✅ Fact tables with FX normalization and partitioning
+- ✅ Runtime schema baselines and contract checks
+- ✅ Gold Truth Tests (PKs, joins, reconciliation)
 
 ### 4. Data Quality Strategy
 
 **Layered Approach:**
 
 1. **Spark ETL Layer**: Basic validation (not_null, type checking)
-2. **dbt Tests**: Business rule validation
+2. **DQ Gates + Gold Truth Tests**: Join checks + reconciliation
+3. **dbt Tests (optional)**: Business rule validation if dbt is enabled
    - Uniqueness constraints
    - Referential integrity
    - Value range checks
@@ -121,7 +123,7 @@ where order_date >= dateadd(day, -3, current_date())
 
 **Fail-Fast Principle:**
 ```
-Pipelines fail if:
+Pipelines can be configured to fail if:
 - Primary keys are not unique
 - Foreign keys reference non-existent records  
 - Required fields are null
@@ -132,8 +134,8 @@ Interview line: *"Pipelines fail fast if data quality checks don't pass."*
 
 ### 5. Orchestration
 
-**Current**: EMR Step Functions
-**Future**: Airflow DAGs (prepared but not over-engineered)
+**Current**: Local Airflow (Docker) + EMR Serverless job runner
+**Future**: Expand Airflow in AWS when orchestration needs grow
 
 **Why this approach:**
 - Start simple (EMR steps work)
@@ -173,22 +175,21 @@ Pipeline is expected to stop on contract violations (null PKs, duplicates, RI br
 ```
 pyspark_data_engineer_project/
 ├── config/                      # Configuration files
-│   ├── local.yaml              # Local development
-│   ├── config-dev.yaml         # Dev environment
-│   ├── aws.yaml                # AWS production
-│   └── dq.yaml                 # Data quality config
+│   ├── dev.yaml                # Dev environment
+│   ├── prod.yaml               # Prod environment
+│   └── dq/                     # Data quality config
 │
-├── src/pyspark_interview_project/
-│   ├── utils/                   # Core utilities
-│   ├── extract.py               # Data extraction
-│   ├── transform.py             # Data transformation
-│   ├── load.py                  # Data loading
-│   ├── incremental_loading.py   # SCD2 & CDC
-│   ├── jobs/                    # EMR job implementations
+├── local/                       # Local configs/scripts
+│   └── config/local.yaml       # Local development config
+│
+├── src/project_a/               # Main pipeline package
+│   ├── jobs/                    # Job entrypoints
 │   ├── dq/                      # Data quality
-│   └── monitoring/              # Monitoring
+│   ├── utils/                   # Spark + helpers
+│   └── observability/           # Audit + alerts
 │
 ├── jobs/                        # EMR job wrappers
+├── airflow/                     # Local Airflow DAGs/configs
 ├── aws/
 │   ├── infra/terraform/        # Infrastructure as code
 │   ├── scripts/                 # Deployment scripts
@@ -211,8 +212,11 @@ pip install -r requirements.txt
 pytest tests/
 
 # Run ETL pipeline locally
-python jobs/transform/bronze_to_silver.py --env local --config local/config/local.yaml
-python jobs/transform/silver_to_gold.py --env local --config local/config/local.yaml
+python -m project_a.pipeline.run_pipeline --job bronze_to_silver --env local --config local/config/local.yaml
+python -m project_a.pipeline.run_pipeline --job silver_to_gold --env local --config local/config/local.yaml
+
+# Or run the full pipeline
+python run_complete_etl.py --config local/config/local.yaml --env local --with-validation
 
 # Validate ETL output
 python tools/validate_local_etl.py --env local --config local/config/local.yaml
@@ -238,8 +242,14 @@ iceberg:
 Use the Docker-based setup:
 
 ```bash
-docker compose -f docker-compose-airflow.yml up -d
+docker compose -f docker-compose-airflow.yml up -d --build
 ```
+
+Then open the UI at `http://localhost:8080` and trigger the DAG:
+
+- `project_a_local_etl` (runs Bronze → Silver → Gold + DQ + Gold Truth Tests)
+
+Airflow uses a container-friendly config at `airflow/config/local_airflow.yaml`.
 
 ### AWS Deployment
 

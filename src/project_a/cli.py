@@ -4,6 +4,7 @@ Project A CLI - Enterprise data platform command line interface
 
 import argparse
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -74,7 +75,17 @@ Examples:
 def run_ingest(config_path: str, env: str) -> int:
     """Run data ingestion."""
     logger.info("Starting data ingestion...")
-    # TODO: Implement ingestion logic
+    ingest_jobs = [
+        "fx_json_to_bronze",
+        "snowflake_to_bronze",
+        "crm_to_bronze",
+        "redshift_to_bronze",
+        "kafka_csv_to_bronze",
+    ]
+    for job_name in ingest_jobs:
+        code = _run_job(job_name, config_path, env)
+        if code != 0:
+            return code
     logger.info("Data ingestion completed successfully")
     return 0
 
@@ -82,7 +93,11 @@ def run_ingest(config_path: str, env: str) -> int:
 def run_transform(config_path: str, env: str) -> int:
     """Run data transformation."""
     logger.info("Starting data transformation...")
-    # TODO: Implement transformation logic
+    transform_jobs = ["bronze_to_silver", "silver_to_gold"]
+    for job_name in transform_jobs:
+        code = _run_job(job_name, config_path, env)
+        if code != 0:
+            return code
     logger.info("Data transformation completed successfully")
     return 0
 
@@ -90,7 +105,27 @@ def run_transform(config_path: str, env: str) -> int:
 def run_validate(config_path: str, env: str) -> int:
     """Run data validation."""
     logger.info("Starting data validation...")
-    # TODO: Implement validation logic
+    # Bronze sanity + comprehensive DQ
+    sanity_cmd = [
+        sys.executable,
+        "scripts/check_bronze_data.py",
+        "--config",
+        config_path,
+    ]
+    dq_cmd = [
+        sys.executable,
+        "jobs/dq/run_comprehensive_dq.py",
+        "--layer",
+        "all",
+        "--env",
+        env,
+        "--config",
+        config_path,
+    ]
+    if subprocess.call(sanity_cmd) != 0:
+        return 1
+    if subprocess.call(dq_cmd) != 0:
+        return 1
     logger.info("Data validation completed successfully")
     return 0
 
@@ -112,6 +147,26 @@ def run_pipeline(config_path: str, env: str) -> int:
         return 1
 
     logger.info("Complete ETL pipeline completed successfully")
+    return 0
+
+
+def _run_job(job_name: str, config_path: str, env: str) -> int:
+    """Run a single job through the canonical pipeline runner."""
+    from argparse import Namespace
+    from project_a.pipeline.run_pipeline import JOB_MAP
+
+    job_fn = JOB_MAP.get(job_name)
+    if not job_fn:
+        logger.error("Unknown job: %s", job_name)
+        return 1
+
+    args = Namespace(job=job_name, env=env, config=config_path, run_date=None)
+    try:
+        result = job_fn(args)
+    except SystemExit as exc:
+        return int(exc.code or 1)
+    if isinstance(result, int):
+        return result
     return 0
 
 

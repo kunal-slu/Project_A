@@ -32,7 +32,9 @@ services:
     volumes: *project_volume
 
   airflow-scheduler:
-    image: apache/airflow:2.8.4-python3.10
+    build:
+      context: .
+      dockerfile: docker/airflow/Dockerfile
     container_name: airflow-scheduler
     restart: unless-stopped
     depends_on:
@@ -40,29 +42,32 @@ services:
       - spark-worker
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__CORE__DAGS_FOLDER=/opt/project/aws/dags
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
       - AIRFLOW_HOME=/opt/airflow
       - PROJECT_HOME=/opt/project
-      - CONFIG_FILE=config/dev.yaml
+      - PROJECT_A_CONFIG=/opt/airflow/config/local_airflow.yaml
       - VENV_ACTIVATE=.venv/bin/activate
       - USE_SPARK_SUBMIT=true
       - SPARK_APP=src/pyspark_interview_project/pipeline.py
-      # Install provider at startup; you can bake this into a custom image later.
+      # Install provider at startup; optional if baked into image later.
       - PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-apache-spark==4.7.0
     volumes:
       - airflow_home:/opt/airflow
       - .:/opt/project
+      - ./airflow/config:/opt/airflow/config:ro
     command: ["bash", "-lc", "airflow db init && airflow scheduler"]
 
   airflow-webserver:
-    image: apache/airflow:2.8.4-python3.10
+    build:
+      context: .
+      dockerfile: docker/airflow/Dockerfile
     container_name: airflow-webserver
     restart: unless-stopped
     depends_on:
       - airflow-scheduler
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__CORE__DAGS_FOLDER=/opt/project/aws/dags
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
       - AIRFLOW_HOME=/opt/airflow
       - _AIRFLOW_WWW_USER_USERNAME=admin
       - _AIRFLOW_WWW_USER_PASSWORD=admin
@@ -72,6 +77,7 @@ services:
     volumes:
       - airflow_home:/opt/airflow
       - .:/opt/project
+      - ./airflow/config:/opt/airflow/config:ro
     command: ["bash", "-lc", "airflow db upgrade && airflow users create --username admin --firstname a --lastname b --role Admin --email a@b.c --password admin || true && airflow webserver"]
 
   zookeeper:

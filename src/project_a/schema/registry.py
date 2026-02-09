@@ -19,9 +19,12 @@ SCHEMAS: dict[str, StructType] = {
             StructField("customer_id", StringType(), nullable=False),
             StructField("product_id", StringType(), nullable=True),
             StructField("order_date", DateType(), nullable=False),
+            StructField("currency", StringType(), nullable=True),
+            StructField("unit_price", DecimalType(10, 2), nullable=True),
             StructField("total_amount", DecimalType(10, 2), nullable=False),
             StructField("quantity", IntegerType(), nullable=True),
             StructField("status", StringType(), nullable=True),
+            StructField("payment_method", StringType(), nullable=True),
             StructField("updated_at", TimestampType(), nullable=True),
         ]
     ),
@@ -33,6 +36,7 @@ SCHEMAS: dict[str, StructType] = {
             StructField("email", StringType(), nullable=True),
             StructField("country", StringType(), nullable=True),
             StructField("registration_date", DateType(), nullable=True),
+            StructField("updated_at", TimestampType(), nullable=True),
         ]
     ),
     "products_silver": StructType(
@@ -43,6 +47,7 @@ SCHEMAS: dict[str, StructType] = {
             StructField("price_usd", DecimalType(10, 2), nullable=True),
             StructField("cost_usd", DecimalType(10, 2), nullable=True),
             StructField("supplier_id", StringType(), nullable=True),
+            StructField("updated_at", TimestampType(), nullable=True),
         ]
     ),
 }

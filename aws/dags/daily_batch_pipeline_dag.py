@@ -30,6 +30,8 @@ default_args = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
+    "retry_exponential_backoff": True,
+    "max_retry_delay": timedelta(minutes=30),
 }
 
 # Create DAG
@@ -39,6 +41,8 @@ dag = DAG(
     description="Main batch ETL pipeline with DQ gating",
     schedule="0 1 * * *",  # Daily at 1 AM
     catchup=False,
+    max_active_runs=1,
+    dagrun_timeout=timedelta(hours=6),
     tags=["production", "bronze", "silver", "gold"],
 )
 
@@ -88,7 +92,7 @@ ingest_done = EmptyOperator(
 
 dq_check_bronze = BashOperator(
     task_id="dq_check_bronze",
-    bash_command='aws emr-serverless start-job-run --application-id $EMR_APP_ID --job-driver "{"sparkSubmit":{"entryPoint":"s3://$CODE_BUCKET/jobs/dq_check_bronze.py"}}"',
+    bash_command=emr_submit_command("s3://$CODE_BUCKET/jobs/dq_check_bronze.py"),
     dag=dag,
 )
 

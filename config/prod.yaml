@@ -51,8 +51,17 @@ dq:
     output_path: "s3a://my-etl-lake-demo/metrics/dq_profiles"
     max_columns: 100
     top_values: 10
+  drift:
+    enabled: true
+    baseline_path: "s3a://my-etl-lake-demo/metrics/profile_baselines"
+    null_pct_delta: 5.0
+    distinct_pct_delta: 10.0
+    avg_pct_delta: 20.0
+    fail_on_drift: true
   reconciliation:
     enabled: true
+    row_sample: 20000
+    tolerance_pct: 1.0
   realism:
     enabled: true
     max_future_days: 1
@@ -74,6 +83,7 @@ lineage:
   enabled: true
   url: ${OPENLINEAGE_URL:-http://marquez:5000}
   namespace: company-data-platform
+  storage_path: "s3a://my-etl-lake-demo/metrics/lineage"
 
 # Spark Runtime Configuration
 spark:
@@ -129,9 +139,15 @@ monitoring:
   log_level: INFO
   pipeline_metrics: true
   metrics_enabled: true
+  alerts_enabled: true
+  alerts_path: "s3a://my-etl-lake-demo/metrics/alerts/alerts.jsonl"
+  audit_path: "s3a://my-etl-lake-demo/metrics/audit/pipeline_run_audit.jsonl"
   thresholds:
     bronze_to_silver_duration_seconds: 7200
     silver_to_gold_duration_seconds: 7200
+  slo:
+    pipeline_runtime_seconds: 14400
+    freshness_hours: 24
 
 contracts:
   path: "config/contracts/silver_contracts.yaml"
@@ -173,6 +189,8 @@ data_sources:
   kafka:
     enabled: true
     source_type: streaming
+    schema_registry_path: "s3a://my-etl-lake-demo/config/schema_registry/kafka/orders_events.json"
+    dlq_path: "s3a://my-etl-lake-demo/bronze/kafka/dlq/orders_events"
   fx_vendor:
     enabled: true
     source_type: api

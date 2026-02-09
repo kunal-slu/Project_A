@@ -9,16 +9,17 @@ import os
 from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, current_timestamp, from_json, lit
+from pyspark.sql.functions import col, current_timestamp, from_json, lit, to_date, coalesce
 from pyspark.sql.types import (
     DoubleType,
-    IntegerType,
+    MapType,
     StringType,
     StructField,
     StructType,
     TimestampType,
 )
 
+from project_a.streaming.schema_registry import load_schema, required_fields
 logger = logging.getLogger(__name__)
 
 
@@ -36,11 +37,18 @@ def get_kafka_stream(
     Returns:
         Streaming DataFrame
     """
-    kafka_config = config.get("data_sources", {}).get("kafka", {})
+    kafka_config = (
+        config.get("sources", {}).get("kafka", {})
+        or config.get("data_sources", {}).get("kafka", {})
+        or config.get("kafka", {})
+    )
 
     # Kafka connection options
+    bootstrap_servers = kafka_config.get("bootstrap_servers") or kafka_config.get(
+        "local_bootstrap_servers", "localhost:9092"
+    )
     kafka_options = {
-        "kafka.bootstrap.servers": kafka_config.get("bootstrap_servers", "localhost:9092"),
+        "kafka.bootstrap.servers": bootstrap_servers,
         "subscribe": topic,
         "startingOffsets": kafka_config.get("starting_offsets", "latest"),  # 'earliest' or 'latest'
         "failOnDataLoss": "false",
@@ -147,19 +155,48 @@ def stream_orders_from_kafka(
     kafka_stream = get_kafka_stream(spark, config, topic)
 
     # Define schema for orders events (should match Avro schema)
+    kafka_cfg = (
+        config.get("sources", {}).get("kafka", {})
+        or config.get("data_sources", {}).get("kafka", {})
+        or {}
+    )
+    schema_path = kafka_cfg.get("schema_registry_path", "config/schema_registry/kafka/orders_events.json")
+    schema_doc = load_schema(schema_path)
+    required = required_fields(schema_doc)
+
     orders_schema = StructType(
         [
             StructField("order_id", StringType(), True),
             StructField("customer_id", StringType(), True),
-            StructField("product_id", StringType(), True),
-            StructField("quantity", IntegerType(), True),
-            StructField("price", DoubleType(), True),
-            StructField("timestamp", TimestampType(), True),
+            StructField("event_type", StringType(), True),
+            StructField("event_ts", TimestampType(), True),
+            StructField("amount", DoubleType(), True),
+            StructField("currency", StringType(), True),
+            StructField("channel", StringType(), True),
+            StructField("metadata", MapType(StringType(), StringType()), True),
         ]
     )
 
     # Parse messages
     parsed_stream = parse_kafka_messages(kafka_stream, orders_schema)
+
+    # Enrich with processing date for partitioning
+    parsed_stream = parsed_stream.withColumn(
+        "_proc_date",
+        to_date(coalesce(col("event_ts"), col("kafka_timestamp"))),
+    )
+
+    # Split valid vs invalid (DLQ)
+    required_cols = [c for c in required if c in parsed_stream.columns]
+    valid_expr = None
+    for col_name in required_cols:
+        expr = col(col_name).isNotNull()
+        valid_expr = expr if valid_expr is None else (valid_expr & expr)
+    if valid_expr is None:
+        valid_expr = col("order_id").isNotNull()
+
+    valid_stream = parsed_stream.filter(valid_expr)
+    invalid_stream = parsed_stream.filter(~valid_expr)
 
     # Write to Bronze
     bronze_path = config.get("data_lake", {}).get("bronze_path", "data/lakehouse_delta/bronze")
@@ -169,7 +206,20 @@ def stream_orders_from_kafka(
     checkpoint_path = f"{checkpoint_path}/{topic}"
 
     query = write_kafka_stream_to_bronze(
-        parsed_stream, output_path, checkpoint_path, trigger_interval="10 seconds"
+        valid_stream, output_path, checkpoint_path, trigger_interval="10 seconds"
+    )
+
+    # Route invalid rows to DLQ
+    dlq_path = kafka_cfg.get("dlq_path", f"{bronze_path}/kafka/dlq/{topic}")
+    dlq_checkpoint = f"{checkpoint_path}_dlq"
+    _ = (
+        invalid_stream.writeStream.format("delta")
+        .outputMode("append")
+        .option("checkpointLocation", dlq_checkpoint)
+        .option("path", dlq_path)
+        .partitionBy("_proc_date")
+        .trigger(processingTime="30 seconds")
+        .start()
     )
 
     # Wait for termination (or run in background)

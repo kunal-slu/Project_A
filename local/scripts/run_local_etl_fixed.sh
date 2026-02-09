@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ROOT="/Users/kunal/IdeaProjects/Project_A"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "🔧 Setting up environment for local ETL..."
@@ -74,4 +74,3 @@ echo ""
 echo "📊 Check output:"
 echo "   ls -lh data/silver/*/"
 echo "   ls -lh data/gold/*/"
-

@@ -1,0 +1,99 @@
+== Parsed Logical Plan ==
+'Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462, country#159, order_month#493, year('order_date) AS order_year#507]
++- Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462, country#159, month(order_date#168) AS order_month#493]
+   +- Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462, country#159]
+      +- Join LeftOuter, (customer_id#47 = customer_id#0)
+         :- Project [product_id#48, order_id#46, customer_id#47, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462]
+         :  +- Join LeftOuter, (product_id#48 = product_id#110)
+         :     :- RepartitionByExpression [order_date#168]
+         :     :  +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171]
+         :     :     +- Filter (rn#182 = 1)
+         :     :        +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, rn#182]
+         :     :           +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, rn#182, rn#182]
+         :     :              +- Window [row_number() windowspecdefinition(order_id#46, updated_at#171 DESC NULLS LAST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS rn#182], [order_id#46], [updated_at#171 DESC NULLS LAST]
+         :     :                 +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171]
+         :     :                    +- Project [order_id#46, customer_id#47, product_id#48, to_date(order_date#49, None, Some(America/Chicago), false) AS order_date#168, cast(total_amount#53 as double) AS total_amount#169, cast(quantity#51 as int) AS quantity#170, status#57, coalesce(updated_at#69, order_timestamp#50) AS updated_at#171]
+         :     :                       +- Relation [order_id#46,customer_id#47,product_id#48,order_date#49,order_timestamp#50,quantity#51,unit_price#52,total_amount#53,currency#54,payment_method#55,shipping_method#56,status#57,op#58,is_deleted#59,shipping_address#60,billing_address#61,discount_percent#62,tax_amount#63,shipping_cost#64,promo_code#65,sales_rep_id#66,channel#67,created_at#68,updated_at#69,... 8 more fields] csv
+         :     +- ResolvedHint (strategy=broadcast)
+         :        +- Project [product_id#110, product_name#112, category#113, cast(price_usd#116 as double) AS price_usd#462]
+         :           +- Relation [product_id#110,sku#111,product_name#112,category#113,subcategory#114,brand#115,price_usd#116,cost_usd#117,weight_kg#118,dimensions#119,color#120,size#121,active#122,stock_quantity#123,reorder_level#124,supplier_id#125,created_at#126,updated_at#127,source_system#128,ingestion_timestamp#129,rating#130,review_count#131,in_stock#132] csv
+         +- Project [customer_id#0, country#159]
+            +- Project [customer_id#0, trim(lower(first_name#1), None) AS first_name#156, trim(lower(last_name#2), None) AS last_name#157, lower(regexp_replace(email#3, \s+, , 1)) AS email#158, upper(country#8) AS country#159, to_date(registration_date#10, None, Some(America/Chicago), false) AS registration_date#160]
+               +- Relation [customer_id#0,first_name#1,last_name#2,email#3,phone#4,address#5,city#6,state#7,country#8,zip_code#9,registration_date#10,gender#11,age#12,customer_segment#13,lifetime_value#14,last_purchase_date#15,total_orders#16,preferred_channel#17,created_at#18,updated_at#19,source_system#20,ingestion_timestamp#21,estimated_clv#22] csv
+
+== Analyzed Logical Plan ==
+customer_id: string, product_id: string, order_id: string, order_date: date, total_amount: double, quantity: int, status: string, updated_at: string, product_name: string, category: string, price_usd: double, country: string, order_month: int, order_year: int
+Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462, country#159, order_month#493, year(order_date#168) AS order_year#507]
++- Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462, country#159, month(order_date#168) AS order_month#493]
+   +- Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462, country#159]
+      +- Join LeftOuter, (customer_id#47 = customer_id#0)
+         :- Project [product_id#48, order_id#46, customer_id#47, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#462]
+         :  +- Join LeftOuter, (product_id#48 = product_id#110)
+         :     :- RepartitionByExpression [order_date#168]
+         :     :  +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171]
+         :     :     +- Filter (rn#182 = 1)
+         :     :        +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, rn#182]
+         :     :           +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, rn#182, rn#182]
+         :     :              +- Window [row_number() windowspecdefinition(order_id#46, updated_at#171 DESC NULLS LAST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS rn#182], [order_id#46], [updated_at#171 DESC NULLS LAST]
+         :     :                 +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171]
+         :     :                    +- Project [order_id#46, customer_id#47, product_id#48, to_date(order_date#49, None, Some(America/Chicago), false) AS order_date#168, cast(total_amount#53 as double) AS total_amount#169, cast(quantity#51 as int) AS quantity#170, status#57, coalesce(updated_at#69, order_timestamp#50) AS updated_at#171]
+         :     :                       +- Relation [order_id#46,customer_id#47,product_id#48,order_date#49,order_timestamp#50,quantity#51,unit_price#52,total_amount#53,currency#54,payment_method#55,shipping_method#56,status#57,op#58,is_deleted#59,shipping_address#60,billing_address#61,discount_percent#62,tax_amount#63,shipping_cost#64,promo_code#65,sales_rep_id#66,channel#67,created_at#68,updated_at#69,... 8 more fields] csv
+         :     +- ResolvedHint (strategy=broadcast)
+         :        +- Project [product_id#110, product_name#112, category#113, cast(price_usd#116 as double) AS price_usd#462]
+         :           +- Relation [product_id#110,sku#111,product_name#112,category#113,subcategory#114,brand#115,price_usd#116,cost_usd#117,weight_kg#118,dimensions#119,color#120,size#121,active#122,stock_quantity#123,reorder_level#124,supplier_id#125,created_at#126,updated_at#127,source_system#128,ingestion_timestamp#129,rating#130,review_count#131,in_stock#132] csv
+         +- Project [customer_id#0, country#159]
+            +- Project [customer_id#0, trim(lower(first_name#1), None) AS first_name#156, trim(lower(last_name#2), None) AS last_name#157, lower(regexp_replace(email#3, \s+, , 1)) AS email#158, upper(country#8) AS country#159, to_date(registration_date#10, None, Some(America/Chicago), false) AS registration_date#160]
+               +- Relation [customer_id#0,first_name#1,last_name#2,email#3,phone#4,address#5,city#6,state#7,country#8,zip_code#9,registration_date#10,gender#11,age#12,customer_segment#13,lifetime_value#14,last_purchase_date#15,total_orders#16,preferred_channel#17,created_at#18,updated_at#19,source_system#20,ingestion_timestamp#21,estimated_clv#22] csv
+
+== Optimized Logical Plan ==
+Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#116, country#159, month(order_date#168) AS order_month#493, year(order_date#168) AS order_year#507]
++- Join LeftOuter, (customer_id#47 = customer_id#0)
+   :- Project [product_id#48, order_id#46, customer_id#47, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#116]
+   :  +- Join LeftOuter, (product_id#48 = product_id#110), rightHint=(strategy=broadcast)
+   :     :- InMemoryRelation [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171], StorageLevel(disk, memory, deserialized, 1 replicas)
+   :     :     +- AdaptiveSparkPlan isFinalPlan=false
+   :     :        +- Exchange hashpartitioning(order_date#168, 2), REPARTITION_BY_COL, [plan_id=1069]
+   :     :           +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#53, quantity#51, status#57, updated_at#171]
+   :     :              +- Filter (rn#182 = 1)
+   :     :                 +- Window [row_number() windowspecdefinition(order_id#46, updated_at#171 DESC NULLS LAST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS rn#182], [order_id#46], [updated_at#171 DESC NULLS LAST]
+   :     :                    +- WindowGroupLimit [order_id#46], [updated_at#171 DESC NULLS LAST], row_number(), 1, Final
+   :     :                       +- Sort [order_id#46 ASC NULLS FIRST, updated_at#171 DESC NULLS LAST], false, 0
+   :     :                          +- Exchange hashpartitioning(order_id#46, 2), ENSURE_REQUIREMENTS, [plan_id=1063]
+   :     :                             +- WindowGroupLimit [order_id#46], [updated_at#171 DESC NULLS LAST], row_number(), 1, Partial
+   :     :                                +- Sort [order_id#46 ASC NULLS FIRST, updated_at#171 DESC NULLS LAST], false, 0
+   :     :                                   +- Project [order_id#46, customer_id#47, product_id#48, cast(order_date#49 as date) AS order_date#168, total_amount#53, quantity#51, status#57, coalesce(updated_at#69, order_timestamp#50) AS updated_at#171]
+   :     :                                      +- FileScan csv [order_id#46,customer_id#47,product_id#48,order_date#49,order_timestamp#50,quantity#51,total_amount#53,status#57,updated_at#69] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake/snowfla..., PartitionFilters: [], PushedFilters: [], ReadSchema: struct<order_id:string,customer_id:string,product_id:string,order_date:string,order_timestamp:str...
+   :     +- Project [product_id#110, product_name#112, category#113, price_usd#116]
+   :        +- Filter isnotnull(product_id#110)
+   :           +- Relation [product_id#110,sku#111,product_name#112,category#113,subcategory#114,brand#115,price_usd#116,cost_usd#117,weight_kg#118,dimensions#119,color#120,size#121,active#122,stock_quantity#123,reorder_level#124,supplier_id#125,created_at#126,updated_at#127,source_system#128,ingestion_timestamp#129,rating#130,review_count#131,in_stock#132] csv
+   +- Project [customer_id#0, upper(country#8) AS country#159]
+      +- Filter isnotnull(customer_id#0)
+         +- Relation [customer_id#0,first_name#1,last_name#2,email#3,phone#4,address#5,city#6,state#7,country#8,zip_code#9,registration_date#10,gender#11,age#12,customer_segment#13,lifetime_value#14,last_purchase_date#15,total_orders#16,preferred_channel#17,created_at#18,updated_at#19,source_system#20,ingestion_timestamp#21,estimated_clv#22] csv
+
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Project [customer_id#47, product_id#48, order_id#46, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#116, country#159, month(order_date#168) AS order_month#493, year(order_date#168) AS order_year#507]
+   +- BroadcastHashJoin [customer_id#47], [customer_id#0], LeftOuter, BuildRight, false
+      :- Project [product_id#48, order_id#46, customer_id#47, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171, product_name#112, category#113, price_usd#116]
+      :  +- BroadcastHashJoin [product_id#48], [product_id#110], LeftOuter, BuildRight, false
+      :     :- InMemoryTableScan [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171]
+      :     :     +- InMemoryRelation [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#169, quantity#170, status#57, updated_at#171], StorageLevel(disk, memory, deserialized, 1 replicas)
+      :     :           +- AdaptiveSparkPlan isFinalPlan=false
+      :     :              +- Exchange hashpartitioning(order_date#168, 2), REPARTITION_BY_COL, [plan_id=1127]
+      :     :                 +- Project [order_id#46, customer_id#47, product_id#48, order_date#168, total_amount#53, quantity#51, status#57, updated_at#171]
+      :     :                    +- Filter (rn#182 = 1)
+      :     :                       +- Window [row_number() windowspecdefinition(order_id#46, updated_at#171 DESC NULLS LAST, specifiedwindowframe(RowFrame, unboundedpreceding$(), currentrow$())) AS rn#182], [order_id#46], [updated_at#171 DESC NULLS LAST]
+      :     :                          +- WindowGroupLimit [order_id#46], [updated_at#171 DESC NULLS LAST], row_number(), 1, Final
+      :     :                             +- Sort [order_id#46 ASC NULLS FIRST, updated_at#171 DESC NULLS LAST], false, 0
+      :     :                                +- Exchange hashpartitioning(order_id#46, 2), ENSURE_REQUIREMENTS, [plan_id=1121]
+      :     :                                   +- WindowGroupLimit [order_id#46], [updated_at#171 DESC NULLS LAST], row_number(), 1, Partial
+      :     :                                      +- Sort [order_id#46 ASC NULLS FIRST, updated_at#171 DESC NULLS LAST], false, 0
+      :     :                                         +- Project [order_id#46, customer_id#47, product_id#48, cast(order_date#49 as date) AS order_date#168, total_amount#53, quantity#51, status#57, coalesce(updated_at#69, order_timestamp#50) AS updated_at#171]
+      :     :                                            +- FileScan csv [order_id#46,customer_id#47,product_id#48,order_date#49,order_timestamp#50,quantity#51,total_amount#53,status#57,updated_at#69] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake/snowfla..., PartitionFilters: [], PushedFilters: [], ReadSchema: struct<order_id:string,customer_id:string,product_id:string,order_date:string,order_timestamp:str...
+      :     +- BroadcastExchange HashedRelationBroadcastMode(List(input[0, string, false]),false), [plan_id=1110]
+      :        +- Filter isnotnull(product_id#110)
+      :           +- FileScan csv [product_id#110,product_name#112,category#113,price_usd#116] Batched: false, DataFilters: [isnotnull(product_id#110)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake/snowfla..., PartitionFilters: [], PushedFilters: [IsNotNull(product_id)], ReadSchema: struct<product_id:string,product_name:string,category:string,price_usd:double>
+      +- BroadcastExchange HashedRelationBroadcastMode(List(input[0, string, true]),false), [plan_id=1114]
+         +- Project [customer_id#0, upper(country#8) AS country#159]
+            +- Filter isnotnull(customer_id#0)
+               +- FileScan csv [customer_id#0,country#8] Batched: false, DataFilters: [isnotnull(customer_id#0)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/Users/kunal/IdeaProjects/Project_A/data/bronze/snowflake/snowfla..., PartitionFilters: [], PushedFilters: [IsNotNull(customer_id)], ReadSchema: struct<customer_id:string,country:string>

@@ -5,10 +5,13 @@ Transforms data from Bronze layer to Silver layer with cleaning and standardizat
 """
 
 import logging
+from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 from pyspark.sql.window import Window
 
 from project_a.contracts.runtime_contracts import load_table_contracts, validate_contract
@@ -38,6 +41,69 @@ class BronzeToSilverJob(BaseJob):
                 f"Available columns: {df.columns}"
             )
         return F.lit(None).cast("string")
+
+    @staticmethod
+    def _pick_column(candidates: list[str], columns: list[str]) -> str | None:
+        for candidate in candidates:
+            if candidate in columns:
+                return candidate
+        return None
+
+    @staticmethod
+    def _coalesce_columns(
+        df: DataFrame,
+        candidates: list[str],
+        field_name: str,
+        required: bool = True,
+    ) -> F.Column:
+        existing = [candidate for candidate in candidates if candidate in df.columns]
+        if not existing:
+            if required:
+                raise ValueError(
+                    f"Missing required field '{field_name}'. Tried candidates: {candidates}. "
+                    f"Available columns: {df.columns}"
+                )
+            return F.lit(None).cast("string")
+
+        expr = F.col(existing[0])
+        for candidate in existing[1:]:
+            expr = F.coalesce(expr, F.col(candidate))
+        return expr
+
+    def _apply_cdc_if_present(
+        self,
+        df: DataFrame,
+        key_cols: list[str],
+        ts_col_candidates: list[str],
+        op_col_candidates: list[str],
+        delete_flag_candidates: list[str],
+    ) -> DataFrame:
+        op_col = self._pick_column(op_col_candidates, df.columns)
+        delete_col = self._pick_column(delete_flag_candidates, df.columns)
+        ts_col = self._pick_column(ts_col_candidates, df.columns)
+
+        if not (op_col or delete_col or ts_col):
+            return df
+
+        df_cdc = df
+        if op_col:
+            df_cdc = df_cdc.withColumn("_cdc_op", F.upper(F.col(op_col)))
+        elif delete_col:
+            df_cdc = df_cdc.withColumn(
+                "_cdc_op", F.when(F.col(delete_col).cast("boolean"), F.lit("DELETE")).otherwise("UPSERT")
+            )
+        else:
+            df_cdc = df_cdc.withColumn("_cdc_op", F.lit("UPSERT"))
+
+        # Keep only latest version per key if timestamps exist
+        if ts_col:
+            window = Window.partitionBy(*key_cols).orderBy(F.col(ts_col).desc_nulls_last())
+            df_cdc = df_cdc.withColumn("_rn", F.row_number().over(window)).filter(F.col("_rn") == 1)
+            df_cdc = df_cdc.drop("_rn")
+
+        # Drop deletes
+        df_cdc = df_cdc.filter(~F.col("_cdc_op").isin("D", "DELETE"))
+        return df_cdc
 
     def _storage_format(self) -> str:
         storage_fmt = (self.config.get("storage") or {}).get("format")
@@ -71,6 +137,66 @@ class BronzeToSilverJob(BaseJob):
         else:
             df.write.mode("overwrite").parquet(path)
 
+    @staticmethod
+    def _to_local_path(path: str) -> Path | None:
+        if path.startswith("file://"):
+            parsed = urlparse(path)
+            return Path(unquote(parsed.path))
+        if "://" in path:
+            return None
+        return Path(path)
+
+    def _remove_empty_local_parquet_files(self, path: str) -> int:
+        local_path = self._to_local_path(path)
+        if local_path is None or not local_path.exists():
+            return 0
+
+        removed = 0
+        for parquet_file in local_path.glob("*.parquet"):
+            try:
+                if parquet_file.stat().st_size == 0:
+                    parquet_file.unlink()
+                    removed += 1
+            except OSError:
+                logger.warning("Failed to inspect/remove candidate file: %s", parquet_file)
+        return removed
+
+    def _read_bronze_parquet(self, spark, path: str, table_name: str) -> DataFrame:
+        removed = self._remove_empty_local_parquet_files(path)
+        if removed > 0:
+            logger.warning(
+                "%s: removed %s empty parquet part files before read (%s)",
+                table_name,
+                removed,
+                path,
+            )
+
+        try:
+            return spark.read.parquet(path)
+        except Exception as exc:
+            error_text = str(exc)
+            if "Conflicting directory structures detected" in error_text:
+                logger.warning(
+                    "%s: parquet read hit mixed directory layout; retrying with recursiveFileLookup",
+                    table_name,
+                )
+                return (
+                    spark.read.option("recursiveFileLookup", "true")
+                    .option("pathGlobFilter", "*.parquet")
+                    .parquet(path)
+                )
+            logger.warning(
+                "%s: standard parquet read failed (%s). Retrying with ignoreCorruptFiles=true",
+                table_name,
+                exc,
+            )
+            recovered = spark.read.option("ignoreCorruptFiles", "true").parquet(path)
+            if recovered.rdd.isEmpty():
+                raise RuntimeError(
+                    f"{table_name}: unable to read parquet data at {path}; no valid records available"
+                ) from exc
+            return recovered
+
     def run(self, ctx) -> dict[str, Any]:
         """Execute the Bronze to Silver transformation."""
         logger.info("Starting Bronze to Silver transformation...")
@@ -90,25 +216,37 @@ class BronzeToSilverJob(BaseJob):
 
             # Transform CRM data
             logger.info("Transforming CRM data...")
-            self.transform_crm_data(spark, bronze_path, silver_path)
+            crm_metrics = self.transform_crm_data(spark, bronze_path, silver_path)
 
             # Transform Snowflake data
             logger.info("Transforming Snowflake data...")
-            snowflake_metrics = self.transform_snowflake_data(
+            snowflake_metrics, customers_silver_df = self.transform_snowflake_data(
                 spark, bronze_path, silver_path, table_contracts
             )
 
             # Transform Redshift data
             logger.info("Transforming Redshift data...")
-            self.transform_redshift_data(spark, bronze_path, silver_path)
+            redshift_metrics = self.transform_redshift_data(
+                spark,
+                bronze_path,
+                silver_path,
+                table_contracts,
+                customers_silver_df,
+            )
 
             # Transform FX data
             logger.info("Transforming FX data...")
-            self.transform_fx_data(spark, bronze_path, silver_path)
+            fx_metrics = self.transform_fx_data(spark, bronze_path, silver_path, table_contracts)
 
             # Transform Kafka events
             logger.info("Transforming Kafka events...")
-            self.transform_kafka_events(spark, bronze_path, silver_path)
+            kafka_metrics = self.transform_kafka_events(
+                spark,
+                bronze_path,
+                silver_path,
+                table_contracts,
+                customers_silver_df,
+            )
 
             # Apply data quality checks
             logger.info("Applying data quality checks...")
@@ -121,8 +259,14 @@ class BronzeToSilverJob(BaseJob):
                 "status": "success",
                 "output_path": silver_path,
                 "layers_processed": ["crm", "snowflake", "redshift", "fx", "kafka"],
-                "metrics": snowflake_metrics,
-            }
+                    "metrics": {
+                        **crm_metrics,
+                        **snowflake_metrics,
+                        **redshift_metrics,
+                        **fx_metrics,
+                        **kafka_metrics,
+                    },
+                }
 
             logger.info(f"Bronze to Silver transformation completed: {result}")
             return result
@@ -140,7 +284,6 @@ class BronzeToSilverJob(BaseJob):
     def transform_crm_data(self, spark, bronze_path: str, silver_path: str):
         """Transform CRM data from bronze to silver."""
         from pyspark.sql.functions import col, lower, trim
-        from pyspark.sql.utils import AnalysisException
 
         # Validate input paths exist
         paths = {
@@ -149,19 +292,20 @@ class BronzeToSilverJob(BaseJob):
             "opportunities": f"{bronze_path}/crm/opportunities",
         }
 
-        for name, path in paths.items():
-            try:
-                test_df = spark.read.parquet(path)
-                count = test_df.count()
-                if count == 0:
-                    logger.warning(f"CRM {name} is empty at {path}")
-            except AnalysisException as exc:
-                raise FileNotFoundError(f"Required CRM input not found: {path}") from exc
-
         # Read bronze CRM data
-        accounts_df = spark.read.parquet(paths["accounts"])
-        contacts_df = spark.read.parquet(paths["contacts"])
-        opportunities_df = spark.read.parquet(paths["opportunities"])
+        accounts_df = self._read_bronze_parquet(spark, paths["accounts"], "bronze.crm.accounts")
+        contacts_df = self._read_bronze_parquet(spark, paths["contacts"], "bronze.crm.contacts")
+        opportunities_df = self._read_bronze_parquet(
+            spark, paths["opportunities"], "bronze.crm.opportunities"
+        )
+
+        for name, df in {
+            "accounts": accounts_df,
+            "contacts": contacts_df,
+            "opportunities": opportunities_df,
+        }.items():
+            if df.rdd.isEmpty():
+                logger.warning("CRM %s is empty at %s", name, paths[name])
 
         # Clean and standardize
         # Clean accounts
@@ -173,9 +317,49 @@ class BronzeToSilverJob(BaseJob):
                 lower(self._resolve_col(accounts_df, ["account_name", "Name"], "account_name"))
             ).alias("account_name"),
             self._resolve_col(accounts_df, ["industry", "Industry"], "industry").alias("industry"),
-            self._resolve_col(accounts_df, ["created_date", "CreatedDate"], "created_date").alias(
-                "created_date"
+            self._resolve_col(
+                accounts_df, ["annual_revenue", "AnnualRevenue"], "annual_revenue", required=False
+            )
+            .cast("double")
+            .alias("annual_revenue"),
+            self._resolve_col(
+                accounts_df, ["number_of_employees", "NumberOfEmployees"], "number_of_employees", required=False
+            )
+            .cast("int")
+            .alias("number_of_employees"),
+            self._resolve_col(
+                accounts_df, ["billing_city", "BillingCity"], "billing_city", required=False
+            ).alias("billing_city"),
+            self._resolve_col(
+                accounts_df, ["billing_state", "BillingState"], "billing_state", required=False
+            ).alias("billing_state"),
+            self._resolve_col(
+                accounts_df, ["billing_country", "BillingCountry"], "billing_country", required=False
+            ).alias("billing_country"),
+            self._resolve_col(accounts_df, ["phone", "Phone"], "phone", required=False).alias(
+                "phone"
             ),
+            self._resolve_col(accounts_df, ["website", "Website"], "website", required=False).alias(
+                "website"
+            ),
+            self._resolve_col(
+                accounts_df, ["customer_segment", "CustomerSegment"], "customer_segment", required=False
+            ).alias("customer_segment"),
+            self._resolve_col(
+                accounts_df,
+                ["geographic_region", "GeographicRegion"],
+                "geographic_region",
+                required=False,
+            ).alias("geographic_region"),
+            self._resolve_col(
+                accounts_df, ["account_status", "AccountStatus"], "account_status", required=False
+            ).alias("account_status"),
+            self._resolve_col(
+                accounts_df, ["created_date", "CreatedDate"], "created_date", required=False
+            ).alias("created_date"),
+            self._resolve_col(
+                accounts_df, ["last_modified_date", "LastModifiedDate"], "last_modified_date", required=False
+            ).alias("last_modified_date"),
         )
 
         # Validate no null primary keys
@@ -199,6 +383,35 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(contacts_df, ["phone", "Phone", "MobilePhone"], "phone").alias(
                 "phone"
             ),
+            self._resolve_col(contacts_df, ["title", "Title"], "title", required=False).alias(
+                "title"
+            ),
+            self._resolve_col(
+                contacts_df, ["department", "Department"], "department", required=False
+            ).alias("department"),
+            self._resolve_col(
+                contacts_df, ["lead_source", "LeadSource"], "lead_source", required=False
+            ).alias("lead_source"),
+            self._resolve_col(
+                contacts_df, ["engagement_score", "EngagementScore"], "engagement_score", required=False
+            )
+            .cast("double")
+            .alias("engagement_score"),
+            self._resolve_col(
+                contacts_df, ["mailing_city", "MailingCity"], "mailing_city", required=False
+            ).alias("mailing_city"),
+            self._resolve_col(
+                contacts_df, ["mailing_state", "MailingState"], "mailing_state", required=False
+            ).alias("mailing_state"),
+            self._resolve_col(
+                contacts_df, ["mailing_country", "MailingCountry"], "mailing_country", required=False
+            ).alias("mailing_country"),
+            self._resolve_col(
+                contacts_df, ["created_date", "CreatedDate"], "created_date", required=False
+            ).alias("created_date"),
+            self._resolve_col(
+                contacts_df, ["last_modified_date", "LastModifiedDate"], "last_modified_date", required=False
+            ).alias("last_modified_date"),
         )
 
         # Validate no null primary keys
@@ -227,6 +440,51 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(opportunities_df, ["close_date", "CloseDate"], "close_date").alias(
                 "close_date"
             ),
+            self._resolve_col(
+                opportunities_df, ["probability", "Probability"], "probability", required=False
+            )
+            .cast("int")
+            .alias("probability"),
+            self._resolve_col(
+                opportunities_df, ["lead_source", "LeadSource"], "lead_source", required=False
+            ).alias("lead_source"),
+            self._resolve_col(opportunities_df, ["type", "Type"], "type", required=False).alias(
+                "type"
+            ),
+            self._resolve_col(
+                opportunities_df, ["forecast_category", "ForecastCategory"], "forecast_category", required=False
+            ).alias("forecast_category"),
+            self._resolve_col(
+                opportunities_df, ["is_closed", "IsClosed"], "is_closed", required=False
+            )
+            .cast("boolean")
+            .alias("is_closed"),
+            self._resolve_col(opportunities_df, ["is_won", "IsWon"], "is_won", required=False)
+            .cast("boolean")
+            .alias("is_won"),
+            self._resolve_col(
+                opportunities_df, ["created_date", "CreatedDate"], "created_date", required=False
+            ).alias("created_date"),
+            self._resolve_col(
+                opportunities_df, ["last_modified_date", "LastModifiedDate"], "last_modified_date", required=False
+            ).alias("last_modified_date"),
+            self._resolve_col(
+                opportunities_df, ["sales_cycle", "SalesCycle"], "sales_cycle", required=False
+            )
+            .cast("int")
+            .alias("sales_cycle"),
+            self._resolve_col(
+                opportunities_df, ["product_interest", "ProductInterest"], "product_interest", required=False
+            ).alias("product_interest"),
+            self._resolve_col(opportunities_df, ["budget", "Budget"], "budget", required=False).alias(
+                "budget"
+            ),
+            self._resolve_col(
+                opportunities_df, ["timeline", "Timeline"], "timeline", required=False
+            ).alias("timeline"),
+            self._resolve_col(
+                opportunities_df, ["deal_size", "DealSize"], "deal_size", required=False
+            ).alias("deal_size"),
         )
 
         # Validate no null primary keys
@@ -249,6 +507,11 @@ class BronzeToSilverJob(BaseJob):
             "opportunities_silver",
             f"{silver_path}/opportunities_silver",
         )
+        return {
+            "accounts_rows": accounts_clean.count(),
+            "contacts_rows": contacts_clean.count(),
+            "opportunities_rows": opportunities_clean.count(),
+        }
 
     def _upsert_orders_incremental(
         self, spark, incoming_orders: DataFrame, existing_path: str, lookback_days: int
@@ -305,7 +568,6 @@ class BronzeToSilverJob(BaseJob):
     ):
         """Transform Snowflake data from bronze to silver."""
         from pyspark.sql.functions import col, lower, to_date, to_timestamp, trim
-        from pyspark.sql.utils import AnalysisException
 
         # Validate input paths exist
         paths = {
@@ -314,18 +576,20 @@ class BronzeToSilverJob(BaseJob):
             "products": f"{bronze_path}/snowflake/products",
         }
 
-        for name, path in paths.items():
-            try:
-                test_df = spark.read.parquet(path)
-                if test_df.count() == 0:
-                    logger.warning(f"Snowflake {name} is empty at {path}")
-            except AnalysisException as exc:
-                raise FileNotFoundError(f"Required Snowflake input not found: {path}") from exc
-
         # Read bronze Snowflake data
-        customers_df = spark.read.parquet(paths["customers"])
-        orders_df = spark.read.parquet(paths["orders"])
-        products_df = spark.read.parquet(paths["products"])
+        customers_df = self._read_bronze_parquet(
+            spark, paths["customers"], "bronze.snowflake.customers"
+        )
+        orders_df = self._read_bronze_parquet(spark, paths["orders"], "bronze.snowflake.orders")
+        products_df = self._read_bronze_parquet(spark, paths["products"], "bronze.snowflake.products")
+
+        for name, df in {
+            "customers": customers_df,
+            "orders": orders_df,
+            "products": products_df,
+        }.items():
+            if df.rdd.isEmpty():
+                logger.warning("Snowflake %s is empty at %s", name, paths[name])
 
         # Clean and standardize
         # Clean customers
@@ -348,6 +612,14 @@ class BronzeToSilverJob(BaseJob):
                 ),
                 F.current_date().cast("string"),
             ).alias("registration_date"),
+            to_timestamp(
+                self._resolve_col(
+                    customers_df,
+                    ["updated_at", "last_modified_date", "modified_at"],
+                    "updated_at",
+                    required=False,
+                )
+            ).alias("updated_at"),
         )
 
         # Validate no null primary keys
@@ -365,11 +637,28 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(orders_df, ["customer_id"], "customer_id").alias("customer_id"),
             self._resolve_col(orders_df, ["product_id"], "product_id").alias("product_id"),
             to_date(self._resolve_col(orders_df, ["order_date"], "order_date")).alias("order_date"),
+            F.upper(
+                self._resolve_col(orders_df, ["currency", "order_currency"], "currency", required=False)
+            ).alias("currency"),
+            self._resolve_col(orders_df, ["unit_price", "price"], "unit_price", required=False)
+            .cast("double")
+            .alias("unit_price"),
+            self._resolve_col(
+                orders_df, ["payment_method", "paymentType"], "payment_method", required=False
+            ).alias("payment_method"),
             self._resolve_col(orders_df, ["total_amount", "amount_usd", "amount"], "total_amount")
             .cast("double")
             .alias("total_amount"),
             self._resolve_col(orders_df, ["quantity"], "quantity").cast("int").alias("quantity"),
             self._resolve_col(orders_df, ["status"], "status").alias("status"),
+            self._resolve_col(orders_df, ["op", "_op", "operation"], "op", required=False).alias(
+                "op"
+            ),
+            self._resolve_col(
+                orders_df, ["is_deleted", "deleted", "_is_deleted"], "is_deleted", required=False
+            )
+            .cast("boolean")
+            .alias("is_deleted"),
             F.coalesce(
                 to_timestamp(
                     self._resolve_col(
@@ -378,6 +667,15 @@ class BronzeToSilverJob(BaseJob):
                 ),
                 F.current_timestamp(),
             ).alias("updated_at"),
+        )
+
+        # Apply CDC semantics if present (op/is_deleted/updated_at columns)
+        orders_clean = self._apply_cdc_if_present(
+            orders_clean,
+            key_cols=["order_id"],
+            ts_col_candidates=["updated_at", "event_ts", "event_timestamp"],
+            op_col_candidates=["op", "_op", "operation"],
+            delete_flag_candidates=["is_deleted", "deleted", "_is_deleted"],
         )
 
         # Clean products
@@ -390,6 +688,14 @@ class BronzeToSilverJob(BaseJob):
             ),
             self._resolve_col(products_df, ["cost_usd"], "cost_usd").cast("double").alias("cost_usd"),
             self._resolve_col(products_df, ["supplier_id"], "supplier_id").alias("supplier_id"),
+            to_timestamp(
+                self._resolve_col(
+                    products_df,
+                    ["updated_at", "last_modified_date", "modified_at"],
+                    "updated_at",
+                    required=False,
+                )
+            ).alias("updated_at"),
         )
 
         # Validate no null primary keys
@@ -450,45 +756,149 @@ class BronzeToSilverJob(BaseJob):
             spark, products_clean, "products_silver", f"{silver_path}/products_silver"
         )
 
-        return {
-            "customers_rows": customers_clean.count(),
-            "orders_rows": orders_incremental.count(),
-            "products_rows": products_clean.count(),
-            "orders_lookback_days": lookback_days,
-        }
+        return (
+            {
+                "snowflake_customers_rows": customers_clean.count(),
+                "snowflake_orders_rows": orders_incremental.count(),
+                "snowflake_products_rows": products_clean.count(),
+                "orders_lookback_days": lookback_days,
+            },
+            customers_clean.select("customer_id").dropDuplicates(["customer_id"]),
+        )
 
-    def transform_redshift_data(self, spark, bronze_path: str, silver_path: str):
+    def transform_redshift_data(
+        self,
+        spark,
+        bronze_path: str,
+        silver_path: str,
+        table_contracts: dict[str, dict[str, Any]],
+        customers_df: DataFrame,
+    ):
         """Transform Redshift data from bronze to silver."""
         # Read bronze Redshift data
-        behavior_df = spark.read.parquet(f"{bronze_path}/redshift/customer_behavior")
+        behavior_df = self._read_bronze_parquet(
+            spark,
+            f"{bronze_path}/redshift/customer_behavior",
+            "bronze.redshift.customer_behavior",
+        )
+        if behavior_df.rdd.isEmpty():
+            raise ValueError("Redshift behavior input is empty - cannot build customer_behavior_silver")
 
         # Clean and standardize
         behavior_clean = behavior_df.select(
-            self._resolve_col(behavior_df, ["customer_id", "behavior_id"], "customer_id").alias(
-                "customer_id"
-            ),
-            self._resolve_col(behavior_df, ["session_id", "customer_id"], "session_id").alias(
-                "session_id"
-            ),
-            self._resolve_col(behavior_df, ["page_viewed", "event_name"], "page_viewed").alias(
+            self._resolve_col(behavior_df, ["customer_id"], "customer_id").alias("customer_id"),
+            F.coalesce(
+                self._resolve_col(behavior_df, ["session_id"], "session_id", required=False),
+                self._resolve_col(behavior_df, ["behavior_id"], "behavior_id"),
+            ).alias("session_id"),
+            F.trim(
+                F.lower(
+                    F.coalesce(
+                        self._resolve_col(behavior_df, ["event_type", "event_name"], "event_type"),
+                        F.lit("unknown"),
+                    )
+                )
+            ).alias("event_type"),
+            F.to_timestamp(
+                self._resolve_col(
+                    behavior_df,
+                    ["event_ts", "event_timestamp", "event_date"],
+                    "event_ts",
+                )
+            ).alias("event_ts"),
+            F.to_date(
+                self._resolve_col(behavior_df, ["event_date", "event_timestamp"], "event_date")
+            ).alias("event_date"),
+            self._resolve_col(behavior_df, ["page_viewed", "page_url"], "page_viewed", required=False).alias(
                 "page_viewed"
             ),
+            F.greatest(
+                F.coalesce(
+                    self._resolve_col(
+                        behavior_df, ["time_spent_seconds", "duration_seconds"], "time_spent_seconds"
+                    ).cast("int"),
+                    F.lit(0),
+                ),
+                F.lit(0),
+            ).alias("time_spent_seconds"),
+            F.trim(
+                F.lower(
+                    F.coalesce(
+                        self._resolve_col(
+                            behavior_df, ["device_type", "referrer"], "device_type", required=False
+                        ),
+                        F.lit("unknown"),
+                    )
+                )
+            ).alias("device_type"),
+            F.trim(
+                F.lower(
+                    F.coalesce(
+                        self._resolve_col(behavior_df, ["browser"], "browser", required=False),
+                        F.lit("unknown"),
+                    )
+                )
+            ).alias("browser"),
             self._resolve_col(
-                behavior_df,
-                ["time_spent_seconds", "duration_seconds", "event_timestamp"],
-                "time_spent_seconds",
+                behavior_df, ["conversion_value", "revenue"], "conversion_value", required=False
             )
-            .cast("int")
-            .alias("time_spent_seconds"),
-            self._resolve_col(behavior_df, ["event_type", "session_id"], "event_type").alias(
-                "event_type"
-            ),
-            self._resolve_col(behavior_df, ["event_date", "event_timestamp", "page_url"], "event_date")
-            .alias("event_date"),
-            self._resolve_col(behavior_df, ["device_type", "referrer"], "device_type").alias(
-                "device_type"
-            ),
-            self._resolve_col(behavior_df, ["browser", "device_type"], "browser").alias("browser"),
+            .cast(DoubleType())
+            .alias("revenue"),
+        ).withColumn(
+            "event_date",
+            F.coalesce(F.col("event_date"), F.to_date(F.col("event_ts"))),
+        )
+
+        null_customer_ids = behavior_clean.filter(F.col("customer_id").isNull()).count()
+        if null_customer_ids > 0:
+            raise ValueError(
+                "customer_behavior_silver: found "
+                f"{null_customer_ids} null customer_id records - cannot proceed"
+            )
+
+        null_event_ts = behavior_clean.filter(F.col("event_ts").isNull()).count()
+        if null_event_ts > 0:
+            if self.config.get("dq.fail_on_error", True):
+                raise ValueError(
+                    "customer_behavior_silver: found "
+                    f"{null_event_ts} rows with invalid event timestamp"
+                )
+            logger.warning(
+                "customer_behavior_silver: dropping %s rows with invalid event timestamp",
+                null_event_ts,
+            )
+            behavior_clean = behavior_clean.filter(F.col("event_ts").isNotNull())
+
+        dedupe_window = Window.partitionBy(
+            "customer_id", "session_id", "event_ts", "event_type"
+        ).orderBy(F.coalesce(F.col("revenue"), F.lit(0.0)).desc())
+        behavior_clean = (
+            behavior_clean.withColumn("_rn", F.row_number().over(dedupe_window))
+            .filter(F.col("_rn") == 1)
+            .drop("_rn")
+        )
+
+        if self.config.is_local():
+            before_count = behavior_clean.count()
+            behavior_clean = behavior_clean.join(
+                customers_df.select("customer_id").dropDuplicates(["customer_id"]),
+                on="customer_id",
+                how="inner",
+            )
+            dropped = before_count - behavior_clean.count()
+            if dropped > 0:
+                logger.warning(
+                    "Local run: filtered %s orphan behavior events before contract validation",
+                    dropped,
+                )
+
+        validate_contract(
+            behavior_clean,
+            "customer_behavior_silver",
+            table_contracts.get("customer_behavior_silver", {}),
+            parent_frames={
+                "customers_silver": customers_df.select("customer_id").dropDuplicates(["customer_id"])
+            },
         )
 
         # Write to silver
@@ -498,38 +908,272 @@ class BronzeToSilverJob(BaseJob):
             "customer_behavior_silver",
             f"{silver_path}/customer_behavior_silver",
         )
+        return {"redshift_behavior_rows": behavior_clean.count()}
 
-    def transform_fx_data(self, spark, bronze_path: str, silver_path: str):
+    def transform_fx_data(
+        self,
+        spark,
+        bronze_path: str,
+        silver_path: str,
+        table_contracts: dict[str, dict[str, Any]],
+    ):
         """Transform FX data from bronze to silver."""
         # Read bronze FX data
-        fx_df = spark.read.parquet(f"{bronze_path}/fx/fx_rates")
+        fx_df = self._read_bronze_parquet(
+            spark, f"{bronze_path}/fx/fx_rates", "bronze.fx.fx_rates"
+        )
+        if fx_df.rdd.isEmpty():
+            raise ValueError("FX rates input is empty - cannot build fx_rates_silver")
 
         # Clean and standardize
         fx_clean = fx_df.select(
-            self._resolve_col(fx_df, ["trade_date", "date"], "trade_date").alias("trade_date"),
-            self._resolve_col(fx_df, ["base_ccy", "base_currency"], "base_ccy").alias("base_ccy"),
-            self._resolve_col(fx_df, ["counter_ccy", "quote_ccy", "target_currency"], "counter_ccy")
-            .alias("counter_ccy"),
-            self._resolve_col(fx_df, ["rate", "exchange_rate"], "rate").cast("double").alias("rate"),
+            F.to_date(
+                self._coalesce_columns(fx_df, ["trade_date", "date"], "trade_date")
+            ).alias("trade_date"),
+            F.upper(
+                F.trim(self._coalesce_columns(fx_df, ["base_ccy", "base_currency"], "base_ccy"))
+            ).alias("base_ccy"),
+            F.upper(
+                F.trim(
+                    self._coalesce_columns(
+                        fx_df,
+                        ["counter_ccy", "quote_ccy", "target_currency"],
+                        "counter_ccy",
+                    )
+                )
+            ).alias("counter_ccy"),
+            F.coalesce(
+                self._coalesce_columns(fx_df, ["rate", "exchange_rate", "mid_rate"], "rate").cast(
+                    "double"
+                ),
+                F.lit(None).cast("double"),
+            ).alias("rate"),
+            self._resolve_col(fx_df, ["bid_rate"], "bid_rate", required=False)
+            .cast("double")
+            .alias("bid_rate"),
+            self._resolve_col(fx_df, ["ask_rate"], "ask_rate", required=False)
+            .cast("double")
+            .alias("ask_rate"),
+            self._coalesce_columns(
+                fx_df, ["source", "record_source"], "source", required=False
+            ).alias(
+                "source"
+            ),
+            F.to_timestamp(
+                self._coalesce_columns(
+                    fx_df, ["ingest_timestamp", "ingestion_timestamp"], "ingest_timestamp", required=False
+                )
+            ).alias("ingest_timestamp"),
+        )
+
+        null_key_count = fx_clean.filter(
+            F.col("trade_date").isNull() | F.col("base_ccy").isNull() | F.col("counter_ccy").isNull()
+        ).count()
+        if null_key_count > 0:
+            raise ValueError(
+                f"fx_rates_silver: found {null_key_count} rows with null primary key columns"
+            )
+
+        invalid_rate_count = fx_clean.filter((F.col("rate").isNull()) | (F.col("rate") <= 0)).count()
+        if invalid_rate_count > 0:
+            raise ValueError(
+                f"fx_rates_silver: found {invalid_rate_count} rows with invalid non-positive rates"
+            )
+
+        dedupe_window = Window.partitionBy("trade_date", "base_ccy", "counter_ccy").orderBy(
+            F.coalesce(F.col("ingest_timestamp"), F.current_timestamp()).desc(),
+            F.col("rate").desc(),
+        )
+        fx_clean = (
+            fx_clean.withColumn("_rn", F.row_number().over(dedupe_window))
+            .filter(F.col("_rn") == 1)
+            .drop("_rn")
+        )
+
+        validate_contract(
+            fx_clean,
+            "fx_rates_silver",
+            table_contracts.get("fx_rates_silver", {}),
         )
 
         # Write to silver
         self._write_silver(spark, fx_clean, "fx_rates_silver", f"{silver_path}/fx_rates_silver")
+        return {"fx_rates_rows": fx_clean.count()}
 
-    def transform_kafka_events(self, spark, bronze_path: str, silver_path: str):
+    def transform_kafka_events(
+        self,
+        spark,
+        bronze_path: str,
+        silver_path: str,
+        table_contracts: dict[str, dict[str, Any]],
+        customers_df: DataFrame,
+    ):
         """Transform Kafka events from bronze to silver."""
         # Read bronze Kafka data
-        events_df = spark.read.parquet(f"{bronze_path}/kafka/events")
+        events_df = self._read_bronze_parquet(
+            spark, f"{bronze_path}/kafka/events", "bronze.kafka.events"
+        )
+        if events_df.rdd.isEmpty():
+            raise ValueError("Kafka events input is empty - cannot build order_events_silver")
+
+        payload_schema = StructType(
+            [
+                StructField("customer_id", StringType(), True),
+                StructField("event_type", StringType(), True),
+                StructField("amount", DoubleType(), True),
+                StructField("currency", StringType(), True),
+                StructField("order_id", StringType(), True),
+                StructField(
+                    "metadata",
+                    StructType(
+                        [
+                            StructField("source", StringType(), True),
+                            StructField("version", StringType(), True),
+                            StructField("session_id", StringType(), True),
+                        ]
+                    ),
+                    True,
+                ),
+            ]
+        )
+
+        parsed_events = events_df.withColumn(
+            "_payload",
+            F.from_json(self._resolve_col(events_df, ["value"], "value"), payload_schema),
+        )
+
+        def _non_empty_string(col_expr: F.Column) -> F.Column:
+            trimmed = F.trim(col_expr)
+            return F.when(F.length(trimmed) > 0, trimmed)
+
+        order_id_regex = _non_empty_string(
+            F.regexp_extract(
+                F.coalesce(F.col("value"), F.lit("")),
+                r'order_id""\s*:\s*""([^"]+)""',
+                1,
+            )
+        )
+        customer_id_value_regex = _non_empty_string(
+            F.regexp_extract(
+                F.coalesce(F.col("value"), F.lit("")),
+                r'customer_id""\s*:\s*""([^"]+)""',
+                1,
+            )
+        )
+        customer_id_headers_regex = _non_empty_string(
+            F.regexp_extract(
+                F.coalesce(F.col("headers"), F.lit("")),
+                r'customer_id""\s*:\s*""([^"]+)""',
+                1,
+            )
+        )
+        event_type_regex = _non_empty_string(
+            F.regexp_extract(
+                F.coalesce(F.col("value"), F.lit("")),
+                r'event_type""\s*:\s*""([^"]+)""',
+                1,
+            )
+        )
+        currency_regex = _non_empty_string(
+            F.regexp_extract(
+                F.coalesce(F.col("value"), F.lit("")),
+                r'currency""\s*:\s*""([^"]+)""',
+                1,
+            )
+        )
+        amount_regex = _non_empty_string(
+            F.regexp_extract(
+                F.coalesce(F.col("value"), F.lit("")),
+                r'amount""\s*:\s*([0-9]+(?:\\.[0-9]+)?)',
+                1,
+            )
+        )
 
         # Clean and standardize
-        events_clean = events_df.select(
-            self._resolve_col(events_df, ["event_id", "key"], "event_id").alias("event_id"),
-            self._resolve_col(events_df, ["order_id"], "order_id").alias("order_id"),
-            self._resolve_col(events_df, ["event_type"], "event_type").alias("event_type"),
-            self._resolve_col(events_df, ["event_ts", "timestamp"], "event_ts").alias("event_ts"),
-            self._resolve_col(events_df, ["amount"], "amount").cast("double").alias("amount"),
-            self._resolve_col(events_df, ["currency"], "currency").alias("currency"),
-            self._resolve_col(events_df, ["channel", "topic"], "channel").alias("channel"),
+        events_clean = parsed_events.select(
+            F.coalesce(
+                self._resolve_col(parsed_events, ["event_id", "key"], "event_id"),
+                F.lit(None).cast("string"),
+            ).alias("event_id"),
+            F.coalesce(F.col("_payload.order_id"), order_id_regex).alias("order_id"),
+            F.coalesce(
+                F.col("_payload.customer_id"),
+                customer_id_value_regex,
+                customer_id_headers_regex,
+            ).alias("customer_id"),
+            F.coalesce(F.trim(F.lower(F.col("_payload.event_type"))), F.lower(event_type_regex), F.lit("unknown")).alias("event_type"),
+            F.to_timestamp(self._resolve_col(parsed_events, ["timestamp"], "timestamp")).alias("event_ts"),
+            F.coalesce(F.col("_payload.amount").cast("double"), amount_regex.cast("double"), F.lit(0.0)).alias("amount"),
+            F.coalesce(F.upper(F.trim(F.col("_payload.currency"))), F.upper(currency_regex), F.lit("USD")).alias("currency"),
+            F.coalesce(F.col("_payload.metadata.source"), F.col("topic"), F.lit("kafka")).alias(
+                "channel"
+            ),
+            F.col("_payload.metadata.session_id").alias("session_id"),
+            F.col("topic").alias("topic"),
+            F.col("partition").cast("int").alias("partition"),
+            F.col("offset").cast("long").alias("offset"),
+        ).withColumn("event_date", F.to_date(F.col("event_ts")))
+
+        null_event_ids = events_clean.filter(F.col("event_id").isNull()).count()
+        if null_event_ids > 0:
+            raise ValueError(
+                f"order_events_silver: found {null_event_ids} null event IDs - cannot proceed"
+            )
+
+        null_customer_ids = events_clean.filter(F.col("customer_id").isNull()).count()
+        if null_customer_ids > 0:
+            raise ValueError(
+                f"order_events_silver: found {null_customer_ids} null customer IDs - cannot proceed"
+            )
+
+        null_timestamps = events_clean.filter(F.col("event_ts").isNull()).count()
+        if null_timestamps > 0:
+            if self.config.get("dq.fail_on_error", True):
+                raise ValueError(
+                    f"order_events_silver: found {null_timestamps} rows with invalid event_ts"
+                )
+            logger.warning(
+                "order_events_silver: dropping %s rows with invalid event_ts", null_timestamps
+            )
+            events_clean = events_clean.filter(F.col("event_ts").isNotNull())
+
+        invalid_amounts = events_clean.filter(F.col("amount") < 0).count()
+        if invalid_amounts > 0:
+            raise ValueError(
+                f"order_events_silver: found {invalid_amounts} rows with negative amount"
+            )
+
+        dedupe_window = Window.partitionBy("event_id").orderBy(
+            F.col("event_ts").desc_nulls_last(),
+            F.col("offset").desc_nulls_last(),
+        )
+        events_clean = (
+            events_clean.withColumn("_rn", F.row_number().over(dedupe_window))
+            .filter(F.col("_rn") == 1)
+            .drop("_rn")
+        )
+
+        if self.config.is_local():
+            before_count = events_clean.count()
+            events_clean = events_clean.join(
+                customers_df.select("customer_id").dropDuplicates(["customer_id"]),
+                on="customer_id",
+                how="inner",
+            )
+            dropped = before_count - events_clean.count()
+            if dropped > 0:
+                logger.warning(
+                    "Local run: filtered %s orphan kafka events before contract validation",
+                    dropped,
+                )
+
+        validate_contract(
+            events_clean,
+            "order_events_silver",
+            table_contracts.get("order_events_silver", {}),
+            parent_frames={
+                "customers_silver": customers_df.select("customer_id").dropDuplicates(["customer_id"])
+            },
         )
 
         # Write to silver
@@ -539,3 +1183,4 @@ class BronzeToSilverJob(BaseJob):
             "order_events_silver",
             f"{silver_path}/order_events_silver",
         )
+        return {"kafka_events_rows": events_clean.count()}

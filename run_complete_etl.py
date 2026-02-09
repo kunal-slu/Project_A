@@ -10,9 +10,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import time
 import subprocess
 import sys
 from pathlib import Path
+
+from project_a.monitoring.alerts import emit_alert
+from project_a.utils.config import load_config_resolved
+from project_a.utils.spark_session import build_spark
 
 DEFAULT_JOBS = [
     "fx_json_to_bronze",
@@ -22,6 +27,7 @@ DEFAULT_JOBS = [
     "kafka_csv_to_bronze",
     "bronze_to_silver",
     "silver_to_gold",
+    "gold_truth_tests",
 ]
 
 
@@ -51,6 +57,11 @@ def parse_args() -> argparse.Namespace:
         "--with-validation",
         action="store_true",
         help="Run bronze sanity check + comprehensive DQ after pipeline",
+    )
+    parser.add_argument(
+        "--with-slo",
+        action="store_true",
+        help="Evaluate pipeline SLOs (runtime + data freshness)",
     )
     return parser.parse_args()
 
@@ -84,6 +95,7 @@ def main() -> int:
         return 2
 
     exit_code = 0
+    start_ts = time.perf_counter()
     for job in jobs:
         code = run_job(job, str(config_path), args.env)
         if code != 0:
@@ -112,6 +124,63 @@ def main() -> int:
                 "artifacts/dq/reports/comprehensive_dq.txt",
             ]
         )
+    if args.with_slo:
+        total_seconds = round(time.perf_counter() - start_ts, 2)
+        cfg = load_config_resolved(str(config_path))
+        slo_cfg = (cfg.get("monitoring", {}) or {}).get("slo", {}) or cfg.get("slo", {})
+        runtime_slo = float(slo_cfg.get("pipeline_runtime_seconds", 0) or 0)
+        if runtime_slo and total_seconds > runtime_slo:
+            msg = f"Pipeline runtime {total_seconds:.2f}s exceeded SLO {runtime_slo:.2f}s"
+            print(f"SLO BREACH: {msg}")
+            emit_alert("Pipeline SLO breach", msg, level="WARN", config=cfg)
+        else:
+            print(f"SLO runtime check OK: {total_seconds:.2f}s")
+
+        freshness_hours = float(slo_cfg.get("freshness_hours", 0) or 0)
+        if freshness_hours:
+            spark = build_spark(app_name="slo_freshness", config=cfg)
+            try:
+                paths = cfg.get("paths", {})
+                silver_root = paths.get("silver_root") or paths.get("silver") or "data/silver"
+                gold_root = paths.get("gold_root") or paths.get("gold") or "data/gold"
+                # Prefer gold fact orders if present
+                df_path = f"{gold_root}/fact_orders"
+                if not Path(df_path.replace("file://", "")).exists():
+                    df_path = f"{silver_root}/orders_silver"
+                df = spark.read.parquet(df_path)
+                if "order_date" in df.columns:
+                    max_date = df.selectExpr("max(order_date) as max_date").collect()[0]["max_date"]
+                    if max_date:
+                        from datetime import date, datetime, time as dt_time, timezone
+
+                        if isinstance(max_date, str):
+                            max_dt = datetime.fromisoformat(max_date)
+                        elif isinstance(max_date, date) and not isinstance(max_date, datetime):
+                            max_dt = datetime.combine(max_date, dt_time.min)
+                        else:
+                            max_dt = max_date
+
+                        if getattr(max_dt, "tzinfo", None) is None:
+                            max_dt = max_dt.replace(tzinfo=timezone.utc)
+
+                        age_hours = (
+                            datetime.now(timezone.utc) - max_dt
+                        ).total_seconds() / 3600
+                        if age_hours < 0:
+                            msg = (
+                                "Data freshness check found future-dated records: "
+                                f"max order_date is {abs(age_hours):.2f}h ahead of current time"
+                            )
+                            print(f"SLO WARNING: {msg}")
+                            emit_alert("Data freshness anomaly", msg, level="WARN", config=cfg)
+                        elif age_hours > freshness_hours:
+                            msg = f"Data freshness {age_hours:.2f}h exceeds SLO {freshness_hours:.2f}h"
+                            print(f"SLO BREACH: {msg}")
+                            emit_alert("Data freshness SLO breach", msg, level="WARN", config=cfg)
+                        else:
+                            print(f"SLO freshness OK: {age_hours:.2f}h")
+            finally:
+                spark.stop()
 
     return exit_code
 

@@ -9,7 +9,7 @@ AWS_REGION="${AWS_REGION:-us-east-1}"
 LAKE_BUCKET="my-etl-lake-demo-424570854632"
 ARTIFACTS_BUCKET="my-etl-artifacts-demo-424570854632"
 
-PROJECT_ROOT="/Users/kunal/IdeaProjects/Project_A"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 echo "📤 Uploading missing data files to AWS S3..."
 
@@ -48,4 +48,3 @@ echo ""
 echo "📋 Verify uploads:"
 echo "   aws s3 ls s3://${LAKE_BUCKET}/bronze/fx/ --profile ${AWS_PROFILE} --region ${AWS_REGION}"
 echo "   aws s3 ls s3://${LAKE_BUCKET}/bronze/metrics/ --profile ${AWS_PROFILE} --region ${AWS_REGION}"
-

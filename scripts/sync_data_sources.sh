@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="/Users/kunal/IdeaProjects/Project_A"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AWS_SAMPLES="${PROJECT_ROOT}/aws/data/samples"
 LOCAL_SAMPLES="${PROJECT_ROOT}/data/samples"
 
@@ -36,4 +36,3 @@ for dir in crm snowflake redshift fx kafka; do
     local_count=$(find "${LOCAL_SAMPLES}/${dir}" -type f \( -name "*.csv" -o -name "*.json" \) 2>/dev/null | wc -l | tr -d ' ')
     echo "  ${dir}: AWS=${aws_count}, Local=${local_count}"
 done
-

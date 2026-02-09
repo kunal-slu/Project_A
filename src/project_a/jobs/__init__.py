@@ -21,6 +21,7 @@ _JOB_MODULES = {
     "dq_gold_gate": "project_a.jobs.dq_gold_gate",
     "publish_gold_to_redshift": "project_a.jobs.publish_gold_to_redshift",
     "publish_gold_to_snowflake": "project_a.jobs.publish_gold_to_snowflake",
+    "gold_truth_tests": "project_a.jobs.gold_truth_tests",
     # Compatibility aliases expected by existing tests/scripts
     "salesforce_to_bronze": "project_a.jobs.salesforce_to_bronze",
     "kafka_orders_stream": "project_a.jobs.kafka_orders_stream",

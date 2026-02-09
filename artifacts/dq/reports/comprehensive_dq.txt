@@ -1,0 +1,86 @@
+======================================================================
+COMPREHENSIVE DATA QUALITY REPORT
+======================================================================
+Generated: 2026-02-09T03:42:57.771709
+
+
+======================================================================
+LAYER: BRONZE
+======================================================================
+Status: FAIL
+
+  Table: accounts
+    Row Count: 2,000
+    Schema: ❌
+  Table: contacts
+    Row Count: 2,000
+    Schema: ❌
+  Table: opportunities
+    Row Count: 500
+    Schema: ❌
+  Table: customers
+    Row Count: 2,000
+    Schema: ❌
+  Table: orders
+    Row Count: 5,000
+    Schema: ❌
+  Table: products
+    Row Count: 500
+    Schema: ❌
+  Table: behavior
+    Row Count: 2,000
+    Schema: ❌
+  Table: kafka_events
+    Row Count: 5,000
+    Schema: ❌
+  Table: fx_rates
+    Row Count: 9,864
+    Schema: ❌
+
+======================================================================
+LAYER: SILVER
+======================================================================
+Status: PASS
+
+  Table: customers
+    Row Count: 2,000
+  Table: orders
+    Row Count: 5,000
+  Table: products
+    Row Count: 500
+  Table: behavior
+    Row Count: 2,060
+  Table: fx_rates
+    Row Count: 3,650
+  Table: order_events
+    Row Count: 5,000
+  Relationships:
+    ✅ orders_customers: 0 orphaned keys
+    ✅ orders_products: 0 orphaned keys
+  Reconciliation:
+    ✅ bronze.customers -> silver.customers: left_only=0, right_only=0
+    ✅ bronze.orders -> silver.orders: left_only=0, right_only=0
+    ✅ bronze.products -> silver.products: left_only=0, right_only=0
+    ❌ bronze.behavior -> silver.behavior: left_only=0, right_only=54
+
+======================================================================
+LAYER: GOLD
+======================================================================
+Status: PASS
+
+  Table: fact_orders
+    Row Count: 5,000
+  Table: dim_customer
+    Row Count: 2,000
+  Table: dim_product
+    Row Count: 500
+  Table: customer_360
+    Row Count: 2,000
+  Reconciliation:
+    ✅ silver.orders -> gold.fact_orders: left_only=0, right_only=0
+    ✅ silver.customers -> gold.dim_customer: left_only=0, right_only=0
+    ✅ silver.products -> gold.dim_product: left_only=0, right_only=0
+
+======================================================================
+END OF REPORT
+======================================================================

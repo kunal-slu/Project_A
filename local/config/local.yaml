@@ -20,6 +20,10 @@ sources:
       accounts: "accounts.csv"
       contacts: "contacts.csv"
       opportunities: "opportunities.csv"
+    incremental_dirs:
+      accounts: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm/accounts/daily"
+      contacts: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm/contacts/daily"
+      opportunities: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/crm/opportunities/daily"
 
   redshift:
     base_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/redshift"
@@ -60,6 +64,8 @@ sources:
     local_bootstrap_servers: "localhost:9092"
     topic: "orders_events"
     seed_file: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka/stream_kafka_events_100000.csv"
+    schema_registry_path: "config/schema_registry/kafka/orders_events.json"
+    dlq_path: "file:///Users/kunal/IdeaProjects/Project_A/data/bronze/kafka/dlq/orders_events"
 
 tables:
   silver:
@@ -71,10 +77,15 @@ tables:
     order_events: "order_events_silver"
 
   gold:
-    fact_orders: "fact_orders"
     dim_customer: "dim_customer"
+    dim_account: "dim_account"
+    dim_contact: "dim_contact"
     dim_product: "dim_product"
-    fact_customer_24m: "fact_customer_24m"
+    fact_orders: "fact_orders"
+    fact_opportunity: "fact_opportunity"
+    fact_order_events: "fact_order_events"
+    customer_360: "customer_360"
+    behavior_analytics: "behavior_analytics"
 
 dq:
   mode: "strict"
@@ -90,8 +101,17 @@ dq:
     output_path: "artifacts/dq/profiles"
     max_columns: 30
     top_values: 5
+  drift:
+    enabled: true
+    baseline_path: "artifacts/dq/profile_baselines"
+    null_pct_delta: 5.0
+    distinct_pct_delta: 10.0
+    avg_pct_delta: 20.0
+    fail_on_drift: false
   reconciliation:
     enabled: true
+    row_sample: 1000
+    tolerance_pct: 5.0
   realism:
     enabled: true
     max_future_days: 3
@@ -115,15 +135,22 @@ incremental:
 
 monitoring:
   metrics_enabled: true
+  alerts_enabled: true
+  alerts_path: "artifacts/alerts/alerts.jsonl"
+  audit_path: "artifacts/audit/pipeline_run_audit.jsonl"
   thresholds:
     bronze_to_silver_duration_seconds: 1800
     silver_to_gold_duration_seconds: 1800
+  slo:
+    pipeline_runtime_seconds: 7200
+    freshness_hours: 36
 
 lineage:
   enabled: false  # Disable for local
   backend: "openlineage"
   endpoint: "http://localhost:5000"
   namespace: "project-a-local"
+  storage_path: "data/lineage"
 
 spark:
   master: "local[*]"

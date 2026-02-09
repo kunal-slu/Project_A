@@ -21,6 +21,8 @@ from pyspark.sql import SparkSession
 
 from project_a.core.config import ProjectConfig
 from project_a.core.context import JobContext
+from project_a.monitoring.alerts import emit_alert
+from project_a.observability.audit_logger import record_job_run
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +78,33 @@ class BaseJob(ABC):
                 result = self.run(ctx)
                 duration_seconds = round(time.perf_counter() - start_ts, 3)
                 self._emit_run_metric(job_name, "success", duration_seconds, result)
+                record_job_run(
+                    job_name=job_name,
+                    status="success",
+                    duration_seconds=duration_seconds,
+                    config=self.config,
+                    result=result,
+                )
                 self._check_duration_threshold(job_name, duration_seconds)
                 logger.info(f"Job completed successfully: {self.__class__.__name__}")
                 return result
         except Exception:
             duration_seconds = round(time.perf_counter() - start_ts, 3)
             self._emit_run_metric(job_name, "failed", duration_seconds, {})
+            record_job_run(
+                job_name=job_name,
+                status="failed",
+                duration_seconds=duration_seconds,
+                config=self.config,
+                result={},
+                error="exception",
+            )
+            emit_alert(
+                title=f"Job failed: {job_name}",
+                message=f"{self.__class__.__name__} failed after {duration_seconds:.2f}s",
+                level="ERROR",
+                config=self.config,
+            )
             logger.error(f"Job failed: {self.__class__.__name__}", exc_info=True)
             raise
 
@@ -122,6 +145,13 @@ class BaseJob(ABC):
             )
             if monitoring_cfg.get("fail_on_threshold_breach", False):
                 raise ValueError(msg)
+            if monitoring_cfg.get("alert_on_threshold_breach", True):
+                emit_alert(
+                    title=f"Duration SLA breach: {job_name}",
+                    message=msg,
+                    level="WARN",
+                    config=self.config,
+                )
             logger.warning(msg)
 
     @property
@@ -139,6 +169,24 @@ class BaseJob(ABC):
 
     def log_lineage(self, source: str, target: str, records_processed: dict[str, Any]):
         """Log data lineage information."""
-        # Optional lineage tracking - can be overridden by subclasses
         logger.info(f"Lineage: {source} -> {target}, records: {records_processed}")
-        pass
+        try:
+            from project_a.lineage.tracking import LineageTracker
+
+            lineage_cfg = self.config.get("lineage", {})
+            storage_path = lineage_cfg.get("storage_path", "data/lineage")
+            tracker = LineageTracker(storage_path)
+            tracker.track_transformation(
+                source_dataset=source,
+                target_dataset=target,
+                transformation=self.__class__.__name__,
+                job_id=getattr(self, "job_name", self.__class__.__name__.lower()),
+                records_processed=int(
+                    records_processed.get("row_count", 0) if isinstance(records_processed, dict) else 0
+                ),
+                duration_ms=0,
+                success=True,
+                metadata=records_processed if isinstance(records_processed, dict) else {},
+            )
+        except Exception:
+            logger.debug("Lineage tracking skipped (tracker error)", exc_info=True)

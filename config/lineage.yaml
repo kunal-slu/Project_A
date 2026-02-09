@@ -27,12 +27,12 @@ datasets:
     source: crm
     
   - name: bronze.snowflake.customers
-    location: s3://my-etl-lake-demo-424570854632/bronze/snowflakes/customers
+    location: s3://my-etl-lake-demo-424570854632/bronze/snowflake/customers
     layer: bronze
     source: snowflake
     
   - name: bronze.snowflake.orders
-    location: s3://my-etl-lake-demo-424570854632/bronze/snowflakes/orders
+    location: s3://my-etl-lake-demo-424570854632/bronze/snowflake/orders
     layer: bronze
     source: snowflake
     

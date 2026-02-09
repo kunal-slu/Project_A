@@ -46,12 +46,20 @@ class KafkaEventsToBronzeJob(BaseJob):
             # Ingest Kafka events data
             logger.info("Ingesting Kafka events data...")
             snapshot_path = f"{source_path}/stream_kafka_events_100000.csv"
-            reader = spark.read.schema(KAFKA_EVENTS_SCHEMA).option("header", "true")
+            reader = (
+                spark.read.schema(KAFKA_EVENTS_SCHEMA)
+                .option("header", "true")
+                .option("quote", '"')
+                .option("escape", '"')
+                .option("mode", "PERMISSIVE")
+                .option("ignoreMissingFiles", "true")
+            )
             paths = [snapshot_path]
             if incremental_dir and not _local_path_missing(incremental_dir):
                 reader = reader.option("recursiveFileLookup", "true")
                 paths.append(incremental_dir)
-            kafka_events_df = reader.csv(paths)
+            kafka_events_df = reader.csv(paths).cache()
+            kafka_count = kafka_events_df.count()
             kafka_events_df.write.mode("overwrite").parquet(f"{bronze_path}/events")
 
             # Apply data quality checks
@@ -63,12 +71,12 @@ class KafkaEventsToBronzeJob(BaseJob):
             self.log_lineage(
                 source="kafka_events",
                 target="bronze.kafka",
-                records_processed={"events": kafka_events_df.count()},
+                records_processed={"events": kafka_count},
             )
 
             result = {
                 "status": "success",
-                "records_processed": {"events": kafka_events_df.count()},
+                "records_processed": {"events": kafka_count},
                 "output_path": bronze_path,
             }
 

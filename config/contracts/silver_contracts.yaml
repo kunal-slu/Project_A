@@ -59,3 +59,68 @@ tables:
       remove_column: "2_week_notice"
       type_change: "major_version_bump"
       add_column: "backward_compatible"
+
+  customer_behavior_silver:
+    owner: data-engineering
+    primary_key: [customer_id, session_id, event_ts, event_type]
+    required_columns:
+      - customer_id
+      - session_id
+      - event_type
+      - event_ts
+      - event_date
+      - time_spent_seconds
+      - device_type
+      - browser
+    relationships:
+      - column: customer_id
+        parent_table: customers_silver
+        parent_column: customer_id
+    ranges:
+      - column: time_spent_seconds
+        min: 0
+      - column: revenue
+        min: 0
+    breaking_change_policy:
+      remove_column: "2_week_notice"
+      type_change: "major_version_bump"
+      add_column: "backward_compatible"
+
+  fx_rates_silver:
+    owner: data-engineering
+    primary_key: [trade_date, base_ccy, counter_ccy]
+    required_columns:
+      - trade_date
+      - base_ccy
+      - counter_ccy
+      - rate
+    ranges:
+      - column: rate
+        min: 0
+    breaking_change_policy:
+      remove_column: "2_week_notice"
+      type_change: "major_version_bump"
+      add_column: "backward_compatible"
+
+  order_events_silver:
+    owner: data-engineering
+    primary_key: [event_id]
+    required_columns:
+      - event_id
+      - customer_id
+      - event_type
+      - event_ts
+      - amount
+      - currency
+      - channel
+    relationships:
+      - column: customer_id
+        parent_table: customers_silver
+        parent_column: customer_id
+    ranges:
+      - column: amount
+        min: 0
+    breaking_change_policy:
+      remove_column: "2_week_notice"
+      type_change: "major_version_bump"
+      add_column: "backward_compatible"

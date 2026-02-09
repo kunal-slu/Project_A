@@ -53,13 +53,13 @@ sources:
       behavior: "s3://my-etl-lake-demo-424570854632/bronze/redshift/behavior/daily"
   
   snowflake:
-    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes"
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflake"
     files:
       customers: "snowflake_customers_50000.csv"
       orders: "snowflake_orders_100000.csv"
       products: "snowflake_products_10000.csv"
     incremental_dirs:
-      orders: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes/orders/daily"
+      orders: "s3://my-etl-lake-demo-424570854632/bronze/snowflake/orders/daily"
   
   fx:
     type: json
@@ -83,6 +83,8 @@ sources:
   kafka:
     local_bootstrap_servers: "localhost:9092"
     topic: "orders_events"
+    schema_registry_path: "config/schema_registry/kafka/orders_events.json"
+    dlq_path: "s3://my-etl-lake-demo-424570854632/bronze/kafka/dlq/orders_events"
 
 # Table name definitions for Silver and Gold layers
 tables:
@@ -95,10 +97,15 @@ tables:
     order_events: "order_events_silver"
   
   gold:
-    fact_orders: "fact_orders"
     dim_customer: "dim_customer"
+    dim_account: "dim_account"
+    dim_contact: "dim_contact"
     dim_product: "dim_product"
-    fact_customer_24m: "fact_customer_24m"
+    fact_orders: "fact_orders"
+    fact_opportunity: "fact_opportunity"
+    fact_order_events: "fact_order_events"
+    customer_360: "customer_360"
+    behavior_analytics: "behavior_analytics"
 
 dq:
   mode: "strict"           # stop pipeline on critical failures
@@ -114,8 +121,17 @@ dq:
     output_path: "artifacts/dq/profiles"
     max_columns: 50
     top_values: 10
+  drift:
+    enabled: true
+    baseline_path: "artifacts/dq/profile_baselines"
+    null_pct_delta: 5.0
+    distinct_pct_delta: 10.0
+    avg_pct_delta: 20.0
+    fail_on_drift: true
   reconciliation:
     enabled: true
+    row_sample: 5000
+    tolerance_pct: 2.5
   realism:
     enabled: true
     max_future_days: 3
@@ -139,9 +155,15 @@ incremental:
 
 monitoring:
   metrics_enabled: true
+  alerts_enabled: true
+  alerts_path: "artifacts/alerts/alerts.jsonl"
+  audit_path: "artifacts/audit/pipeline_run_audit.jsonl"
   thresholds:
     bronze_to_silver_duration_seconds: 2700
     silver_to_gold_duration_seconds: 2700
+  slo:
+    pipeline_runtime_seconds: 7200
+    freshness_hours: 36
 
 sinks:
   redshift:
@@ -162,6 +184,7 @@ lineage:
   backend: "openlineage"
   endpoint: "http://marquez:5000"   # placeholder
   namespace: "project-a-dev"
+  storage_path: "artifacts/lineage"
 
 sla:
   bronze_ready_by: "02:30"

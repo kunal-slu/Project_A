@@ -468,13 +468,24 @@ It prevents silent breaking changes from corrupting downstream analytics.
 
 ## 15. Profiling + Reconciliation (Real‑World DQ)
 
-This project now includes **sampling‑based profiling** and **row‑level reconciliation**.
+This project now includes **sampling‑based profiling**, **data‑drift detection**, and **row‑level reconciliation**.
 - **Profiling** computes null rates, distinct counts, min/max, and top values on samples.
+- **Drift detection** compares current profiles to stored baselines and flags large changes.
 - **Reconciliation** checks key coverage between layers (e.g., orders_silver → fact_orders).
 
 Profiles are written to:
 ```
 artifacts/dq/profiles/<layer>/<table>/profile_<timestamp>.json
+```
+
+Drift baselines are stored in:
+```
+artifacts/dq/profile_baselines/<layer>/<table>.json
+```
+
+Run reconciliation only:
+```bash
+python3 scripts/reconcile_counts.py --config local/config/local.yaml
 ```
 
 ---
@@ -499,7 +510,48 @@ artifacts/dq/bronze_sanity_report.json
 
 ---
 
-## 17. Iceberg vs Delta vs Parquet (Beginner Explanation)
+## 17. Audit Logs + Alerts (Production Observability)
+
+Every job run emits:
+- **Audit log** (job status, duration, env)
+- **Alert log** (failures + SLA breaches)
+
+Files:
+```
+artifacts/audit/pipeline_run_audit.jsonl
+artifacts/alerts/alerts.jsonl
+```
+
+---
+
+## 18. Backfill + Retention (Senior Engineer Patterns)
+
+Backfill a date range:
+```bash
+python3 scripts/backfill_range.py --start-date 2026-01-01 --end-date 2026-01-07 --jobs snowflake_to_bronze,bronze_to_silver --config local/config/local.yaml
+```
+
+Retention cleanup (delete old partitions):
+```bash
+python3 scripts/retention_cleanup.py --config local/config/local.yaml --days 30
+```
+
+---
+
+## 19. Pipeline SLO Checks (Runtime + Freshness)
+
+You can validate pipeline SLOs after the run:
+```bash
+python3 run_complete_etl.py --config local/config/local.yaml --env local --with-slo
+```
+
+This checks:
+- Total runtime vs SLO
+- Data freshness (max order_date age)
+
+---
+
+## 20. Iceberg vs Delta vs Parquet (Beginner Explanation)
 
 - **Parquet** = file format only (fast, simple, not ACID)
 - **Delta Lake** = Parquet + transaction log (ACID, time travel)
@@ -511,7 +563,7 @@ In this project:
 
 ---
 
-## 18. Real Kafka Stack (Streaming)
+## 21. Real Kafka Stack (Streaming)
 
 This project now includes a **real Kafka stack** via Docker Compose.
 
@@ -522,7 +574,11 @@ docker compose up -d zookeeper kafka kafka-init
 
 Produce events (from CSV seed):
 ```bash
-python3 local/scripts/kafka_producer.py --config local/config/local.yaml
+python3 scripts/produce_kafka_events.py \
+  --bootstrap localhost:9092 \
+  --topic orders_events \
+  --seed-file data/bronze/kafka/stream_kafka_events_100000.csv \
+  --limit 2000
 ```
 
 Run the streaming job:
@@ -532,9 +588,13 @@ scripts/run_kafka_stream.sh local/config/local.yaml local
 
 This will write live Kafka events into Bronze.
 
+**Schema registry + DLQ**
+- Schema registry file: `config/schema_registry/kafka/orders_events.json`
+- Invalid events go to: `data/bronze/kafka/dlq/orders_events`
+
 ---
 
-## 19. Airflow (Optional)
+## 22. Airflow (Optional)
 
 Airflow can orchestrate the pipeline with scheduling and retries.
 
@@ -548,7 +608,7 @@ Open Airflow UI (default `http://localhost:8080`) and trigger the DAG.
 
 ---
 
-## 20. dbt (Optional)
+## 23. dbt (Optional)
 
 If dbt is included:
 ```bash
@@ -560,7 +620,7 @@ python -m dbt run
 
 ---
 
-## 21. Tests
+## 24. Tests
 
 Run tests:
 ```bash
@@ -571,7 +631,7 @@ If tests fail, check Spark version, config paths, and missing modules.
 
 ---
 
-## 22. Common Errors + Fixes
+## 25. Common Errors + Fixes
 
 **Error: Spark can’t parse timestamps**
 - Fix: use robust parsing patterns in the extractor.
@@ -587,7 +647,7 @@ If tests fail, check Spark version, config paths, and missing modules.
 
 ---
 
-## 23. FAQ — Interview‑Style Q&A
+## 26. FAQ — Interview‑Style Q&A
 
 **Q1: Why do you use Bronze/Silver/Gold?**
 A: It separates concerns. Bronze keeps raw truth, Silver standardizes, Gold optimizes for analytics.
@@ -621,7 +681,7 @@ A: Add CI/CD, production secrets manager, and full end‑to‑end integration te
 
 ---
 
-## 24. Interview‑Ready Summary
+## 27. Interview‑Ready Summary
 
 When asked to explain this project, say:
 

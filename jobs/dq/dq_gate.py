@@ -20,16 +20,31 @@ def main():
     parser = argparse.ArgumentParser(description="DQ Gate")
     parser.add_argument("--table", required=True, help="Table name")
     parser.add_argument("--layer", required=True, help="Layer (bronze/silver/gold)")
+    parser.add_argument("--env", default="dev", help="Environment (dev/staging/prod/local)")
+    parser.add_argument(
+        "--config",
+        help="Config file path (local or s3://...). Defaults to config/{env}.yaml or local/config/local.yaml",
+    )
     args = parser.parse_args()
 
     # Load config
-    config_path = Path("config/dev.yaml")
-    if not config_path.exists():
-        config_path = Path("config/prod.yaml")
-    config = load_config_resolved(str(config_path))
+    if args.config:
+        config_path = args.config
+    else:
+        candidate = Path(f"config/{args.env}.yaml")
+        if candidate.exists():
+            config_path = str(candidate)
+        else:
+            local_candidate = Path("local/config/local.yaml")
+            if local_candidate.exists():
+                config_path = str(local_candidate)
+            else:
+                config_path = str(Path("config/dev.yaml"))
+
+    config = load_config_resolved(config_path, env=args.env)
 
     # Build Spark session
-    spark = build_spark(config)
+    spark = build_spark(app_name="dq_gate", config=config)
 
     try:
         storage_fmt = (

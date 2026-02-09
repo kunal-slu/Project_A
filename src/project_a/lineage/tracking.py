@@ -35,8 +35,15 @@ class LineageTracker:
     """Centralized data lineage tracker"""
 
     def __init__(self, lineage_storage_path: str = "data/lineage"):
-        self.lineage_storage_path = Path(lineage_storage_path)
-        self.lineage_storage_path.mkdir(parents=True, exist_ok=True)
+        self.remote_root = str(lineage_storage_path).startswith("s3://") or str(
+            lineage_storage_path
+        ).startswith("s3a://")
+        if self.remote_root:
+            self.lineage_storage_path = None
+            self.lineage_storage_path_str = lineage_storage_path.replace("s3a://", "s3://")
+        else:
+            self.lineage_storage_path = Path(lineage_storage_path)
+            self.lineage_storage_path.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
 
     def track_transformation(
@@ -79,13 +86,28 @@ class LineageTracker:
     def _save_lineage_event(self, event: LineageEvent):
         """Save lineage event to storage"""
         filename = f"lineage_{event.timestamp.strftime('%Y%m%d_%H%M%S')}_{event.event_id}.json"
-        filepath = self.lineage_storage_path / filename
+        if self.remote_root:
+            import boto3
 
+            _, _, bucket_key = self.lineage_storage_path_str.partition("s3://")
+            bucket, _, key = bucket_key.partition("/")
+            key_prefix = key or "lineage"
+            object_key = f"{key_prefix.rstrip('/')}/{filename}"
+            boto3.client("s3").put_object(
+                Bucket=bucket,
+                Key=object_key,
+                Body=json.dumps(asdict(event), default=str, indent=2).encode("utf-8"),
+            )
+            return
+
+        filepath = self.lineage_storage_path / filename
         with open(filepath, "w") as f:
             json.dump(asdict(event), f, default=str, indent=2)
 
     def _update_dataset_lineage(self, source_dataset: str, target_dataset: str, event_id: str):
         """Update dataset-level lineage tracking"""
+        if self.remote_root:
+            return
         # Track source dataset lineage
         source_file = (
             self.lineage_storage_path / f"dataset_{source_dataset.replace('/', '_')}_upstream.json"

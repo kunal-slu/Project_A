@@ -1,0 +1,170 @@
+env: local
+environment: local
+
+project_name: project-a-airflow
+
+aws:
+  region: us-east-1
+
+paths:
+  bronze_root: "file:///opt/project/data/bronze"
+  silver_root: "file:///opt/project/data/silver"
+  gold_root: "file:///opt/project/data/gold"
+  checkpoints_root: "file:///opt/project/data/checkpoints"
+  dq_results_root: "file:///opt/project/data/dq_results"
+
+sources:
+  crm:
+    base_path: "file:///opt/project/data/bronze/crm"
+    files:
+      accounts: "accounts.csv"
+      contacts: "contacts.csv"
+      opportunities: "opportunities.csv"
+    incremental_dirs:
+      accounts: "file:///opt/project/data/bronze/crm/accounts/daily"
+      contacts: "file:///opt/project/data/bronze/crm/contacts/daily"
+      opportunities: "file:///opt/project/data/bronze/crm/opportunities/daily"
+
+  redshift:
+    base_path: "file:///opt/project/data/bronze/redshift"
+    files:
+      behavior: "redshift_customer_behavior_50000.csv"
+    incremental_dirs:
+      behavior: "file:///opt/project/data/bronze/redshift/behavior/daily"
+
+  snowflake:
+    base_path: "file:///opt/project/data/bronze/snowflake"
+    files:
+      customers: "snowflake_customers_50000.csv"
+      orders: "snowflake_orders_100000.csv"
+      products: "snowflake_products_10000.csv"
+    incremental_dirs:
+      orders: "file:///opt/project/data/bronze/snowflake/orders/daily"
+
+  fx:
+    type: json
+    base_path: "file:///opt/project/data/bronze/fx"
+    raw_path: "file:///opt/project/data/bronze/fx/json/"
+    bronze_path: "file:///opt/project/data/bronze/fx/delta/"
+    silver_path: "file:///opt/project/data/silver/fx/"
+    files:
+      daily_rates: "fx_rates_historical_730_days.csv"
+      daily_rates_json: "fx_rates_historical.json"
+    base_currency: "USD"
+    expected_currencies: ["USD", "EUR", "GBP", "JPY", "INR", "CHF", "CAD", "AUD", "CNY"]
+
+  kafka_sim:
+    base_path: "file:///opt/project/data/bronze/kafka"
+    files:
+      orders_seed: "stream_kafka_events_100000.csv"
+    incremental_dirs:
+      events: "file:///opt/project/data/bronze/kafka/events/daily"
+
+  kafka:
+    local_bootstrap_servers: "kafka:29092"
+    topic: "orders_events"
+    seed_file: "file:///opt/project/data/bronze/kafka/stream_kafka_events_100000.csv"
+    schema_registry_path: "config/schema_registry/kafka/orders_events.json"
+    dlq_path: "file:///opt/project/data/bronze/kafka/dlq/orders_events"
+
+tables:
+  silver:
+    customers: "customers_silver"
+    orders: "orders_silver"
+    products: "products_silver"
+    behavior: "customer_behavior_silver"
+    fx_rates: "fx_rates_silver"
+    order_events: "order_events_silver"
+
+  gold:
+    dim_customer: "dim_customer"
+    dim_account: "dim_account"
+    dim_contact: "dim_contact"
+    dim_product: "dim_product"
+    fact_orders: "fact_orders"
+    fact_opportunity: "fact_opportunity"
+    fact_order_events: "fact_order_events"
+    customer_360: "customer_360"
+    behavior_analytics: "behavior_analytics"
+
+dq:
+  mode: "strict"
+  fail_on_error: false
+  alert_on_warning: true
+  sampling:
+    enabled: true
+    fraction: 0.02
+    max_rows: 100000
+    seed: 42
+  profiling:
+    enabled: true
+    output_path: "artifacts/dq/profiles"
+    max_columns: 30
+    top_values: 5
+  drift:
+    enabled: true
+    baseline_path: "artifacts/dq/profile_baselines"
+    null_pct_delta: 5.0
+    distinct_pct_delta: 10.0
+    avg_pct_delta: 20.0
+    fail_on_drift: false
+  reconciliation:
+    enabled: true
+    row_sample: 1000
+    tolerance_pct: 5.0
+  realism:
+    enabled: true
+    max_future_days: 3
+    max_past_years: 5
+    fail_on_violation: false
+
+schema_evolution:
+  enabled: true
+  baseline_path: "artifacts/schema_baselines"
+  update_baseline: false
+  policies:
+    bronze: "backward_compatible"
+    silver: "backward_compatible"
+    gold: "strict"
+
+contracts:
+  path: "config/contracts/silver_contracts.yaml"
+
+incremental:
+  orders_lookback_days: 3
+
+monitoring:
+  metrics_enabled: true
+  alerts_enabled: true
+  alerts_path: "artifacts/alerts/alerts.jsonl"
+  audit_path: "artifacts/audit/pipeline_run_audit.jsonl"
+  thresholds:
+    bronze_to_silver_duration_seconds: 1800
+    silver_to_gold_duration_seconds: 1800
+  slo:
+    pipeline_runtime_seconds: 7200
+    freshness_hours: 36
+
+lineage:
+  enabled: false
+  backend: "openlineage"
+  endpoint: "http://localhost:5000"
+  namespace: "project-a-local"
+  storage_path: "data/lineage"
+
+spark:
+  master: "local[*]"
+  driver_memory: "2g"
+  executor_memory: "2g"
+  shuffle_partitions: 200
+  enable_aqe: true
+  enable_adaptive_join: true
+  adaptive_coalesce_partitions: true
+  broadcast_join_threshold: "64MB"
+
+iceberg:
+  enabled: true
+  catalog_name: "local"
+  catalog_type: "hadoop"
+  warehouse: "file:///opt/project/data/iceberg"
+  packages: "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0"

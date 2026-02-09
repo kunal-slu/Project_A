@@ -27,7 +27,11 @@ def _local_path_missing(path: str) -> bool:
 
 
 def _read_csv_with_incremental(spark, schema, snapshot_path: str, incremental_dir: str | None):
-    reader = spark.read.schema(schema).option("header", "true")
+    reader = (
+        spark.read.schema(schema)
+        .option("header", "true")
+        .option("ignoreMissingFiles", "true")
+    )
     paths = [snapshot_path]
     if incremental_dir and not _local_path_missing(incremental_dir):
         reader = reader.option("recursiveFileLookup", "true")
@@ -74,7 +78,8 @@ class SnowflakeToBronzeJob(BaseJob):
             customers_inc = incremental_dirs.get("customers")
             customers_df = _read_csv_with_incremental(
                 spark, SNOWFLAKE_CUSTOMERS_SCHEMA, customers_path, customers_inc
-            )
+            ).cache()
+            customers_count = customers_df.count()
             customers_df.write.mode("overwrite").parquet(f"{bronze_path}/customers")
 
             # Ingest orders data
@@ -93,7 +98,8 @@ class SnowflakeToBronzeJob(BaseJob):
             orders_inc = incremental_dirs.get("orders")
             orders_df = _read_csv_with_incremental(
                 spark, SNOWFLAKE_ORDERS_SCHEMA, orders_path, orders_inc
-            )
+            ).cache()
+            orders_count = orders_df.count()
             orders_df.write.mode("overwrite").parquet(f"{bronze_path}/orders")
 
             # Ingest products data
@@ -112,7 +118,8 @@ class SnowflakeToBronzeJob(BaseJob):
             products_inc = incremental_dirs.get("products")
             products_df = _read_csv_with_incremental(
                 spark, SNOWFLAKE_PRODUCTS_SCHEMA, products_path, products_inc
-            )
+            ).cache()
+            products_count = products_df.count()
             products_df.write.mode("overwrite").parquet(f"{bronze_path}/products")
 
             # Apply data quality checks
@@ -123,11 +130,6 @@ class SnowflakeToBronzeJob(BaseJob):
             check_date_realism(customers_df, "bronze.snowflake.customers", self.config)
             check_date_realism(orders_df, "bronze.snowflake.orders", self.config)
             check_date_realism(products_df, "bronze.snowflake.products", self.config)
-
-            # Cache counts to avoid multiple computations
-            customers_count = customers_df.count()
-            orders_count = orders_df.count()
-            products_count = products_df.count()
 
             # Log lineage
             self.log_lineage(

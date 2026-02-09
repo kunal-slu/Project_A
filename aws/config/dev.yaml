@@ -38,7 +38,6 @@ paths:
   dq_results_root: "s3://my-etl-lake-demo-424570854632/_dq_results"
 
 # Source file definitions - pointing to S3 bronze data
-# NOTE: S3 uses "snowflakes" (plural) but we'll handle this in the loader
 sources:
   crm:
     base_path: "s3://my-etl-lake-demo-424570854632/bronze/crm"
@@ -53,8 +52,7 @@ sources:
       behavior: "redshift_customer_behavior_50000.csv"
   
   snowflake:
-    # Note: S3 path is "snowflakes" (plural) but we keep config as "snowflake" for consistency
-    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflakes"
+    base_path: "s3://my-etl-lake-demo-424570854632/bronze/snowflake"
     files:
       customers: "snowflake_customers_50000.csv"
       orders: "snowflake_orders_100000.csv"
@@ -156,4 +154,3 @@ spark:
     spark.sql.adaptive.coalescePartitions.enabled: "true"
     spark.eventLog.enabled: "true"
     spark.eventLog.dir: "s3://my-etl-lake-demo-424570854632/logs/spark-events/"
-

@@ -76,6 +76,7 @@ def _read_table(
     path: str,
     table_name: str | None = None,
     catalog_name: str | None = None,
+    schema: Any | None = None,
 ):
     if fmt == "iceberg":
         if not table_name or not catalog_name:
@@ -83,7 +84,22 @@ def _read_table(
         return spark.read.format("iceberg").load(f"{catalog_name}.{table_name}")
     if fmt == "delta":
         return spark.read.format("delta").load(path)
-    return spark.read.parquet(path)
+
+    # Explicit CSV path
+    if str(path).lower().endswith(".csv"):
+        reader = spark.read.option("header", "true")
+        if schema is not None:
+            reader = reader.schema(schema)
+        return reader.csv(path)
+
+    # Default: try parquet first, then CSV fallback
+    try:
+        return spark.read.parquet(path)
+    except Exception:
+        reader = spark.read.option("header", "true")
+        if schema is not None:
+            reader = reader.schema(schema)
+        return reader.csv(path)
 
 
 def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str, Any]:
@@ -97,44 +113,94 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
 
     # Load CRM
     try:
-        crm_base = sources.get("crm", {}).get("base_path", f"{bronze_root}/crm")
-        bronze_data["accounts"] = _read_table(spark, fmt, f"{crm_base}/accounts")
-        bronze_data["contacts"] = _read_table(spark, fmt, f"{crm_base}/contacts")
-        bronze_data["opportunities"] = _read_table(spark, fmt, f"{crm_base}/opportunities")
+        crm_cfg = sources.get("crm", {})
+        crm_base = crm_cfg.get("base_path", f"{bronze_root}/crm")
+        crm_files = crm_cfg.get("files", {})
+        bronze_data["accounts"] = _read_table(
+            spark,
+            fmt,
+            f"{crm_base}/{crm_files.get('accounts', 'accounts.csv')}",
+            schema=CRM_ACCOUNTS_SCHEMA,
+        )
+        bronze_data["contacts"] = _read_table(
+            spark,
+            fmt,
+            f"{crm_base}/{crm_files.get('contacts', 'contacts.csv')}",
+            schema=CRM_CONTACTS_SCHEMA,
+        )
+        bronze_data["opportunities"] = _read_table(
+            spark,
+            fmt,
+            f"{crm_base}/{crm_files.get('opportunities', 'opportunities.csv')}",
+            schema=CRM_OPPORTUNITIES_SCHEMA,
+        )
     except Exception as e:
         missing.extend(["crm.accounts", "crm.contacts", "crm.opportunities"])
         logger.error(f"Could not load CRM bronze: {e}")
 
     # Load Snowflake
     try:
-        snowflake_base = sources.get("snowflake", {}).get("base_path", f"{bronze_root}/snowflake")
-        bronze_data["customers"] = _read_table(spark, fmt, f"{snowflake_base}/customers")
-        bronze_data["orders"] = _read_table(spark, fmt, f"{snowflake_base}/orders")
-        bronze_data["products"] = _read_table(spark, fmt, f"{snowflake_base}/products")
+        snowflake_cfg = sources.get("snowflake", {})
+        snowflake_base = snowflake_cfg.get("base_path", f"{bronze_root}/snowflake")
+        snowflake_files = snowflake_cfg.get("files", {})
+        bronze_data["customers"] = _read_table(
+            spark,
+            fmt,
+            f"{snowflake_base}/{snowflake_files.get('customers', 'customers.csv')}",
+            schema=SNOWFLAKE_CUSTOMERS_SCHEMA,
+        )
+        bronze_data["orders"] = _read_table(
+            spark,
+            fmt,
+            f"{snowflake_base}/{snowflake_files.get('orders', 'orders.csv')}",
+            schema=SNOWFLAKE_ORDERS_SCHEMA,
+        )
+        bronze_data["products"] = _read_table(
+            spark,
+            fmt,
+            f"{snowflake_base}/{snowflake_files.get('products', 'products.csv')}",
+            schema=SNOWFLAKE_PRODUCTS_SCHEMA,
+        )
     except Exception as e:
         missing.extend(["snowflake.customers", "snowflake.orders", "snowflake.products"])
         logger.error(f"Could not load Snowflake bronze: {e}")
 
     # Load Redshift
     try:
-        redshift_base = sources.get("redshift", {}).get("base_path", f"{bronze_root}/redshift")
-        bronze_data["behavior"] = _read_table(spark, fmt, f"{redshift_base}/behavior")
+        redshift_cfg = sources.get("redshift", {})
+        redshift_base = redshift_cfg.get("base_path", f"{bronze_root}/redshift")
+        redshift_files = redshift_cfg.get("files", {})
+        bronze_data["behavior"] = _read_table(
+            spark,
+            fmt,
+            f"{redshift_base}/{redshift_files.get('behavior', 'redshift_customer_behavior_50000.csv')}",
+            schema=REDSHIFT_BEHAVIOR_SCHEMA,
+        )
     except Exception as e:
         missing.append("redshift.behavior")
         logger.error(f"Could not load Redshift bronze: {e}")
 
     # Load Kafka
     try:
-        kafka_base = sources.get("kafka_sim", {}).get("base_path", f"{bronze_root}/kafka")
-        bronze_data["kafka_events"] = _read_table(spark, fmt, f"{kafka_base}/events")
+        kafka_cfg = sources.get("kafka_sim", {})
+        kafka_base = kafka_cfg.get("base_path", f"{bronze_root}/kafka")
+        kafka_files = kafka_cfg.get("files", {})
+        kafka_path = f"{kafka_base}/{kafka_files.get('orders_seed', 'stream_kafka_events_100000.csv')}"
+        bronze_data["kafka_events"] = _read_table(
+            spark,
+            fmt,
+            kafka_path,
+            schema=KAFKA_EVENTS_SCHEMA,
+        )
     except Exception as e:
         missing.append("kafka.events")
         logger.error(f"Could not load Kafka bronze: {e}")
 
     # Load FX
     try:
-        fx_base = sources.get("fx", {}).get("base_path", f"{bronze_root}/fx")
-        bronze_data["fx_rates"] = _read_table(spark, fmt, f"{fx_base}/rates")
+        from project_a.extract.fx_json_reader import read_fx_rates_from_bronze
+
+        bronze_data["fx_rates"] = read_fx_rates_from_bronze(spark, config)
     except Exception as e:
         missing.append("fx.rates")
         logger.error(f"Could not load FX bronze: {e}")
@@ -233,7 +299,7 @@ def main():
         config = load_config_resolved(str(config_path))
 
     # Build Spark
-    spark = build_spark(config)
+    spark = build_spark(app_name="project_a_dq", config=config)
 
     try:
         dq_cfg = config.get("dq", {})

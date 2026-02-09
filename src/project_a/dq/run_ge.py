@@ -55,7 +55,13 @@ def run_contract_validation(contract_path: str, data_path: str) -> dict[str, Any
     Returns:
         dict: Validation results
     """
-    # TODO: Implement contract-based validation
-    # This would parse the contract YAML and create expectations dynamically
-    logger.info(f"Contract validation: {contract_path} -> {data_path}")
-    return {"success": True, "contract": contract_path}
+    logger.error(
+        "Contract validation not implemented. "
+        "Tried to validate %s against %s.",
+        data_path,
+        contract_path,
+    )
+    raise NotImplementedError(
+        "Contract-based validation is not implemented. "
+        "Use runtime contracts or GE checkpoints until this is wired."
+    )

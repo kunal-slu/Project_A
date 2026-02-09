@@ -22,6 +22,7 @@ from typing import Any
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
+from project_a.dq.data_drift_checker import DataDriftChecker
 from project_a.dq.kafka_streaming_validator import KafkaStreamingValidator
 from project_a.dq.performance_optimizer import PerformanceOptimizer
 from project_a.dq.referential_integrity import ReferentialIntegrityChecker
@@ -40,10 +41,13 @@ class ComprehensiveValidator:
         self.profiling_cfg = (self.dq_config.get("profiling") or {}) if self.dq_config else {}
         self.recon_cfg = (self.dq_config.get("reconciliation") or {}) if self.dq_config else {}
         self.realism_cfg = (self.dq_config.get("realism") or {}) if self.dq_config else {}
+        self.drift_cfg = (self.dq_config.get("drift") or {}) if self.dq_config else {}
         self.schema_checker = SchemaDriftChecker(spark)
         self.ref_integrity_checker = ReferentialIntegrityChecker(spark)
         self.kafka_validator = KafkaStreamingValidator(spark)
         self.performance_optimizer = PerformanceOptimizer(spark)
+        baseline_path = self.drift_cfg.get("baseline_path", "artifacts/dq/profile_baselines")
+        self.drift_checker = DataDriftChecker(baseline_path, thresholds=self.drift_cfg)
         self.results: dict[str, Any] = {}
 
     def validate_bronze_layer(
@@ -104,11 +108,16 @@ class ComprehensiveValidator:
                     results["overall_status"] = "FAIL"
 
             if self._profiling_enabled():
-                table_results["profile"] = self._profile_df(
+                profile, drift = self._profile_df(
                     sample_df if sample_df is not None else df,
                     table_name=table_name,
                     layer="bronze",
                 )
+                table_results["profile"] = profile
+                if drift:
+                    table_results["drift"] = drift
+                    if drift.get("drift_detected") and self._drift_fail_on_violation():
+                        results["overall_status"] = "FAIL"
 
             results["tables"][table_name] = table_results
 
@@ -160,11 +169,16 @@ class ComprehensiveValidator:
                     results["overall_status"] = "FAIL"
 
             if self._profiling_enabled():
-                table_results["profile"] = self._profile_df(
+                profile, drift = self._profile_df(
                     sample_df if sample_df is not None else df,
                     table_name=table_name,
                     layer="silver",
                 )
+                table_results["profile"] = profile
+                if drift:
+                    table_results["drift"] = drift
+                    if drift.get("drift_detected") and self._drift_fail_on_violation():
+                        results["overall_status"] = "FAIL"
 
             results["tables"][table_name] = table_results
 
@@ -239,11 +253,16 @@ class ComprehensiveValidator:
                     results["overall_status"] = "FAIL"
 
             if self._profiling_enabled():
-                table_results["profile"] = self._profile_df(
+                profile, drift = self._profile_df(
                     sample_df if sample_df is not None else df,
                     table_name=table_name,
                     layer="gold",
                 )
+                table_results["profile"] = profile
+                if drift:
+                    table_results["drift"] = drift
+                    if drift.get("drift_detected") and self._drift_fail_on_violation():
+                        results["overall_status"] = "FAIL"
 
             results["tables"][table_name] = table_results
 
@@ -379,7 +398,7 @@ class ComprehensiveValidator:
             "row_count": sample_count,
         }
 
-    def _profile_df(self, df: DataFrame, table_name: str, layer: str) -> dict[str, Any]:
+    def _profile_df(self, df: DataFrame, table_name: str, layer: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
         profile = {
             "table": table_name,
             "layer": layer,
@@ -427,7 +446,10 @@ class ComprehensiveValidator:
             profile["columns"][col_name] = col_profile
 
         self._persist_profile(profile, table_name, layer)
-        return profile
+        drift = None
+        if self._drift_enabled():
+            drift = self.drift_checker.compare(layer=layer, table=table_name, profile=profile)
+        return profile, drift
 
     def _persist_profile(self, profile: dict[str, Any], table_name: str, layer: str) -> None:
         output_path = self.profiling_cfg.get("output_path")
@@ -437,6 +459,12 @@ class ComprehensiveValidator:
         path = Path(output_path) / layer / table_name / f"profile_{timestamp}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(profile, indent=2, default=str))
+
+    def _drift_enabled(self) -> bool:
+        return bool(self.drift_cfg.get("enabled", False))
+
+    def _drift_fail_on_violation(self) -> bool:
+        return bool(self.drift_cfg.get("fail_on_drift", False))
 
     def _reconcile_layer_pairs(
         self,
@@ -460,6 +488,7 @@ class ComprehensiveValidator:
             ]
 
         pairs = self.recon_cfg.get("pairs") or default_pairs
+        sample_size = int(self.recon_cfg.get("row_sample", 0) or 0)
 
         results: dict[str, Any] = {}
 
@@ -491,11 +520,19 @@ class ComprehensiveValidator:
             left_only = left_keys.join(right_keys, keys, "left_anti").count()
             right_only = right_keys.join(left_keys, keys, "left_anti").count()
 
-            results[label] = {
+            recon_result = {
                 "left_only": left_only,
                 "right_only": right_only,
                 "matched": left_only == 0 and right_only == 0,
             }
+
+            if sample_size > 0:
+                left_sample = left_keys.limit(sample_size)
+                missing_in_right = left_sample.join(right_keys, keys, "left_anti").count()
+                recon_result["sample_size"] = sample_size
+                recon_result["missing_in_right"] = missing_in_right
+
+            results[label] = recon_result
 
         return results
 

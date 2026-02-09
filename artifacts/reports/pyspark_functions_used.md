@@ -1,0 +1,58 @@
+# PySpark Functions Used (Project A)
+
+Total unique functions: 54
+
+- `Column`
+- `abs`
+- `approx_count_distinct`
+- `avg`
+- `broadcast`
+- `coalesce`
+- `col`
+- `concat`
+- `concat_ws`
+- `count`
+- `crc32`
+- `current_date`
+- `current_timestamp`
+- `date_add`
+- `date_format`
+- `date_sub`
+- `datediff`
+- `dayofweek`
+- `desc`
+- `expr`
+- `from_json`
+- `greatest`
+- `isnan`
+- `lag`
+- `length`
+- `lit`
+- `lower`
+- `max`
+- `max as spark_max`
+- `mean`
+- `min`
+- `monotonically_increasing_id`
+- `month`
+- `or_`
+- `percentile_approx`
+- `quarter`
+- `regexp_extract`
+- `regexp_replace`
+- `row_number`
+- `sha2`
+- `split`
+- `stddev`
+- `struct`
+- `substring`
+- `sum`
+- `sum as spark_sum`
+- `to_date`
+- `to_json`
+- `to_timestamp`
+- `trim`
+- `udf`
+- `upper`
+- `when`
+- `year`
