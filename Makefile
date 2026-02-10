@@ -1,4 +1,4 @@
-.PHONY: help lint lint-fix lint-local lint-aws test test-local test-aws test-integration test-contracts test-dags test-runtime-contracts dbt-test package deploy-dev clean
+.PHONY: help setup run-smoke lint lint-fix lint-local lint-aws test test-local test-aws test-integration test-contracts test-dags test-runtime-contracts dbt-test package deploy-dev clean
 
 PYTHON ?= .venv/bin/python
 RUFF ?= .venv/bin/ruff
@@ -8,6 +8,19 @@ MYPY ?= .venv/bin/mypy
 help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+setup: ## Create/update local dev environment
+	@echo "🔧 Setting up local environment..."
+	@test -d .venv || python3 -m venv .venv
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install -r requirements.txt
+	$(PYTHON) -m pip install -r requirements-dev.txt
+	@echo "✅ Setup complete"
+
+run-smoke: ## Run end-to-end local ETL smoke pipeline
+	@echo "🚀 Running ETL smoke pipeline..."
+	PYTHONPATH=src $(PYTHON) run_complete_etl.py --config local/config/local.yaml --env local
+	@echo "✅ Smoke run complete"
 
 lint: lint-local lint-aws ## Run local + AWS linting checks
 	@echo "✅ Linting complete"
