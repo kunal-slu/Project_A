@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 def _local_path_missing(path: str) -> bool:
-    if path.startswith("file://"):
-        return not Path(path.replace("file://", "", 1)).exists()
-    return False
+    if not path:
+        return True
+    if path.startswith(("s3://", "s3a://")):
+        return False
+    candidate = path.replace("file://", "", 1) if path.startswith("file://") else path
+    return not Path(candidate).exists()
 
 
 class KafkaEventsToBronzeJob(BaseJob):

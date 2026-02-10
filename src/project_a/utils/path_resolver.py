@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def resolve_data_path(
@@ -67,9 +68,7 @@ def resolve_data_path(
         if environment == "local":
             # Local: convert relative paths to absolute file:// paths
             if not Path(physical_path).is_absolute():
-                # Try to find project root (go up from this file)
-                project_root = Path(__file__).parent.parent.parent.parent
-                physical_path = str(project_root / physical_path)
+                physical_path = str(PROJECT_ROOT / physical_path)
             # Ensure file:// protocol
             if not physical_path.startswith("file://"):
                 physical_path = f"file://{physical_path}"
@@ -123,8 +122,7 @@ def resolve_source_file_path(config: dict[str, Any], source_name: str, file_key:
         if not full_path.startswith(("s3://", "file://", "s3a://")):
             # Relative path - make it absolute
             if not Path(full_path).is_absolute():
-                project_root = Path(__file__).parent.parent.parent.parent
-                full_path = str(project_root / full_path)
+                full_path = str(PROJECT_ROOT / full_path)
             # Ensure file:// protocol
             if not full_path.startswith("file://"):
                 full_path = f"file://{full_path}"

@@ -411,8 +411,8 @@ python3 run_complete_etl.py --config local/config/local.yaml --env local
 
 Below are sample output “screenshots” generated from your local run.
 
-![FX Bronze Output](/Users/kunal/IdeaProjects/Project_A/docs/interview/assets/fx_bronze_sample.svg)
-![Gold Fact Orders Output](/Users/kunal/IdeaProjects/Project_A/docs/interview/assets/gold_fact_orders_sample.svg)
+![FX Bronze Output](docs/interview/assets/fx_bronze_sample.svg)
+![Gold Fact Orders Output](docs/interview/assets/gold_fact_orders_sample.svg)
 
 ---
 

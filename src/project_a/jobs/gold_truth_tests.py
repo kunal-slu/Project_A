@@ -179,6 +179,7 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         "gold_table_rows": {},
         "null_duplicate_checks": {},
         "join_checks": [],
+        "contract_checks": {},
         "reconciliation": {},
         "fx_coverage": {},
         "warnings": [],
@@ -271,7 +272,7 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
                 "right_key_dupes": right_dupes,
                 "join_explosion": after - before,
                 "unmatched_left": unmatched,
-                "status": "pass" if right_dupes == 0 and (after - before) == 0 else "warn",
+                "status": "pass" if right_dupes == 0 and (after - before) == 0 else "fail",
             }
         )
 
@@ -444,6 +445,95 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         report["join_checks"].append(
             {"label": "order_events_silver -> fact_orders", "status": "skipped", "reason": "missing data"}
         )
+
+    # Contract checks for interview-grade correctness guarantees
+    if dim_customer is not None:
+        current_dim_customer = (
+            dim_customer.filter(F.col("is_current") == F.lit(True))
+            if "is_current" in dim_customer.columns
+            else dim_customer
+        )
+        current_customer_dupes = (
+            current_dim_customer.groupBy("customer_id").count().filter(F.col("count") > 1).count()
+        )
+        report["contract_checks"]["dim_customer_current_unique_customer_id"] = {
+            "status": "pass" if current_customer_dupes == 0 else "fail",
+            "duplicates": current_customer_dupes,
+        }
+    else:
+        report["contract_checks"]["dim_customer_current_unique_customer_id"] = {
+            "status": "skipped",
+            "reason": "missing dim_customer",
+        }
+
+    if fact_orders is not None and dim_customer is not None:
+        current_customer_ids = (
+            dim_customer.filter(F.col("is_current") == F.lit(True))
+            .select("customer_id")
+            .dropDuplicates(["customer_id"])
+        )
+        fact_orders_customer_orphans = (
+            fact_orders.select("customer_id")
+            .dropDuplicates(["customer_id"])
+            .join(current_customer_ids, "customer_id", "left_anti")
+            .count()
+        )
+        report["contract_checks"]["fact_orders_customer_fk_coverage"] = {
+            "status": "pass" if fact_orders_customer_orphans == 0 else "fail",
+            "orphans": fact_orders_customer_orphans,
+        }
+    else:
+        report["contract_checks"]["fact_orders_customer_fk_coverage"] = {
+            "status": "skipped",
+            "reason": "missing fact_orders/dim_customer",
+        }
+
+    product_performance = loaded_gold.get("product_performance")
+    if fact_orders is not None and product_performance is not None:
+        fact_revenue = (
+            fact_orders.agg(F.sum(F.col("order_amount_usd")).alias("sum_rev")).collect()[0]["sum_rev"]
+            or 0.0
+        )
+        perf_revenue = (
+            product_performance.agg(F.sum(F.col("total_revenue_usd")).alias("sum_rev")).collect()[0]["sum_rev"]
+            or 0.0
+        )
+        diff = abs(float(fact_revenue) - float(perf_revenue))
+        tolerance_pct = float(
+            ((config.get("dq", {}) or {}).get("reconciliation", {}) or {}).get("tolerance_pct", 0.1)
+        )
+        allowed = max(0.01, abs(float(fact_revenue)) * (tolerance_pct / 100.0))
+        report["contract_checks"]["revenue_fact_vs_product_performance"] = {
+            "status": "pass" if diff <= allowed else "fail",
+            "fact_orders_revenue_usd": float(fact_revenue),
+            "product_performance_revenue_usd": float(perf_revenue),
+            "abs_diff": diff,
+            "allowed_diff": allowed,
+            "tolerance_pct": tolerance_pct,
+        }
+    else:
+        report["contract_checks"]["revenue_fact_vs_product_performance"] = {
+            "status": "skipped",
+            "reason": "missing fact_orders/product_performance",
+        }
+
+    if fact_order_events is not None and fact_orders is not None:
+        event_order_orphans = (
+            fact_order_events.filter(F.col("order_id").isNotNull())
+            .select("order_id")
+            .dropDuplicates(["order_id"])
+            .join(fact_orders.select("order_id").dropDuplicates(["order_id"]), "order_id", "left_anti")
+            .count()
+        )
+        report["contract_checks"]["fact_order_events_order_fk_coverage"] = {
+            "status": "pass" if event_order_orphans == 0 else "fail",
+            "orphans": event_order_orphans,
+        }
+    else:
+        report["contract_checks"]["fact_order_events_order_fk_coverage"] = {
+            "status": "skipped",
+            "reason": "missing fact_order_events/fact_orders",
+        }
 
     # FX coverage + currency normalization checks
     if fact_orders is not None:
@@ -645,7 +735,10 @@ def main(args: argparse.Namespace | None = None) -> None:
         if isinstance(result, dict) and result.get("status") == "fail":
             failures += 1
     for result in report.get("join_checks", []):
-        if isinstance(result, dict) and result.get("status") == "warn":
+        if isinstance(result, dict) and result.get("status") == "fail":
+            failures += 1
+    for _, result in report.get("contract_checks", {}).items():
+        if isinstance(result, dict) and result.get("status") == "fail":
             failures += 1
     for _, result in report.get("reconciliation", {}).items():
         if isinstance(result, dict) and result.get("mismatched_groups_total"):

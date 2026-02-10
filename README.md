@@ -220,8 +220,17 @@ pyspark_data_engineer_project/
 ### Local Development
 
 ```bash
-# Install dependencies
+# Create and activate venv
+python -m venv .venv
+source .venv/bin/activate
+
+# Install core runtime dependencies (recommended default)
 pip install -r requirements.txt
+
+# Optional isolated environments:
+#   pip install -r requirements-airflow.txt
+#   pip install -r requirements-dbt.txt
+#   pip install -r requirements-connectors.txt
 
 # Run tests
 pytest tests/
@@ -248,7 +257,7 @@ iceberg:
   enabled: true
   catalog_name: "local"
   catalog_type: "hadoop"
-  warehouse: "file:///Users/kunal/IdeaProjects/Project_A/data/iceberg"
+  warehouse: "data/iceberg"
   packages: "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0"
 ```
 

@@ -18,3 +18,4 @@
 {"timestamp_utc": "2026-02-09T03:43:58.100661Z", "level": "WARN", "title": "Data freshness anomaly", "message": "Data freshness check found future-dated records: max order_date is 212636.27h ahead of current time", "environment": "local", "metadata": {}}
 {"timestamp_utc": "2026-02-09T18:06:40.306076Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 19.57s", "environment": "local", "metadata": {}}
 {"timestamp_utc": "2026-02-09T18:12:59.894270Z", "level": "ERROR", "title": "Job failed: bronze_to_silver", "message": "BronzeToSilverJob failed after 35.85s", "environment": "local", "metadata": {}}
+{"timestamp_utc": "2026-02-10T07:15:26.915310Z", "level": "ERROR", "title": "Job failed: crm_to_bronze", "message": "CrmToBronzeJob failed after 1.79s", "environment": "local", "metadata": {}}

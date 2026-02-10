@@ -13,74 +13,6 @@ from project_a.iceberg_utils import DEFAULT_ICEBERG_PACKAGES, IcebergConfig
 
 logger = logging.getLogger(__name__)
 
-# MONKEY PATCH: Fix PySpark 3.4.2/3.5.0 + Java 17 HashMap constructor bug
-# The issue is that SparkSession.__init__ tries to pass options as HashMap to Java
-# but the Java API doesn't support that constructor signature
-# Solution: Patch SparkSession.__init__ to ignore options when sparkContext is provided
-
-_original_spark_session_init = SparkSession.__init__
-
-
-def _patched_spark_session_init(self, sparkContext=None, jsparkSession=None, options=None):
-    """Patched SparkSession.__init__ that bypasses HashMap bug by using empty options."""
-    # CRITICAL FIX: The bug is that PySpark passes options as HashMap to Java
-    # Solution: Always pass empty dict for options, then apply settings via applyModifiableSettings
-    if sparkContext is not None:
-        # Set up the session
-        self._sc = sparkContext
-        self._jsc = self._sc._jsc
-        self._jvm = self._sc._jvm
-
-        assert self._jvm is not None
-
-        if jsparkSession is None:
-            # Check for default session first (this path doesn't use HashMap constructor)
-            default_session = self._jvm.SparkSession.getDefaultSession()
-            use_default = (
-                default_session.isDefined() and not default_session.get().sparkContext().isStopped()
-            )
-
-            # If options are provided, prefer a fresh session so configs apply
-            if options:
-                use_default = False
-
-            if use_default:
-                jsparkSession = default_session.get()
-            else:
-                # CRITICAL: Use Java builder API instead of constructor to avoid HashMap bug
-                # The builder pattern doesn't use HashMap constructor
-                java_builder = self._jvm.SparkSession.builder()
-                java_builder = java_builder.appName(
-                    sparkContext.appName if hasattr(sparkContext, "appName") else "project_a"
-                )
-                java_builder = java_builder.master(
-                    sparkContext.master if hasattr(sparkContext, "master") else "local[*]"
-                )
-                # Apply options via builder.config to avoid HashMap constructor
-                if options:
-                    for key, value in options.items():
-                        if value is not None:
-                            java_builder = java_builder.config(key, str(value))
-                # Build the session (this doesn't use HashMap constructor)
-                jsparkSession = java_builder.getOrCreate()
-        else:
-            # jsparkSession provided - skip applying options (HashMap bug)
-            pass
-
-        # Set the Java session
-        self._jsparkSession = jsparkSession
-        # Initialize other attributes
-        self._wrapped = None
-    else:
-        # Normal path - delegate to original
-        _original_spark_session_init(
-            self, sparkContext=sparkContext, jsparkSession=jsparkSession, options=options or {}
-        )
-
-
-# Apply the patch
-SparkSession.__init__ = _patched_spark_session_init
-
 
 def _append_extension(existing: str | None, extension: str) -> str:
     if not existing:
@@ -159,6 +91,10 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
         except Exception as exc:
             logger.warning("Unable to set PySpark SPARK_HOME: %s", exc)
 
+    spark_cfg = config.get("spark", {}) if isinstance(config, dict) else {}
+    spark_conf = spark_cfg.get("conf", {}) if isinstance(spark_cfg, dict) else {}
+    spark_tuning = spark_cfg.get("tuning", {}) if isinstance(spark_cfg, dict) else {}
+
     # Build SparkSession
     builder = SparkSession.builder.appName(app_name)
 
@@ -173,8 +109,11 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
 
     # Set master for local execution
     if spark_env == "local":
-        builder = builder.master("local[*]")
-        logger.info("Using local[*] master for local execution")
+        local_master = str(spark_cfg.get("master", "local[*]"))
+        builder = builder.master(local_master)
+        os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
+        os.environ.setdefault("SPARK_LOCAL_HOSTNAME", "localhost")
+        logger.info("Using %s master for local execution", local_master)
 
     # Enable Delta with environment-aware package loading.
     try:
@@ -242,29 +181,73 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
     if merged_packages:
         builder = builder.config("spark.jars.packages", merged_packages)
 
-    spark_cfg = config.get("spark", {}) if isinstance(config, dict) else {}
-
-    # Avoid Spark 3+ time parsing exceptions unless the user explicitly overrides.
-    if "spark.sql.legacy.timeParserPolicy" not in spark_cfg:
+    # Avoid Spark 3+ time parsing exceptions unless explicitly overridden.
+    if (
+        "spark.sql.legacy.timeParserPolicy" not in spark_cfg
+        and "spark.sql.legacy.timeParserPolicy" not in spark_conf
+    ):
         builder = builder.config("spark.sql.legacy.timeParserPolicy", "CORRECTED")
 
-    # Add extra Spark configs from config dict
+    # Apply explicit Spark passthrough keys only (to avoid non-Spark config warnings).
+    reserved_cfg_keys = {
+        "master",
+        "driver_memory",
+        "executor_memory",
+        "shuffle_partitions",
+        "enable_aqe",
+        "enable_adaptive_join",
+        "adaptive_coalesce_partitions",
+        "broadcast_join_threshold",
+    }
     for k, v in spark_cfg.items():
-        builder = builder.config(k, v)
+        if k in reserved_cfg_keys:
+            continue
+        if k in {"conf", "tuning"}:
+            continue
+        if k.startswith("spark."):
+            builder = builder.config(k, str(v))
+        else:
+            logger.debug("Skipping non-Spark config key: %s", k)
+
+    for k, v in spark_conf.items():
+        if k.startswith("spark."):
+            builder = builder.config(k, str(v))
+        else:
+            logger.debug("Skipping non-Spark spark.conf key: %s", k)
+
+    def _tuning_value(key: str, default):
+        if isinstance(spark_tuning, dict) and key in spark_tuning:
+            return spark_tuning.get(key)
+        return spark_cfg.get(key, default)
 
     # Set default Spark optimizations
     builder = (
-        builder.config(
-            "spark.sql.shuffle.partitions", spark_cfg.get("shuffle_partitions", 400)
-        )
+        builder.config("spark.sql.shuffle.partitions", str(_tuning_value("shuffle_partitions", 400)))
         .config(
             "spark.sql.adaptive.enabled",
-            str(spark_cfg.get("enable_aqe", True)).lower(),
+            str(_tuning_value("enable_aqe", True)).lower(),
         )
-        .config("spark.sql.adaptive.skewJoin.enabled", "true")
-        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-        .config("spark.sql.autoBroadcastJoinThreshold", 64 * 1024 * 1024)
+        .config(
+            "spark.sql.adaptive.skewJoin.enabled",
+            str(_tuning_value("enable_adaptive_join", True)).lower(),
+        )
+        .config(
+            "spark.sql.adaptive.coalescePartitions.enabled",
+            str(_tuning_value("adaptive_coalesce_partitions", True)).lower(),
+        )
+        .config(
+            "spark.sql.autoBroadcastJoinThreshold",
+            str(_tuning_value("broadcast_join_threshold", 64 * 1024 * 1024)),
+        )
+        .config("spark.eventLog.enabled", "false")
     )
+
+    driver_memory = _tuning_value("driver_memory", None)
+    if driver_memory:
+        builder = builder.config("spark.driver.memory", str(driver_memory))
+    executor_memory = _tuning_value("executor_memory", None)
+    if executor_memory:
+        builder = builder.config("spark.executor.memory", str(executor_memory))
 
     # Create SparkSession
     # CRITICAL: PySpark 3.5.0 has a bug with Java 17 where getOrCreate() fails
@@ -300,6 +283,17 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
             except Exception:
                 pass
 
+            try:
+                SparkContext._active_spark_context = None
+            except Exception:
+                pass
+
+            try:
+                SparkSession._instantiatedSession = None
+                SparkSession._activeSession = None
+            except Exception:
+                pass
+
         # For local mode, use a workaround that avoids the HashMap bug
         if spark_env == "local":
             # Set environment variables to ensure clean state
@@ -308,10 +302,10 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
 
             # Apply local-specific defaults without discarding existing configs
             builder = (
-                builder.config("spark.sql.shuffle.partitions", "2")
+                builder
                 .config("spark.eventLog.enabled", "false")
-                .config("spark.driver.memory", "2g")
-                .config("spark.executor.memory", "2g")
+                .config("spark.driver.memory", str(_tuning_value("driver_memory", "2g")))
+                .config("spark.executor.memory", str(_tuning_value("executor_memory", "2g")))
                 .config("spark.sql.execution.arrow.pyspark.enabled", "false")
                 .config("spark.driver.host", "localhost")
                 .config("spark.driver.bindAddress", "127.0.0.1")

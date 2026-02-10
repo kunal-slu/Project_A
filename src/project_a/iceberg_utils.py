@@ -132,16 +132,20 @@ class IcebergWriter:
             merge_key: Column(s) to match on (e.g., 'order_id')
             update_cols: Columns to update (None = all columns)
         """
-        logger.info(f"Merging into Iceberg table: {table_name} on key={merge_key}")
+        logger.info("Merging into Iceberg table: %s on key=%s", table_name, merge_key)
 
         # Create temp view for merge
         df.createOrReplaceTempView("updates")
 
         # Build merge statement
+        all_cols = [c for c in df.columns if c != merge_key]
         if update_cols:
-            update_clause = ", ".join([f"t.{col} = s.{col}" for col in update_cols])
+            update_target_cols = [c for c in update_cols if c != merge_key]
         else:
-            update_clause = "t.* = s.*"
+            update_target_cols = all_cols
+        if not update_target_cols:
+            update_target_cols = all_cols
+        update_clause = ", ".join([f"t.{col} = s.{col}" for col in update_target_cols])
 
         merge_sql = f"""
         MERGE INTO {self.catalog_name}.{table_name} t
@@ -150,9 +154,14 @@ class IcebergWriter:
         WHEN MATCHED THEN UPDATE SET {update_clause}
         WHEN NOT MATCHED THEN INSERT *
         """
-
-        self.spark.sql(merge_sql)
-        logger.info(f"Successfully merged data into {table_name}")
+        try:
+            self.spark.sql(merge_sql)
+            logger.info("Successfully merged data into %s", table_name)
+        except Exception:
+            logger.info(
+                "Merge target %s not available yet, creating table with overwrite", table_name
+            )
+            self.write_overwrite(df, table_name)
 
     def create_table(
         self,

@@ -167,6 +167,15 @@ class SilverToGoldJob(BaseJob):
                 "%s: Found %s rows with nulls in %s", table_name, null_count, columns
             )
 
+    def _assert_no_join_explosion(self, left_df, joined_df, join_name: str) -> None:
+        left_count = left_df.count()
+        joined_count = joined_df.count()
+        if joined_count != left_count:
+            raise ValueError(
+                f"{join_name}: join cardinality mismatch (left={left_count}, joined={joined_count})"
+            )
+        logger.info("%s: join cardinality validated (rows=%s)", join_name, joined_count)
+
     def run(self, ctx) -> dict[str, Any]:
         """Execute the Silver to Gold transformation."""
         logger.info("Starting Silver to Gold transformation...")
@@ -185,8 +194,10 @@ class SilverToGoldJob(BaseJob):
 
             def maybe_cache(df, name: str):
                 if cache_enabled:
+                    from pyspark import StorageLevel
+
                     logger.info("Caching %s for reuse", name)
-                    df = df.cache()
+                    df = df.persist(StorageLevel.MEMORY_AND_DISK)
                     cached_frames.append(df)
                 return df
 
@@ -642,10 +653,14 @@ class SilverToGoldJob(BaseJob):
             ),
         )
 
+        from pyspark.sql.functions import broadcast
+
         current_accounts = account_dim.filter(F.col("is_current") == F.lit(True)).select(
             "account_id", "account_sk"
         )
-        contact_dim = contact_dim.join(current_accounts, "account_id", "left")
+        contact_pre_join = contact_dim
+        contact_dim = contact_dim.join(broadcast(current_accounts), "account_id", "left")
+        self._assert_no_join_explosion(contact_pre_join, contact_dim, "dim_contact_account_join")
 
         expected_schema = StructType(
             [
@@ -755,9 +770,15 @@ class SilverToGoldJob(BaseJob):
             "product_id", "product_sk", "category"
         )
 
-        fact_orders = (
-            orders_with_fx.join(broadcast(current_customers), "customer_id", "left")
-            .join(broadcast(current_products), "product_id", "left")
+        orders_pre_customer_join = orders_with_fx
+        fact_orders = orders_with_fx.join(broadcast(current_customers), "customer_id", "left")
+        self._assert_no_join_explosion(
+            orders_pre_customer_join, fact_orders, "fact_orders_customer_join"
+        )
+        orders_pre_product_join = fact_orders
+        fact_orders = fact_orders.join(broadcast(current_products), "product_id", "left")
+        self._assert_no_join_explosion(
+            orders_pre_product_join, fact_orders, "fact_orders_product_join"
         )
 
         missing_customers = fact_orders.filter(col("country").isNull()).count()
@@ -1036,11 +1057,16 @@ class SilverToGoldJob(BaseJob):
             "contact_id", "contact_sk"
         )
 
-        fact_opps = (
-            opps.join(current_accounts, "account_id", "left")
-            .join(current_contacts, "contact_id", "left")
-            .withColumn("account_sk", F.coalesce(F.col("account_sk"), F.lit(-1)))
-            .withColumn("contact_sk", F.coalesce(F.col("contact_sk"), F.lit(-1)))
+        from pyspark.sql.functions import broadcast
+
+        opps_pre_account_join = opps
+        fact_opps = opps.join(broadcast(current_accounts), "account_id", "left")
+        self._assert_no_join_explosion(opps_pre_account_join, fact_opps, "fact_opportunity_account_join")
+        opps_pre_contact_join = fact_opps
+        fact_opps = fact_opps.join(broadcast(current_contacts), "contact_id", "left")
+        self._assert_no_join_explosion(opps_pre_contact_join, fact_opps, "fact_opportunity_contact_join")
+        fact_opps = fact_opps.withColumn("account_sk", F.coalesce(F.col("account_sk"), F.lit(-1))).withColumn(
+            "contact_sk", F.coalesce(F.col("contact_sk"), F.lit(-1))
         )
 
         expected_schema = StructType(
@@ -1119,6 +1145,7 @@ class SilverToGoldJob(BaseJob):
         )
 
         fx_rates = self._prepare_fx_rates(fx_rates_df)
+        events_pre_fx_join = events
         events = events.join(
             fx_rates,
             (events.event_date == fx_rates.fx_date) & (events.currency == fx_rates.fx_currency),
@@ -1127,6 +1154,7 @@ class SilverToGoldJob(BaseJob):
             "fx_rate",
             F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(F.col("fx_rate")),
         ).drop("fx_date", "fx_currency")
+        self._assert_no_join_explosion(events_pre_fx_join, events, "fact_order_events_fx_join")
 
         missing_fx = events.filter(
             (F.col("currency") != F.lit("USD")) & F.col("fx_rate").isNull()
@@ -1148,8 +1176,14 @@ class SilverToGoldJob(BaseJob):
         current_customers = customer_dim.filter(F.col("is_current") == F.lit(True)).select(
             "customer_id", "customer_sk"
         )
-        events = events.join(current_customers, "customer_id", "left").withColumn(
+        from pyspark.sql.functions import broadcast
+
+        events_pre_customer_join = events
+        events = events.join(broadcast(current_customers), "customer_id", "left").withColumn(
             "customer_sk", F.coalesce(F.col("customer_sk"), F.lit(-1))
+        )
+        self._assert_no_join_explosion(
+            events_pre_customer_join, events, "fact_order_events_customer_join"
         )
 
         orders_lookup = fact_orders.select(
@@ -1157,7 +1191,9 @@ class SilverToGoldJob(BaseJob):
             F.col("order_amount_usd").alias("order_amount_usd"),
             F.col("order_date").alias("order_date"),
         )
+        events_pre_order_join = events
         events = events.join(orders_lookup, "order_id", "left")
+        self._assert_no_join_explosion(events_pre_order_join, events, "fact_order_events_order_join")
 
         expected_schema = StructType(
             [
@@ -1223,10 +1259,19 @@ class SilverToGoldJob(BaseJob):
             "email",
             "country",
         )
+        from pyspark.sql.functions import broadcast
+
+        customer_360 = current_customers.join(broadcast(order_metrics), "customer_id", "left")
+        self._assert_no_join_explosion(
+            current_customers, customer_360, "customer_360_orders_join"
+        )
+        customer_360_pre_behavior = customer_360
+        customer_360 = customer_360.join(broadcast(behavior_metrics), "customer_id", "left")
+        self._assert_no_join_explosion(
+            customer_360_pre_behavior, customer_360, "customer_360_behavior_join"
+        )
         customer_360 = (
-            current_customers.join(order_metrics, "customer_id", "left")
-            .join(behavior_metrics, "customer_id", "left")
-            .withColumn("total_spent", F.coalesce(F.col("total_spent"), F.lit(0.0)))
+            customer_360.withColumn("total_spent", F.coalesce(F.col("total_spent"), F.lit(0.0)))
             .withColumn(
                 "order_count",
                 F.coalesce(F.col("order_count"), F.lit(0).cast("long")),

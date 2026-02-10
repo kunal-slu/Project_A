@@ -1,0 +1,5 @@
+# Optional source/warehouse connectors (prefer separate venv)
+snowflake-connector-python==3.6.0
+redshift-connector>=2.1.0
+kafka-python>=2.0.2
+boto3>=1.34.0,<1.35.0

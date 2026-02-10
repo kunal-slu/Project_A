@@ -114,7 +114,15 @@ class BronzeToSilverJob(BaseJob):
             return "iceberg"
         return "parquet"
 
-    def _write_silver(self, spark, df: DataFrame, table_name: str, path: str) -> None:
+    def _write_silver(
+        self,
+        spark,
+        df: DataFrame,
+        table_name: str,
+        path: str,
+        write_mode: str = "overwrite",
+        merge_key: str | None = None,
+    ) -> None:
         schema_evolution_cfg = self.config.get("schema_evolution", {})
         if schema_evolution_cfg.get("enabled"):
             from project_a.utils.schema_evolution import enforce_schema_evolution
@@ -127,15 +135,38 @@ class BronzeToSilverJob(BaseJob):
             )
 
         fmt = self._storage_format()
+        write_mode = (write_mode or "overwrite").lower()
         if fmt == "iceberg":
             from project_a.iceberg_utils import IcebergWriter
 
             catalog = self.config.get("iceberg", {}).get("catalog_name", "local")
-            IcebergWriter(spark, catalog).write_overwrite(df, table_name)
+            writer = IcebergWriter(spark, catalog)
+            if write_mode == "merge":
+                if not merge_key:
+                    raise ValueError(f"{table_name}: merge write requested without merge_key")
+                writer.write_merge(df, table_name, merge_key=merge_key)
+            elif write_mode == "append":
+                writer.write_append(df, table_name)
+            else:
+                writer.write_overwrite(df, table_name)
         elif fmt == "delta":
-            df.write.format("delta").mode("overwrite").save(path)
+            mode = "append" if write_mode == "append" else "overwrite"
+            if write_mode == "merge":
+                logger.warning(
+                    "%s: merge mode requested but Delta merge is not enabled in this job, using overwrite",
+                    table_name,
+                )
+                mode = "overwrite"
+            df.write.format("delta").mode(mode).save(path)
         else:
-            df.write.mode("overwrite").parquet(path)
+            mode = "append" if write_mode == "append" else "overwrite"
+            if write_mode == "merge":
+                logger.warning(
+                    "%s: merge mode requested but parquet merge is not supported, using overwrite",
+                    table_name,
+                )
+                mode = "overwrite"
+            df.write.mode(mode).parquet(path)
 
     @staticmethod
     def _to_local_path(path: str) -> Path | None:
@@ -747,11 +778,20 @@ class BronzeToSilverJob(BaseJob):
             parent_frames={"customers_silver": customers_clean},
         )
 
-        # Write to silver (idempotent overwrite after deterministic incremental merge)
+        # Write to silver:
+        # - customers/products are full refresh dimensions
+        # - orders_silver uses merge semantics where table format supports it
         self._write_silver(
             spark, customers_clean, "customers_silver", f"{silver_path}/customers_silver"
         )
-        self._write_silver(spark, orders_incremental, "orders_silver", orders_output_path)
+        self._write_silver(
+            spark,
+            orders_incremental,
+            "orders_silver",
+            orders_output_path,
+            write_mode="merge",
+            merge_key="order_id",
+        )
         self._write_silver(
             spark, products_clean, "products_silver", f"{silver_path}/products_silver"
         )
@@ -918,11 +958,45 @@ class BronzeToSilverJob(BaseJob):
         table_contracts: dict[str, dict[str, Any]],
     ):
         """Transform FX data from bronze to silver."""
-        # Read bronze FX data (prefer normalized Delta output)
-        from project_a.extract.fx_json_reader import read_fx_rates_from_bronze
+        # Read bronze FX data with environment-aware priority:
+        # - tests/explicit path overrides -> prefer provided bronze_path input
+        # - normal local pipeline -> prefer fx_json_to_bronze normalized delta reader
+        cfg_paths = self.config.get("paths", {})
+        configured_bronze_path = cfg_paths.get("bronze_root") or cfg_paths.get("bronze") or "data/bronze"
+        prefer_explicit_input = str(bronze_path) != str(configured_bronze_path)
 
-        fx_df = read_fx_rates_from_bronze(spark, self.config)
-        if fx_df.rdd.isEmpty():
+        def _read_from_explicit_path():
+            fx_path = f"{bronze_path}/fx/fx_rates"
+            try:
+                candidate = self._read_bronze_parquet(spark, fx_path, "bronze.fx.fx_rates")
+            except Exception as exc:
+                logger.warning("Unable to read FX rates at %s (%s)", fx_path, exc)
+                return None
+            if candidate.rdd.isEmpty():
+                logger.warning("FX rates input is empty at %s", fx_path)
+                return None
+            return candidate
+
+        def _read_from_legacy_reader():
+            from project_a.extract.fx_json_reader import read_fx_rates_from_bronze
+
+            candidate = read_fx_rates_from_bronze(spark, self.config)
+            if candidate.rdd.isEmpty():
+                return None
+            return candidate
+
+        readers = (
+            [_read_from_explicit_path, _read_from_legacy_reader]
+            if prefer_explicit_input
+            else [_read_from_legacy_reader, _read_from_explicit_path]
+        )
+        fx_df = None
+        for reader in readers:
+            fx_df = reader()
+            if fx_df is not None:
+                break
+
+        if fx_df is None or fx_df.rdd.isEmpty():
             raise ValueError("FX rates input is empty - cannot build fx_rates_silver")
 
         # Clean and standardize

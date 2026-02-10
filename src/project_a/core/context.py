@@ -133,8 +133,11 @@ class JobContext:
             delta_version = None
 
         if self._is_local:
-            builder = builder.master("local[*]")
-            logger.info("Using local[*] master for local execution")
+            local_master = str((self.config.get("spark", {}) or {}).get("master", "local[*]"))
+            builder = builder.master(local_master)
+            os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
+            os.environ.setdefault("SPARK_LOCAL_HOSTNAME", "localhost")
+            logger.info("Using %s master for local execution", local_master)
 
         # Enable Delta with environment-aware package loading.
         # - Local/non-EMR runtimes need explicit package coordinates.
@@ -202,15 +205,47 @@ class JobContext:
             builder = builder.config("spark.jars.packages", merged_packages)
 
         spark_cfg = self.config.get("spark", {}) or {}
+        spark_conf = spark_cfg.get("conf", {}) if isinstance(spark_cfg, dict) else {}
+        spark_tuning = spark_cfg.get("tuning", {}) if isinstance(spark_cfg, dict) else {}
+
+        def _tuning_value(key: str, default):
+            if isinstance(spark_tuning, dict) and key in spark_tuning:
+                return spark_tuning.get(key)
+            return spark_cfg.get(key, default)
+
+        # Allow direct passthrough of explicit spark.* keys.
+        for key, value in spark_cfg.items():
+            if key in {
+                "master",
+                "driver_memory",
+                "executor_memory",
+                "shuffle_partitions",
+                "enable_aqe",
+                "enable_adaptive_join",
+                "adaptive_coalesce_partitions",
+                "broadcast_join_threshold",
+                "conf",
+                "tuning",
+            }:
+                continue
+            if isinstance(key, str) and key.startswith("spark."):
+                builder = builder.config(key, str(value))
+
+        for key, value in spark_conf.items():
+            if isinstance(key, str) and key.startswith("spark."):
+                builder = builder.config(key, str(value))
 
         # Avoid Spark 3+ time parsing exceptions unless explicitly overridden.
-        if "spark.sql.legacy.timeParserPolicy" not in spark_cfg:
+        if (
+            "spark.sql.legacy.timeParserPolicy" not in spark_cfg
+            and "spark.sql.legacy.timeParserPolicy" not in spark_conf
+        ):
             builder = builder.config("spark.sql.legacy.timeParserPolicy", "CORRECTED")
-        shuffle_partitions = spark_cfg.get("shuffle_partitions", 400)
-        adaptive_enabled = str(spark_cfg.get("enable_aqe", True)).lower()
-        adaptive_skew = str(spark_cfg.get("enable_adaptive_join", True)).lower()
-        adaptive_coalesce = str(spark_cfg.get("adaptive_coalesce_partitions", True)).lower()
-        broadcast_threshold = spark_cfg.get("broadcast_join_threshold", "67108864")
+        shuffle_partitions = _tuning_value("shuffle_partitions", 400)
+        adaptive_enabled = str(_tuning_value("enable_aqe", True)).lower()
+        adaptive_skew = str(_tuning_value("enable_adaptive_join", True)).lower()
+        adaptive_coalesce = str(_tuning_value("adaptive_coalesce_partitions", True)).lower()
+        broadcast_threshold = _tuning_value("broadcast_join_threshold", "67108864")
 
         # Spark optimizations
         builder = (
@@ -222,15 +257,23 @@ class JobContext:
             .config("spark.eventLog.enabled", "false")  # Prevent log directory conflicts
         )
 
-        driver_memory = spark_cfg.get("driver_memory")
+        driver_memory = _tuning_value("driver_memory", None)
         if driver_memory:
             builder = builder.config("spark.driver.memory", str(driver_memory))
-        executor_memory = spark_cfg.get("executor_memory")
+        executor_memory = _tuning_value("executor_memory", None)
         if executor_memory:
             builder = builder.config("spark.executor.memory", str(executor_memory))
 
         # Stop existing session for local mode
         if self._is_local and os.environ.get("PROJECT_A_DISABLE_SPARK_STOP") != "1":
+            try:
+                existing_spark = SparkSession.getActiveSession()
+                if existing_spark:
+                    logger.info("Stopping existing SparkSession")
+                    existing_spark.stop()
+            except Exception:
+                pass
+
             try:
                 from pyspark import SparkContext
 
@@ -242,10 +285,13 @@ class JobContext:
                 pass
 
             try:
-                existing_spark = SparkSession.getActiveSession()
-                if existing_spark:
-                    logger.info("Stopping existing SparkSession")
-                    existing_spark.stop()
+                SparkContext._active_spark_context = None
+            except Exception:
+                pass
+
+            try:
+                SparkSession._instantiatedSession = None
+                SparkSession._activeSession = None
             except Exception:
                 pass
 

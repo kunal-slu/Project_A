@@ -1,44 +1,7 @@
-# Core dependencies
-pyspark==3.5.1
-delta-spark==3.2.0
-pyiceberg[pyarrow,s3fs]==0.6.1
-pyarrow==17.0.0
-pandas>=2.0.0
-numpy>=1.24.0
+# Default install: stable local ETL runtime only
+-r requirements-core.txt
 
-# Airflow
-apache-airflow==2.9.3
-apache-airflow-providers-amazon==8.24.0
-apache-airflow-providers-cncf-kubernetes==10.1.0
-apache-airflow-providers-postgres==5.10.0
-apache-airflow-providers-http==4.15.0
-
-# Data Quality
-great-expectations==1.0.1
-
-# dbt (optional, Spark)
-dbt-core>=1.6,<2.0
-dbt-spark>=1.6,<2.0
-
-# AWS
-boto3==1.35.15
-botocore==1.35.15
-
-# Configuration and utilities
-pydantic>=2.0.0
-pyyaml>=6.0
-requests>=2.28.0
-click>=8.0.0
-
-# Logging and monitoring
-structlog>=23.0.0
-prometheus-client>=0.19.0
-psutil>=5.9.0
-
-# Database connectors
-psycopg2-binary>=2.9.0
-sqlalchemy>=2.0.0
-
-# Development and testing (optional)
-pytest>=7.0.0
-pytest-cov>=4.0.0
+# Optional extras (recommended in separate virtual environments):
+#   pip install -r requirements-airflow.txt
+#   pip install -r requirements-dbt.txt
+#   pip install -r requirements-connectors.txt

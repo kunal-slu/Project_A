@@ -5,11 +5,22 @@ Emits custom metrics to CloudWatch for EMR job monitoring.
 """
 
 import logging
+import os
 
 import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
+
+
+def _should_emit_cloudwatch(dimensions: dict[str, str] | None) -> bool:
+    """Skip CloudWatch API calls for local runs unless explicitly enabled."""
+    if os.environ.get("PROJECT_A_DISABLE_CLOUDWATCH", "0").lower() in {"1", "true", "yes"}:
+        return False
+    env = (dimensions or {}).get("Env", "").lower()
+    if env in {"local", "dev_local"}:
+        return False
+    return True
 
 
 def put_metric(
@@ -29,6 +40,10 @@ def put_metric(
         dimensions: Optional dimensions (e.g., {"JobName": "bronze_to_silver", "Env": "dev"})
         unit: Unit of measurement (Count, Seconds, Bytes, etc.)
     """
+    if not _should_emit_cloudwatch(dimensions):
+        logger.debug("Skipping CloudWatch metric in local mode: %s", metric_name)
+        return
+
     try:
         cw = boto3.client("cloudwatch", region_name="us-east-1")
 
