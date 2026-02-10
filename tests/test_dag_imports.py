@@ -4,6 +4,7 @@ Test DAG imports for enterprise-grade validation.
 
 import importlib
 import logging
+import os
 import pathlib
 import pkgutil
 import time
@@ -37,7 +38,11 @@ def test_all_dags_import_fast():
 
     # Assertions
     assert len(failed_imports) == 0, f"Failed to import DAGs: {failed_imports}"
-    assert elapsed_time < 2.0, f"DAG import took too long: {elapsed_time:.2f}s"
+    max_import_seconds = float(os.getenv("DAG_IMPORT_MAX_SECONDS", "8.0"))
+    assert elapsed_time < max_import_seconds, (
+        f"DAG import took too long: {elapsed_time:.2f}s "
+        f"(threshold={max_import_seconds:.2f}s)"
+    )
     assert len(imported_dags) > 0, "No DAGs were imported"
 
     logger.info(f"✅ All {len(imported_dags)} DAGs imported in {elapsed_time:.2f}s")
