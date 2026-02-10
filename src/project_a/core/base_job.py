@@ -162,10 +162,93 @@ class BaseJob(ABC):
         return self.ctx.spark
 
     def apply_dq_rules(self, df, table_name: str):
-        """Apply data quality rules to a DataFrame."""
-        # Optional DQ integration - can be overridden by subclasses
-        logger.debug(f"DQ check for {table_name} - implement if needed")
-        pass
+        """
+        Apply runtime data-contract checks.
+
+        Behavior:
+        - Silver tables: validate via `config/contracts/silver_contracts.yaml`
+        - Gold fact_orders: validate required + unique keys from JSON contract
+        - If `dq.fail_on_error=false`, log and continue instead of raising
+        """
+        if df is None:
+            logger.info("Skipping DQ rules for %s (no DataFrame provided)", table_name)
+            return
+
+        dq_cfg = self.config.get("dq", {}) or {}
+        fail_on_error = bool(dq_cfg.get("fail_on_error", True))
+
+        try:
+            parts = [p for p in str(table_name).split(".") if p]
+            if not parts:
+                logger.debug("Skipping DQ rules for empty table name")
+                return
+
+            layer = parts[0].lower()
+            logical_table = parts[-1]
+
+            if layer == "silver":
+                from project_a.contracts.runtime_contracts import (
+                    load_table_contracts,
+                    validate_contract,
+                )
+
+                contracts_cfg = self.config.get("contracts", {}) or {}
+                contracts_path = contracts_cfg.get("path", "config/contracts/silver_contracts.yaml")
+                contracts = load_table_contracts(contracts_path)
+
+                contract = contracts.get(logical_table)
+                if not contract:
+                    logger.debug("No Silver contract found for %s", logical_table)
+                    return
+
+                validate_contract(df, logical_table, contract)
+                logger.info("DQ contract passed for %s", table_name)
+                return
+
+            if layer == "gold" and logical_table == "fact_orders":
+                contract_path = Path("config/contracts/fact_orders.json")
+                if not contract_path.exists():
+                    logger.debug("Gold contract not found at %s", contract_path)
+                    return
+
+                contract = json.loads(contract_path.read_text(encoding="utf-8"))
+                required_cols = (
+                    ((contract.get("schema") or {}).get("required") or [])
+                    if isinstance(contract, dict)
+                    else []
+                )
+                missing = [col for col in required_cols if col not in df.columns]
+                if missing:
+                    raise ValueError(f"{table_name}: Missing required columns: {missing}")
+
+                null_violations = {}
+                for column in required_cols:
+                    count = df.filter(df[column].isNull()).count()
+                    if count > 0:
+                        null_violations[column] = count
+                if null_violations:
+                    raise ValueError(
+                        f"{table_name}: Null violations in required columns: {null_violations}"
+                    )
+
+                unique_keys = (contract.get("constraints") or {}).get("unique_keys") or []
+                for key in unique_keys:
+                    duplicate_count = (
+                        df.groupBy(key).count().filter("count > 1").count()
+                    )
+                    if duplicate_count > 0:
+                        raise ValueError(
+                            f"{table_name}: Duplicate key violations for {key}: {duplicate_count}"
+                        )
+
+                logger.info("DQ contract passed for %s", table_name)
+                return
+
+            logger.debug("No runtime DQ contract configured for %s", table_name)
+        except Exception as exc:
+            if fail_on_error:
+                raise
+            logger.warning("DQ check failed for %s but continuing: %s", table_name, exc)
 
     def log_lineage(self, source: str, target: str, records_processed: dict[str, Any]):
         """Log data lineage information."""

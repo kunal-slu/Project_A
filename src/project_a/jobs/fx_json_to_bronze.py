@@ -7,6 +7,7 @@ Contract-driven ingestion with explicit schema enforcement.
 
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Add src to path for imports
@@ -16,6 +17,7 @@ import tempfile
 import time
 import uuid
 
+from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.functions import col, current_timestamp, lit, to_date
 from pyspark.sql.types import (
@@ -53,6 +55,59 @@ FX_SCHEMA = StructType(
         StructField("mid_rate", DoubleType(), True),
     ]
 )
+
+
+def _normalize_run_date(run_date_arg: str | None) -> str:
+    """Return a canonical YYYY-MM-DD run date string."""
+    if not run_date_arg:
+        return datetime.utcnow().date().isoformat()
+    try:
+        return datetime.strptime(run_date_arg, "%Y-%m-%d").date().isoformat()
+    except ValueError as exc:
+        raise ValueError("--run-date must be in YYYY-MM-DD format") from exc
+
+
+def _is_concurrent_append_exception(error: Exception) -> bool:
+    """Detect transient Delta optimistic concurrency collisions."""
+    error_text = f"{type(error).__name__}: {error}"
+    return "ConcurrentAppendException" in error_text or "concurrent update" in error_text.lower()
+
+
+def _write_delta_run_slice_with_retry(
+    df: DataFrame,
+    output_path: str,
+    run_date: str,
+    max_attempts: int = 5,
+    base_backoff_seconds: float = 1.0,
+) -> None:
+    """
+    Overwrite only one run slice and retry transient optimistic concurrency failures.
+    """
+    replace_where = f"_run_date = DATE '{run_date}'"
+    for attempt in range(1, max_attempts + 1):
+        try:
+            (
+                df.write.format("delta")
+                .mode("overwrite")
+                .option("mergeSchema", "true")
+                .option("delta.autoOptimize.optimizeWrite", "true")
+                .option("replaceWhere", replace_where)
+                .partitionBy("date", "_run_date")
+                .save(output_path)
+            )
+            return
+        except Exception as error:
+            if attempt >= max_attempts or not _is_concurrent_append_exception(error):
+                raise
+            sleep_seconds = base_backoff_seconds * (2 ** (attempt - 1))
+            logger.warning(
+                "Concurrent Delta write collision on _run_date=%s (attempt %d/%d); retrying in %.1fs",
+                run_date,
+                attempt,
+                max_attempts,
+                sleep_seconds,
+            )
+            time.sleep(sleep_seconds)
 
 
 def main(args):
@@ -160,11 +215,7 @@ def main(args):
             error_handler.quarantine(bad, "bronze", "fx", run_id, reason="contract_violation")
 
         # Add metadata columns
-        run_date = args.run_date if hasattr(args, "run_date") and args.run_date else None
-        if not run_date:
-            from datetime import datetime
-
-            run_date = datetime.utcnow().strftime("%Y-%m-%d")
+        run_date = _normalize_run_date(getattr(args, "run_date", None))
 
         # Add metadata columns
         df_clean = df_clean.withColumn("as_of_date", to_date(col("date")))
@@ -187,13 +238,16 @@ def main(args):
         if "source" not in df_clean.columns:
             df_clean = df_clean.withColumn("source", lit("fx_json"))
 
-        # Write to bronze as Delta with contract-driven partitioning
-        # Partition by trade_date for downstream pruning (senior pattern)
+        # Write to bronze as Delta using targeted partition replacement.
+        # This keeps reruns idempotent for the same run_date and avoids broad overwrite collisions.
         df_partitioned = df_clean.repartition(col("date"))
-
-        df_partitioned.write.format("delta").mode("overwrite").option("mergeSchema", "true").option(
-            "delta.autoOptimize.optimizeWrite", "true"
-        ).partitionBy("date", "_run_date").save(output_path)
+        _write_delta_run_slice_with_retry(
+            df=df_partitioned,
+            output_path=output_path,
+            run_date=run_date,
+            max_attempts=5,
+            base_backoff_seconds=1.0,
+        )
 
         rows_out = df_clean.count()
         duration_seconds = time.time() - start_time

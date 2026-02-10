@@ -24,7 +24,7 @@ DEFAULT_JOBS = [
     "snowflake_to_bronze",
     "crm_to_bronze",
     "redshift_to_bronze",
-    "kafka_csv_to_bronze",
+    "kafka_events_csv_snapshot_to_bronze",
     "bronze_to_silver",
     "silver_to_gold",
     "gold_truth_tests",

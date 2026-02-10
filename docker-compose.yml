@@ -48,7 +48,7 @@ services:
       - PROJECT_A_CONFIG=/opt/airflow/config/local_airflow.yaml
       - VENV_ACTIVATE=.venv/bin/activate
       - USE_SPARK_SUBMIT=true
-      - SPARK_APP=src/pyspark_interview_project/pipeline.py
+      - SPARK_APP=src/project_a/pipeline/run_pipeline.py
       # Install provider at startup; optional if baked into image later.
       - PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-apache-spark==4.7.0
     volumes:

@@ -5,6 +5,7 @@ Fails pipeline on critical violations
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -13,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from project_a.config_loader import load_config_resolved
 from project_a.dq.gate import DQGate
 from project_a.utils.spark_session import build_spark
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -82,13 +85,13 @@ def main():
         gate = DQGate(config)
         result = gate.check_and_block(spark, df, args.table, layer=args.layer)
 
-        print(f"✅ DQ Gate passed for {args.layer}.{args.table}")
-        print(f"  - Critical failures: {result.get('critical_failures', 0)}")
-        print(f"  - Warnings: {result.get('warnings', 0)}")
+        logger.info("DQ Gate passed for %s.%s", args.layer, args.table)
+        logger.info("Critical failures: %s", result.get("critical_failures", 0))
+        logger.info("Warnings: %s", result.get("warnings", 0))
         sys.exit(0)
 
     except Exception as e:
-        print(f"❌ DQ Gate error: {e}")
+        logger.error("DQ Gate error: %s", e)
         sys.exit(1)
     finally:
         spark.stop()

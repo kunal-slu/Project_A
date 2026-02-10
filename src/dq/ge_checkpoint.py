@@ -238,9 +238,8 @@ def main():
     # Publish results
     docs_url = runner.publish_results(results)
 
-    # Print results
-    print(json.dumps(results, indent=2))
-    print(f"\nData Docs URL: {docs_url}")
+    logger.info("GE results: %s", json.dumps(results, indent=2))
+    logger.info("Data Docs URL: %s", docs_url)
 
     # Exit with error code if critical failures
     if not results["overall_success"]:

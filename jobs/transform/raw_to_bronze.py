@@ -12,11 +12,26 @@ from typing import Any
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import current_timestamp, lit, to_date
 
-from project_a.pyspark_interview_project.utils.schema_validator import validate_schema
 from project_a.utils.config import load_conf
 from project_a.utils.spark_session import build_spark
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_schema_from_contract(df: DataFrame, schema_def: dict[str, Any]) -> dict[str, Any]:
+    """
+    Minimal runtime validation for raw->bronze without legacy module dependency.
+    """
+    required_columns = []
+    fields = schema_def.get("fields")
+    if isinstance(fields, list):
+        for field in fields:
+            if isinstance(field, dict) and field.get("name"):
+                if field.get("nullable", True) is False:
+                    required_columns.append(str(field["name"]))
+
+    missing = [c for c in required_columns if c not in df.columns]
+    return {"passed": len(missing) == 0, "missing_required_columns": missing}
 
 
 def raw_to_bronze(
@@ -66,8 +81,7 @@ def raw_to_bronze(
         with open(schema_def_path) as f:
             schema_def = json.load(f)
 
-        # Validate schema
-        df, validation_results = validate_schema(df, schema_def, mode="allow_new", config=config)
+        validation_results = _validate_schema_from_contract(df, schema_def)
 
         if not validation_results.get("passed"):
             logger.warning(f"Schema validation issues: {validation_results}")

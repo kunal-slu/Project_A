@@ -18,6 +18,10 @@ EMR/Airflow Usage:
       "--env", "dev",
       "--config", "s3://.../config/dev.yaml"
     ]
+
+Backward-compatible aliases:
+    - fx_to_bronze -> fx_json_to_bronze
+    - kafka_events_to_bronze -> kafka_events_csv_snapshot_to_bronze
 """
 
 import argparse
@@ -40,6 +44,8 @@ try:
         fx_json_to_bronze,
         gold_truth_tests,
         kafka_csv_to_bronze,
+        kafka_stream_to_bronze,
+        orders_silver_to_iceberg,
         publish_gold_to_redshift,
         publish_gold_to_snowflake,
         redshift_to_bronze,
@@ -61,11 +67,13 @@ except ImportError as import_error:
     crm_to_bronze = DummyModule()
     redshift_to_bronze = DummyModule()
     kafka_csv_to_bronze = DummyModule()
+    kafka_stream_to_bronze = DummyModule()
     bronze_to_silver = DummyModule()
     dq_silver_gate = DummyModule()
     silver_to_gold = DummyModule()
     dq_gold_gate = DummyModule()
     gold_truth_tests = DummyModule()
+    orders_silver_to_iceberg = DummyModule()
     publish_gold_to_redshift = DummyModule()
     publish_gold_to_snowflake = DummyModule()
 
@@ -77,6 +85,10 @@ JOB_MAP = {
     "crm_to_bronze": crm_to_bronze.main,
     "redshift_to_bronze": redshift_to_bronze.main,
     "kafka_csv_to_bronze": kafka_csv_to_bronze.main,
+    "kafka_events_csv_snapshot_to_bronze": kafka_csv_to_bronze.main,
+    "kafka_events_to_bronze": kafka_csv_to_bronze.main,
+    "fx_to_bronze": fx_json_to_bronze.main,
+    "kafka_stream_to_bronze": kafka_stream_to_bronze.main,
     # Transformation jobs
     "bronze_to_silver": bronze_to_silver.main,
     "silver_to_gold": silver_to_gold.main,
@@ -87,6 +99,8 @@ JOB_MAP = {
     # Publish jobs
     "publish_gold_to_redshift": publish_gold_to_redshift.main,
     "publish_gold_to_snowflake": publish_gold_to_snowflake.main,
+    # Iceberg maintenance
+    "orders_silver_to_iceberg": orders_silver_to_iceberg.main,
 }
 
 

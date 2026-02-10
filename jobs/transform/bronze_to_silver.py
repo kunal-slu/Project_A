@@ -281,7 +281,10 @@ class BronzeToSilverJob(BaseJob):
 
             # Apply data quality checks
             logger.info("Applying data quality checks...")
-            self.apply_dq_rules(None, "silver.layer")
+            logger.info(
+                "Silver contracts validated within source-specific transforms "
+                "(customers/orders/products/behavior/fx/events)"
+            )
 
             # Log lineage
             self.log_lineage(source="bronze", target="silver", records_processed={})

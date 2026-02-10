@@ -213,7 +213,7 @@ def main():
 
     with JobContext(config, app_name="orders_silver_to_iceberg") as ctx:
         result = job.run(ctx)
-        print(f"Job Result: {result}")
+        logger.info("Job Result: %s", result)
 
 
 if __name__ == "__main__":

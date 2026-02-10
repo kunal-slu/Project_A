@@ -535,6 +535,177 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
             "reason": "missing fact_order_events/fact_orders",
         }
 
+    # Completeness thresholds for critical event columns
+    completeness_threshold = float((config.get("dq", {}) or {}).get("completeness_threshold", 0.99))
+    if order_events_silver is not None:
+        total_events = order_events_silver.count()
+        for required_col in ("order_id", "event_type", "event_ts"):
+            if required_col not in order_events_silver.columns:
+                report["contract_checks"][f"order_events_{required_col}_completeness"] = {
+                    "status": "fail",
+                    "reason": f"missing column {required_col}",
+                }
+                continue
+            non_null = order_events_silver.filter(F.col(required_col).isNotNull()).count()
+            pct = (non_null / total_events) if total_events else 0.0
+            report["contract_checks"][f"order_events_{required_col}_completeness"] = {
+                "status": "pass" if pct >= completeness_threshold else "fail",
+                "non_null_rows": non_null,
+                "total_rows": total_events,
+                "non_null_pct": pct,
+                "threshold": completeness_threshold,
+            }
+    else:
+        for required_col in ("order_id", "event_type", "event_ts"):
+            report["contract_checks"][f"order_events_{required_col}_completeness"] = {
+                "status": "skipped",
+                "reason": "missing order_events_silver",
+            }
+
+    # Future-date bounds checks
+    if fact_orders is not None and "order_date" in fact_orders.columns:
+        future_orders = fact_orders.filter(
+            F.col("order_date") > F.date_add(F.current_date(), 1)
+        ).count()
+        report["contract_checks"]["fact_orders_future_order_date"] = {
+            "status": "pass" if future_orders == 0 else "fail",
+            "rows": future_orders,
+        }
+    else:
+        report["contract_checks"]["fact_orders_future_order_date"] = {
+            "status": "skipped",
+            "reason": "missing fact_orders.order_date",
+        }
+
+    if fact_order_events is not None and "event_ts" in fact_order_events.columns:
+        future_events = fact_order_events.filter(
+            F.col("event_ts") > (F.current_timestamp() + F.expr("INTERVAL 1 DAY"))
+        ).count()
+        report["contract_checks"]["fact_order_events_future_event_ts"] = {
+            "status": "pass" if future_events == 0 else "fail",
+            "rows": future_events,
+        }
+    else:
+        report["contract_checks"]["fact_order_events_future_event_ts"] = {
+            "status": "skipped",
+            "reason": "missing fact_order_events.event_ts",
+        }
+
+    # Surrogate-key referential checks (*_sk)
+    if fact_orders is not None and dim_customer is not None and dim_product is not None:
+        customer_sk_orphans = (
+            fact_orders.filter(F.col("customer_sk").isNotNull() & (F.col("customer_sk") != -1))
+            .select("customer_sk")
+            .dropDuplicates(["customer_sk"])
+            .join(
+                dim_customer.select(F.col("customer_sk").alias("_customer_sk")).dropDuplicates(
+                    ["_customer_sk"]
+                ),
+                F.col("customer_sk") == F.col("_customer_sk"),
+                "left_anti",
+            )
+            .count()
+        )
+        product_sk_orphans = (
+            fact_orders.filter(F.col("product_sk").isNotNull() & (F.col("product_sk") != -1))
+            .select("product_sk")
+            .dropDuplicates(["product_sk"])
+            .join(
+                dim_product.select(F.col("product_sk").alias("_product_sk")).dropDuplicates(
+                    ["_product_sk"]
+                ),
+                F.col("product_sk") == F.col("_product_sk"),
+                "left_anti",
+            )
+            .count()
+        )
+        report["contract_checks"]["fact_orders_customer_sk_ri"] = {
+            "status": "pass" if customer_sk_orphans == 0 else "fail",
+            "orphans": customer_sk_orphans,
+        }
+        report["contract_checks"]["fact_orders_product_sk_ri"] = {
+            "status": "pass" if product_sk_orphans == 0 else "fail",
+            "orphans": product_sk_orphans,
+        }
+    else:
+        report["contract_checks"]["fact_orders_customer_sk_ri"] = {
+            "status": "skipped",
+            "reason": "missing fact_orders/dim_customer",
+        }
+        report["contract_checks"]["fact_orders_product_sk_ri"] = {
+            "status": "skipped",
+            "reason": "missing fact_orders/dim_product",
+        }
+
+    if fact_opportunity is not None and dim_account is not None and dim_contact is not None:
+        account_sk_orphans = (
+            fact_opportunity.filter(F.col("account_sk").isNotNull() & (F.col("account_sk") != -1))
+            .select("account_sk")
+            .dropDuplicates(["account_sk"])
+            .join(
+                dim_account.select(F.col("account_sk").alias("_account_sk")).dropDuplicates(
+                    ["_account_sk"]
+                ),
+                F.col("account_sk") == F.col("_account_sk"),
+                "left_anti",
+            )
+            .count()
+        )
+        contact_sk_orphans = (
+            fact_opportunity.filter(F.col("contact_sk").isNotNull() & (F.col("contact_sk") != -1))
+            .select("contact_sk")
+            .dropDuplicates(["contact_sk"])
+            .join(
+                dim_contact.select(F.col("contact_sk").alias("_contact_sk")).dropDuplicates(
+                    ["_contact_sk"]
+                ),
+                F.col("contact_sk") == F.col("_contact_sk"),
+                "left_anti",
+            )
+            .count()
+        )
+        report["contract_checks"]["fact_opportunity_account_sk_ri"] = {
+            "status": "pass" if account_sk_orphans == 0 else "fail",
+            "orphans": account_sk_orphans,
+        }
+        report["contract_checks"]["fact_opportunity_contact_sk_ri"] = {
+            "status": "pass" if contact_sk_orphans == 0 else "fail",
+            "orphans": contact_sk_orphans,
+        }
+    else:
+        report["contract_checks"]["fact_opportunity_account_sk_ri"] = {
+            "status": "skipped",
+            "reason": "missing fact_opportunity/dim_account",
+        }
+        report["contract_checks"]["fact_opportunity_contact_sk_ri"] = {
+            "status": "skipped",
+            "reason": "missing fact_opportunity/dim_contact",
+        }
+
+    if fact_order_events is not None and dim_customer is not None:
+        customer_sk_orphans = (
+            fact_order_events.filter(F.col("customer_sk").isNotNull() & (F.col("customer_sk") != -1))
+            .select("customer_sk")
+            .dropDuplicates(["customer_sk"])
+            .join(
+                dim_customer.select(F.col("customer_sk").alias("_customer_sk")).dropDuplicates(
+                    ["_customer_sk"]
+                ),
+                F.col("customer_sk") == F.col("_customer_sk"),
+                "left_anti",
+            )
+            .count()
+        )
+        report["contract_checks"]["fact_order_events_customer_sk_ri"] = {
+            "status": "pass" if customer_sk_orphans == 0 else "fail",
+            "orphans": customer_sk_orphans,
+        }
+    else:
+        report["contract_checks"]["fact_order_events_customer_sk_ri"] = {
+            "status": "skipped",
+            "reason": "missing fact_order_events/dim_customer",
+        }
+
     # FX coverage + currency normalization checks
     if fact_orders is not None:
         non_usd = fact_orders.filter(F.col("currency") != F.lit("USD"))
@@ -744,7 +915,7 @@ def main(args: argparse.Namespace | None = None) -> None:
         if isinstance(result, dict) and result.get("mismatched_groups_total"):
             failures += int(result.get("mismatched_groups_total", 0))
 
-    print(f"Gold truth tests complete. Failures flagged: {failures}")
+    logger.info("Gold truth tests complete. Failures flagged: %s", failures)
 
 
 if __name__ == "__main__":

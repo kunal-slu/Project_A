@@ -298,7 +298,7 @@ class SilverToGoldJob(BaseJob):
 
             # Apply data quality checks
             logger.info("Applying data quality checks...")
-            self.apply_dq_rules(None, "gold.layer")
+            self.apply_dq_rules(fact_orders, "gold.fact_orders")
 
             # Log lineage
             self.log_lineage(source="silver", target="gold", records_processed={})

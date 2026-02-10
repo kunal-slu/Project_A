@@ -16,7 +16,6 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.empty import EmptyOperator
 
-
 DEFAULT_CONFIG = "/opt/airflow/config/local_airflow.yaml"
 ENV_NAME = "local"
 PROJECT_SRC = "/opt/project/src"
@@ -77,6 +76,7 @@ start = EmptyOperator(task_id="start", dag=dag)
 ingest_fx = BashOperator(
     task_id="fx_json_to_bronze",
     bash_command=job_cmd("fx_json_to_bronze"),
+    max_active_tis_per_dag=1,
     dag=dag,
 )
 
@@ -144,12 +144,25 @@ dbt_build = BashOperator(
 
 end = EmptyOperator(task_id="end", dag=dag)
 
-start >> [
-    ingest_fx,
-    ingest_snowflake,
-    ingest_crm,
-    ingest_redshift,
-    ingest_kafka,
-] >> ingest_done
+(
+    start
+    >> [
+        ingest_fx,
+        ingest_snowflake,
+        ingest_crm,
+        ingest_redshift,
+        ingest_kafka,
+    ]
+    >> ingest_done
+)
 
-ingest_done >> bronze_to_silver >> dq_silver_gate >> silver_to_gold >> dq_gold_gate >> gold_truth_tests >> dbt_build >> end
+(
+    ingest_done
+    >> bronze_to_silver
+    >> dq_silver_gate
+    >> silver_to_gold
+    >> dq_gold_gate
+    >> gold_truth_tests
+    >> dbt_build
+    >> end
+)
