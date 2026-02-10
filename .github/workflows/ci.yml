@@ -2,118 +2,38 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
-  lint-and-format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      
-      - name: Install dependencies
-        run: |
-          pip install -U pip
-          pip install ruff black mypy yamllint jsonschema
-      
-      - name: Ruff linting
-        run: ruff check src/ aws/jobs/ dags/ tests/
-      
-      - name: Black format check
-        run: black --check src/ aws/jobs/ dags/ tests/
-      
-      - name: MyPy type checking
-        run: mypy src/ --ignore-missing-imports
-        continue-on-error: true  # Allow mypy failures for now
-      
-      - name: YAML linting
-        run: yamllint config/ aws/emr_configs/ aws/terraform/*.tfvars 2>/dev/null || true
-      
-      - name: Validate config schema
-        run: |
-          python3 << 'PYEOF'
-          import json
-          import yaml
-          import jsonschema
-          
-          # Load schema
-          with open('config/config.schema.json') as f:
-              schema = json.load(f)
-          
-          # Validate prod config
-          for config_file in ['config/prod.yaml', 'config/dev.yaml', 'config/local.yaml']:
-              try:
-                  with open(config_file) as f:
-                      config = yaml.safe_load(f)
-                  jsonschema.validate(config, schema)
-                  print(f"✓ {config_file} is valid")
-              except Exception as e:
-                  print(f"✗ {config_file} failed: {e}")
-                  exit(1)
-          PYEOF
-
-  test:
+  verify:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11']
-    
+        python-version: ["3.10", "3.11"]
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      
-      - name: Cache pip packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      
-      - name: Install dependencies
-        run: |
-          pip install -U pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-      
-      - name: Run tests
-        run: |
-          pytest -q --cov=src --cov-report=xml
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
 
-  quality-gate:
-    runs-on: ubuntu-latest
-    needs: [lint-and-format, test]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
-          python-version: '3.10'
-      
+          distribution: temurin
+          java-version: "17"
+
       - name: Install dependencies
         run: |
-          pip install -U pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-      
-      - name: Run quality gate tests
-        run: |
-          pytest tests/test_quality_gate.py -v
-        continue-on-error: false
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test-all

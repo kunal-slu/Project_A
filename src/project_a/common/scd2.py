@@ -8,7 +8,6 @@ from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.window import Window
 
 
 @dataclass
@@ -104,7 +103,9 @@ def apply_scd2(
                 config.surrogate_key_column,
                 F.sha2(
                     F.concat_ws(
-                        "||", F.col(config.business_key).cast("string"), F.col(config.effective_from_column).cast("string")
+                        "||",
+                        F.col(config.business_key).cast("string"),
+                        F.col(config.effective_from_column).cast("string"),
                     ),
                     256,
                 ),
@@ -182,7 +183,9 @@ def apply_scd2(
                 config.surrogate_key_column,
                 F.sha2(
                     F.concat_ws(
-                        "||", F.col(config.business_key).cast("string"), F.col(config.effective_from_column).cast("string")
+                        "||",
+                        F.col(config.business_key).cast("string"),
+                        F.col(config.effective_from_column).cast("string"),
                     ),
                     256,
                 ),
@@ -201,7 +204,9 @@ def apply_scd2(
             config.surrogate_key_column,
             F.sha2(
                 F.concat_ws(
-                    "||", F.col(config.business_key).cast("string"), F.col(config.effective_from_column).cast("string")
+                    "||",
+                    F.col(config.business_key).cast("string"),
+                    F.col(config.effective_from_column).cast("string"),
                 ),
                 256,
             ),
@@ -209,17 +214,21 @@ def apply_scd2(
     )
 
     # Adjust late historical effective_to to current effective_from
-    late_historical = late_historical.join(
-        current_df.select(
-            F.col(config.business_key).alias("_bk"),
-            F.col(config.effective_from_column).alias("_current_effective_from"),
-        ),
-        late_historical[config.business_key] == F.col("_bk"),
-        "left",
-    ).withColumn(
-        config.effective_to_column,
-        F.coalesce(F.col("_current_effective_from"), F.col(config.effective_to_column)),
-    ).drop("_bk", "_current_effective_from")
+    late_historical = (
+        late_historical.join(
+            current_df.select(
+                F.col(config.business_key).alias("_bk"),
+                F.col(config.effective_from_column).alias("_current_effective_from"),
+            ),
+            late_historical[config.business_key] == F.col("_bk"),
+            "left",
+        )
+        .withColumn(
+            config.effective_to_column,
+            F.coalesce(F.col("_current_effective_from"), F.col(config.effective_to_column)),
+        )
+        .drop("_bk", "_current_effective_from")
+    )
 
     unchanged_current = current_df.join(to_close_keys, config.business_key, "left_anti")
     historical_df = target_df.filter(F.col(config.is_current_column) == F.lit(False))

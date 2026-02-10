@@ -253,7 +253,10 @@ def emit_lineage_event(
 
 
 def emit_start(
-    job_name: str, inputs: list[dict[str, Any]], outputs: list[dict[str, Any]], config: dict[str, Any]
+    job_name: str,
+    inputs: list[dict[str, Any]],
+    outputs: list[dict[str, Any]],
+    config: dict[str, Any],
 ) -> bool:
     return emit_lineage_event("START", job_name, inputs, outputs, config)
 

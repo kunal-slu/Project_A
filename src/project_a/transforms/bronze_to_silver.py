@@ -10,7 +10,9 @@ def _require_columns(df: DataFrame, required: list[str], table_name: str) -> Non
         raise ValueError(f"{table_name}: Missing required columns: {missing}")
 
 
-def _validate_row_drop(before_count: int, after_count: int, table_name: str, max_row_drop_ratio: float) -> None:
+def _validate_row_drop(
+    before_count: int, after_count: int, table_name: str, max_row_drop_ratio: float
+) -> None:
     if before_count <= 0:
         return
     dropped = before_count - after_count
@@ -39,7 +41,9 @@ def transform_customers_bronze_to_silver(
     if strict:
         null_pk_count = df.filter(F.col("customer_id").isNull()).count()
         if null_pk_count > 0:
-            raise ValueError(f"customers_bronze: Found {null_pk_count} null primary keys (customer_id)")
+            raise ValueError(
+                f"customers_bronze: Found {null_pk_count} null primary keys (customer_id)"
+            )
 
     result = (
         df.filter(F.col("customer_id").isNotNull())
@@ -132,7 +136,9 @@ def transform_products_bronze_to_silver(
     strict: bool = False,
     max_row_drop_ratio: float = 0.50,
 ) -> DataFrame:
-    _require_columns(df, ["product_id", "product_name", "price", "stock_quantity"], "products_bronze")
+    _require_columns(
+        df, ["product_id", "product_name", "price", "stock_quantity"], "products_bronze"
+    )
     input_count = df.count()
 
     if strict and input_count == 0:
@@ -141,7 +147,9 @@ def transform_products_bronze_to_silver(
     if strict:
         null_pk_count = df.filter(F.col("product_id").isNull()).count()
         if null_pk_count > 0:
-            raise ValueError(f"products_bronze: Found {null_pk_count} null primary keys (product_id)")
+            raise ValueError(
+                f"products_bronze: Found {null_pk_count} null primary keys (product_id)"
+            )
 
     result = (
         df.filter(F.col("product_name").isNotNull())

@@ -2,8 +2,9 @@
 SCD2 validation tests to ensure data integrity and proper implementation.
 """
 
-import pytest
 from datetime import date
+
+import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql import Window as W
 from pyspark.sql import functions as F
@@ -17,11 +18,7 @@ class TestSCD2Validation:
     def spark(self):
         """Create Spark session for testing."""
         try:
-            return (
-                SparkSession.builder.appName("SCD2Validation")
-                .master("local[2]")
-                .getOrCreate()
-            )
+            return SparkSession.builder.appName("SCD2Validation").master("local[2]").getOrCreate()
         except Exception:
             pytest.skip("Spark unavailable in current environment")
 

@@ -460,7 +460,9 @@ def record_dq_check(
     table: str, check_type: str, passed: bool, violations: int = 0, severity: str = "warning"
 ) -> None:
     if _dq_checks:
-        _dq_checks.labels(table=table, check_type=check_type, status="passed" if passed else "failed").inc()
+        _dq_checks.labels(
+            table=table, check_type=check_type, status="passed" if passed else "failed"
+        ).inc()
     if violations and _dq_violations:
         _dq_violations.labels(table=table, check_type=check_type, severity=severity).inc(violations)
 
@@ -470,7 +472,9 @@ def record_records_processed(job_name: str, stage: str, table: str, count: int) 
         _records_processed.labels(job_name=job_name, stage=stage, table=table).inc(max(count, 0))
 
 
-def record_records_failed(job_name: str, stage: str, table: str, count: int, error_type: str) -> None:
+def record_records_failed(
+    job_name: str, stage: str, table: str, count: int, error_type: str
+) -> None:
     if _records_failed:
         _records_failed.labels(
             job_name=job_name, stage=stage, table=table, error_type=error_type

@@ -1,25 +1,21 @@
-"""Disaster Recovery Module."""
+"""Disaster recovery API surface."""
 
-try:
-    from .plans import (
-        BackupManager,
-        BackupStrategy,
-        RecoveryManager,
-        get_backup_manager,
-        get_recovery_manager,
-    )
-except Exception:  # pragma: no cover - compatibility fallback
-    BackupManager = None
-    BackupStrategy = None
-    RecoveryManager = None
+from __future__ import annotations
 
-    def get_backup_manager(*_args, **_kwargs):
-        return None
+from .plans import (
+    BackupManager,
+    BackupPlan,
+    RecoveryManager,
+    get_backup_manager,
+    get_recovery_manager,
+)
 
-    def get_recovery_manager(*_args, **_kwargs):
-        return None
+BackupStrategy = BackupPlan
 
-from project_a.legacy.disaster_recovery import DisasterRecoveryExecutor
+try:  # pragma: no cover - optional legacy bridge
+    from project_a.legacy.disaster_recovery import DisasterRecoveryExecutor
+except Exception:  # pragma: no cover - package may not exist in lean installs
+    DisasterRecoveryExecutor = None
 
 __all__ = [
     "BackupManager",

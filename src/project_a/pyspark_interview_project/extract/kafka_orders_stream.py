@@ -9,7 +9,7 @@ import os
 from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, current_timestamp, from_json, lit, to_date, coalesce
+from pyspark.sql.functions import coalesce, col, current_timestamp, from_json, lit, to_date
 from pyspark.sql.types import (
     DoubleType,
     MapType,
@@ -20,6 +20,7 @@ from pyspark.sql.types import (
 )
 
 from project_a.streaming.schema_registry import load_schema, required_fields
+
 logger = logging.getLogger(__name__)
 
 

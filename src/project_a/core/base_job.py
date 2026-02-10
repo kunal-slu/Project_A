@@ -233,9 +233,7 @@ class BaseJob(ABC):
 
                 unique_keys = (contract.get("constraints") or {}).get("unique_keys") or []
                 for key in unique_keys:
-                    duplicate_count = (
-                        df.groupBy(key).count().filter("count > 1").count()
-                    )
+                    duplicate_count = df.groupBy(key).count().filter("count > 1").count()
                     if duplicate_count > 0:
                         raise ValueError(
                             f"{table_name}: Duplicate key violations for {key}: {duplicate_count}"
@@ -265,7 +263,9 @@ class BaseJob(ABC):
                 transformation=self.__class__.__name__,
                 job_id=getattr(self, "job_name", self.__class__.__name__.lower()),
                 records_processed=int(
-                    records_processed.get("row_count", 0) if isinstance(records_processed, dict) else 0
+                    records_processed.get("row_count", 0)
+                    if isinstance(records_processed, dict)
+                    else 0
                 ),
                 duration_ms=0,
                 success=True,

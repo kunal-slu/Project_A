@@ -34,7 +34,8 @@ class TestSCD2Standardized:
                 .master("local[2]")
                 .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
                 .config(
-                    "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+                    "spark.sql.catalog.spark_catalog",
+                    "org.apache.spark.sql.delta.catalog.DeltaCatalog",
                 )
                 .getOrCreate()
             )
@@ -52,25 +53,27 @@ class TestSCD2Standardized:
             is_current_column="is_current",
             surrogate_key_column="surrogate_key",
             hash_column="hash_diff",
-            updated_at_column="updated_at"
+            updated_at_column="updated_at",
         )
 
     @pytest.fixture
     def sample_customer_data(self, spark):
         """Create sample customer data for testing."""
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("address", StringType(), True),
-            StructField("created_at", TimestampType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("address", StringType(), True),
+                StructField("created_at", TimestampType(), True),
+            ]
+        )
 
         # Initial data
         data = [
             ("C001", "John Doe", "john@example.com", "123 Main St", datetime(2024, 1, 1, 10, 0)),
             ("C002", "Jane Smith", "jane@example.com", "456 Oak Ave", datetime(2024, 1, 1, 11, 0)),
-            ("C003", "Bob Johnson", "bob@example.com", "789 Pine St", datetime(2024, 1, 1, 12, 0))
+            ("C003", "Bob Johnson", "bob@example.com", "789 Pine St", datetime(2024, 1, 1, 12, 0)),
         ]
 
         return spark.createDataFrame(data, schema)
@@ -78,19 +81,39 @@ class TestSCD2Standardized:
     @pytest.fixture
     def updated_customer_data(self, spark):
         """Create updated customer data for testing changes."""
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("address", StringType(), True),
-            StructField("created_at", TimestampType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("address", StringType(), True),
+                StructField("created_at", TimestampType(), True),
+            ]
+        )
 
         # Updated data (changes to C001 and C002)
         data = [
-            ("C001", "John Doe", "john.doe@newemail.com", "123 Main St", datetime(2024, 1, 15, 10, 0)),  # Email changed
-            ("C002", "Jane Smith", "jane@example.com", "456 Oak Ave Apt 2B", datetime(2024, 1, 15, 11, 0)),  # Address changed
-            ("C004", "Alice Brown", "alice@example.com", "321 Elm St", datetime(2024, 1, 15, 13, 0))  # New customer
+            (
+                "C001",
+                "John Doe",
+                "john.doe@newemail.com",
+                "123 Main St",
+                datetime(2024, 1, 15, 10, 0),
+            ),  # Email changed
+            (
+                "C002",
+                "Jane Smith",
+                "jane@example.com",
+                "456 Oak Ave Apt 2B",
+                datetime(2024, 1, 15, 11, 0),
+            ),  # Address changed
+            (
+                "C004",
+                "Alice Brown",
+                "alice@example.com",
+                "321 Elm St",
+                datetime(2024, 1, 15, 13, 0),
+            ),  # New customer
         ]
 
         return spark.createDataFrame(data, schema)
@@ -98,18 +121,32 @@ class TestSCD2Standardized:
     @pytest.fixture
     def late_arriving_data(self, spark):
         """Create late-arriving data for testing."""
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("address", StringType(), True),
-            StructField("created_at", TimestampType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("address", StringType(), True),
+                StructField("created_at", TimestampType(), True),
+            ]
+        )
 
         # Late-arriving data (should be inserted with correct effective_from)
         data = [
-            ("C001", "John Doe", "john@example.com", "123 Main St", datetime(2024, 1, 5, 10, 0)),  # Late arrival
-            ("C005", "Charlie Davis", "charlie@example.com", "654 Maple Dr", datetime(2024, 1, 5, 14, 0))  # New late arrival
+            (
+                "C001",
+                "John Doe",
+                "john@example.com",
+                "123 Main St",
+                datetime(2024, 1, 5, 10, 0),
+            ),  # Late arrival
+            (
+                "C005",
+                "Charlie Davis",
+                "charlie@example.com",
+                "654 Maple Dr",
+                datetime(2024, 1, 5, 14, 0),
+            ),  # New late arrival
         ]
 
         return spark.createDataFrame(data, schema)
@@ -130,8 +167,16 @@ class TestSCD2Standardized:
 
         # Check required columns exist
         required_cols = [
-            "customer_id", "name", "email", "address", "effective_from",
-            "effective_to", "is_current", "surrogate_key", "hash_diff", "updated_at"
+            "customer_id",
+            "name",
+            "email",
+            "address",
+            "effective_from",
+            "effective_to",
+            "is_current",
+            "surrogate_key",
+            "hash_diff",
+            "updated_at",
         ]
         for col in required_cols:
             assert col in df.columns
@@ -144,7 +189,9 @@ class TestSCD2Standardized:
         null_effective_to = current_records.filter(F.col("effective_to").isNull())
         assert null_effective_to.count() == 3
 
-    def test_scd2_incremental_update(self, spark, scd2_config, sample_customer_data, updated_customer_data, tmp_path):
+    def test_scd2_incremental_update(
+        self, spark, scd2_config, sample_customer_data, updated_customer_data, tmp_path
+    ):
         """Test incremental SCD2 update with changes."""
         target_path = str(tmp_path / "customers_scd2")
 
@@ -184,7 +231,9 @@ class TestSCD2Standardized:
         assert new_c001["effective_to"] is None
         assert new_c001["email"] == "john.doe@newemail.com"
 
-    def test_scd2_late_arriving_data(self, spark, scd2_config, sample_customer_data, late_arriving_data, tmp_path):
+    def test_scd2_late_arriving_data(
+        self, spark, scd2_config, sample_customer_data, late_arriving_data, tmp_path
+    ):
         """Test SCD2 with late-arriving data."""
         target_path = str(tmp_path / "customers_scd2")
 
@@ -193,7 +242,9 @@ class TestSCD2Standardized:
 
         # Apply late-arriving data with explicit effective_from
         late_effective_from = datetime(2024, 1, 5, 10, 0)
-        result = apply_scd2(spark, late_arriving_data, target_path, scd2_config, effective_from=late_effective_from)
+        result = apply_scd2(
+            spark, late_arriving_data, target_path, scd2_config, effective_from=late_effective_from
+        )
 
         # Verify result
         assert result["success"] is True
@@ -207,8 +258,8 @@ class TestSCD2Standardized:
 
         # Check C001 has correct effective_from for late arrival
         c001_late = df.filter(
-            (F.col("customer_id") == "C001") &
-            (F.col("effective_from") == F.lit(late_effective_from))
+            (F.col("customer_id") == "C001")
+            & (F.col("effective_from") == F.lit(late_effective_from))
         )
         assert c001_late.count() == 1
 
@@ -254,11 +305,13 @@ class TestSCD2Standardized:
         target_path = str(tmp_path / "customers_scd2")
 
         # Create data with missing columns
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            # Missing email and address
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                # Missing email and address
+            ]
+        )
 
         data = [("C001", "John Doe")]
         df = spark.createDataFrame(data, schema)
@@ -274,12 +327,14 @@ class TestSCD2Standardized:
         target_path = str(tmp_path / "customers_scd2")
 
         # Create empty DataFrame
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("address", StringType(), True),
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("address", StringType(), True),
+            ]
+        )
 
         df = spark.createDataFrame([], schema)
 
@@ -296,22 +351,22 @@ class TestSCD2Standardized:
 
         # Config with ts_column
         config = SCD2Config(
-            business_key="customer_id",
-            change_columns=["name", "email"],
-            ts_column="created_at"
+            business_key="customer_id", change_columns=["name", "email"], ts_column="created_at"
         )
 
         # Create data with timestamp column
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("created_at", TimestampType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("created_at", TimestampType(), True),
+            ]
+        )
 
         data = [
             ("C001", "John Doe", "john@example.com", datetime(2024, 1, 1, 10, 0)),
-            ("C002", "Jane Smith", "jane@example.com", datetime(2024, 1, 1, 11, 0))
+            ("C002", "Jane Smith", "jane@example.com", datetime(2024, 1, 1, 11, 0)),
         ]
 
         df = spark.createDataFrame(data, schema)
@@ -333,18 +388,20 @@ class TestSCD2Standardized:
         target_path = str(tmp_path / "customers_scd2")
 
         # Golden dataset with multiple scenarios
-        schema = StructType([
-            StructField("customer_id", StringType(), False),
-            StructField("name", StringType(), True),
-            StructField("email", StringType(), True),
-            StructField("address", StringType(), True),
-            StructField("created_at", TimestampType(), True)
-        ])
+        schema = StructType(
+            [
+                StructField("customer_id", StringType(), False),
+                StructField("name", StringType(), True),
+                StructField("email", StringType(), True),
+                StructField("address", StringType(), True),
+                StructField("created_at", TimestampType(), True),
+            ]
+        )
 
         # Scenario 1: Initial load
         initial_data = [
             ("C001", "John Doe", "john@example.com", "123 Main St", datetime(2024, 1, 1, 10, 0)),
-            ("C002", "Jane Smith", "jane@example.com", "456 Oak Ave", datetime(2024, 1, 1, 11, 0))
+            ("C002", "Jane Smith", "jane@example.com", "456 Oak Ave", datetime(2024, 1, 1, 11, 0)),
         ]
 
         df1 = spark.createDataFrame(initial_data, schema)
@@ -354,8 +411,14 @@ class TestSCD2Standardized:
 
         # Scenario 2: Updates
         update_data = [
-            ("C001", "John Doe", "john.doe@newemail.com", "123 Main St", datetime(2024, 1, 15, 10, 0)),
-            ("C003", "Bob Johnson", "bob@example.com", "789 Pine St", datetime(2024, 1, 15, 12, 0))
+            (
+                "C001",
+                "John Doe",
+                "john.doe@newemail.com",
+                "123 Main St",
+                datetime(2024, 1, 15, 10, 0),
+            ),
+            ("C003", "Bob Johnson", "bob@example.com", "789 Pine St", datetime(2024, 1, 15, 12, 0)),
         ]
 
         df2 = spark.createDataFrame(update_data, schema)
@@ -366,12 +429,14 @@ class TestSCD2Standardized:
         # Scenario 3: Late-arriving data
         late_data = [
             ("C001", "John Doe", "john@example.com", "123 Main St", datetime(2024, 1, 5, 10, 0)),
-            ("C004", "Alice Brown", "alice@example.com", "321 Elm St", datetime(2024, 1, 5, 13, 0))
+            ("C004", "Alice Brown", "alice@example.com", "321 Elm St", datetime(2024, 1, 5, 13, 0)),
         ]
 
         df3 = spark.createDataFrame(late_data, schema)
         late_effective_from = datetime(2024, 1, 5, 10, 0)
-        result3 = apply_scd2(spark, df3, target_path, scd2_config, effective_from=late_effective_from)
+        result3 = apply_scd2(
+            spark, df3, target_path, scd2_config, effective_from=late_effective_from
+        )
         assert result3["success"] is True
         assert result3["records_processed"] == 2
 

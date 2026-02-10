@@ -34,9 +34,9 @@ from project_a.config_loader import load_config_resolved
 from project_a.extract.fx_json_reader import read_fx_json
 from project_a.monitoring.lineage_decorator import lineage_job
 from project_a.monitoring.metrics_collector import emit_duration, emit_rowcount
+from project_a.utils.dq_realism import check_date_realism
 from project_a.utils.error_lanes import ErrorLaneHandler
 from project_a.utils.logging import get_trace_id, setup_json_logging
-from project_a.utils.dq_realism import check_date_realism
 from project_a.utils.run_audit import write_run_audit
 from project_a.utils.spark_session import build_spark
 

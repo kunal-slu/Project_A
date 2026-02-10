@@ -7,8 +7,8 @@ import argparse
 import logging
 
 from project_a.config_loader import load_config_resolved
-from project_a.utils.spark_session import build_spark
 from project_a.pyspark_interview_project.extract.kafka_orders_stream import stream_orders_from_kafka
+from project_a.utils.spark_session import build_spark
 
 logger = logging.getLogger(__name__)
 

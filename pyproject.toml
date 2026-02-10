@@ -83,6 +83,7 @@ line-length = 100
 extend-exclude = [
     "archive",
     "src/dq",
+    "src/project_a/pyspark_interview_project",
     "aws/dags_legacy",
     "aws/jobs_legacy",
 ]

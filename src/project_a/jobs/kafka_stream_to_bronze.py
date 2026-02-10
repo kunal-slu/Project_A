@@ -14,4 +14,3 @@ def main(args):
         args,
         arg_keys=("env", "config"),
     )
-

@@ -164,10 +164,7 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
         config = bronze_root_or_config
         fx_cfg = (config.get("sources", {}) or {}).get("fx", {})
         bronze_root = (
-            fx_cfg.get("bronze_path")
-            or fx_cfg.get("raw_path")
-            or fx_cfg.get("base_path")
-            or ""
+            fx_cfg.get("bronze_path") or fx_cfg.get("raw_path") or fx_cfg.get("base_path") or ""
         )
         if not bronze_root:
             bronze_root = resolve_data_path(config, "bronze")
@@ -259,9 +256,7 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
 
     # Standardize date column (defensive against missing columns)
     date_col = F.col("date") if "date" in df.columns else F.lit(None).cast("string")
-    trade_col = (
-        F.col("trade_date") if "trade_date" in df.columns else F.lit(None).cast("string")
-    )
+    trade_col = F.col("trade_date") if "trade_date" in df.columns else F.lit(None).cast("string")
     df = df.withColumn(
         "date",
         F.to_date(
@@ -356,7 +351,15 @@ def read_fx_rates_from_bronze(spark: SparkSession, bronze_root_or_config) -> Dat
         .withColumn("ingest_timestamp", F.to_timestamp("ingest_timestamp"))
     )
 
-    for col_name in ["bid_rate", "ask_rate", "mid_rate", "fx_rate", "fx_mid_rate", "fx_bid_rate", "fx_ask_rate"]:
+    for col_name in [
+        "bid_rate",
+        "ask_rate",
+        "mid_rate",
+        "fx_rate",
+        "fx_mid_rate",
+        "fx_bid_rate",
+        "fx_ask_rate",
+    ]:
         if col_name not in df.columns:
             df = df.withColumn(col_name, F.lit(None).cast("double"))
 

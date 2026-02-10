@@ -279,9 +279,7 @@ def emit_pipeline_lineage(
         )
 
         # Emit lineage event
-        emitter.emit_lineage_event(
-            run_metadata, transformations, data_quality_score
-        )
+        emitter.emit_lineage_event(run_metadata, transformations, data_quality_score)
 
         logger.info(f"Lineage emission completed for run: {run_metadata.run_id}")
         return run_metadata.run_id

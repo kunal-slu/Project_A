@@ -145,9 +145,7 @@ def _resolve_secrets(obj: Any, dbutils, config: dict[str, Any] | None = None) ->
     return _resolve_value(obj, dbutils, config)
 
 
-def load_config_resolved(
-    config_path: str | None = None, env: str | None = None
-) -> dict[str, Any]:
+def load_config_resolved(config_path: str | None = None, env: str | None = None) -> dict[str, Any]:
     """
     Load config from a path, or pick by environment if path not provided.
     Environment resolution order:

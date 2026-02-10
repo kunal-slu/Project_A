@@ -90,7 +90,8 @@ class BronzeToSilverJob(BaseJob):
             df_cdc = df_cdc.withColumn("_cdc_op", F.upper(F.col(op_col)))
         elif delete_col:
             df_cdc = df_cdc.withColumn(
-                "_cdc_op", F.when(F.col(delete_col).cast("boolean"), F.lit("DELETE")).otherwise("UPSERT")
+                "_cdc_op",
+                F.when(F.col(delete_col).cast("boolean"), F.lit("DELETE")).otherwise("UPSERT"),
             )
         else:
             df_cdc = df_cdc.withColumn("_cdc_op", F.lit("UPSERT"))
@@ -293,14 +294,14 @@ class BronzeToSilverJob(BaseJob):
                 "status": "success",
                 "output_path": silver_path,
                 "layers_processed": ["crm", "snowflake", "redshift", "fx", "kafka"],
-                    "metrics": {
-                        **crm_metrics,
-                        **snowflake_metrics,
-                        **redshift_metrics,
-                        **fx_metrics,
-                        **kafka_metrics,
-                    },
-                }
+                "metrics": {
+                    **crm_metrics,
+                    **snowflake_metrics,
+                    **redshift_metrics,
+                    **fx_metrics,
+                    **kafka_metrics,
+                },
+            }
 
             logger.info(f"Bronze to Silver transformation completed: {result}")
             return result
@@ -357,7 +358,10 @@ class BronzeToSilverJob(BaseJob):
             .cast("double")
             .alias("annual_revenue"),
             self._resolve_col(
-                accounts_df, ["number_of_employees", "NumberOfEmployees"], "number_of_employees", required=False
+                accounts_df,
+                ["number_of_employees", "NumberOfEmployees"],
+                "number_of_employees",
+                required=False,
             )
             .cast("int")
             .alias("number_of_employees"),
@@ -368,7 +372,10 @@ class BronzeToSilverJob(BaseJob):
                 accounts_df, ["billing_state", "BillingState"], "billing_state", required=False
             ).alias("billing_state"),
             self._resolve_col(
-                accounts_df, ["billing_country", "BillingCountry"], "billing_country", required=False
+                accounts_df,
+                ["billing_country", "BillingCountry"],
+                "billing_country",
+                required=False,
             ).alias("billing_country"),
             self._resolve_col(accounts_df, ["phone", "Phone"], "phone", required=False).alias(
                 "phone"
@@ -377,7 +384,10 @@ class BronzeToSilverJob(BaseJob):
                 "website"
             ),
             self._resolve_col(
-                accounts_df, ["customer_segment", "CustomerSegment"], "customer_segment", required=False
+                accounts_df,
+                ["customer_segment", "CustomerSegment"],
+                "customer_segment",
+                required=False,
             ).alias("customer_segment"),
             self._resolve_col(
                 accounts_df,
@@ -392,7 +402,10 @@ class BronzeToSilverJob(BaseJob):
                 accounts_df, ["created_date", "CreatedDate"], "created_date", required=False
             ).alias("created_date"),
             self._resolve_col(
-                accounts_df, ["last_modified_date", "LastModifiedDate"], "last_modified_date", required=False
+                accounts_df,
+                ["last_modified_date", "LastModifiedDate"],
+                "last_modified_date",
+                required=False,
             ).alias("last_modified_date"),
         )
 
@@ -409,10 +422,12 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(contacts_df, ["account_id", "AccountId"], "account_id").alias(
                 "account_id"
             ),
-            trim(lower(self._resolve_col(contacts_df, ["first_name", "FirstName"], "first_name")))
-            .alias("first_name"),
-            trim(lower(self._resolve_col(contacts_df, ["last_name", "LastName"], "last_name")))
-            .alias("last_name"),
+            trim(
+                lower(self._resolve_col(contacts_df, ["first_name", "FirstName"], "first_name"))
+            ).alias("first_name"),
+            trim(
+                lower(self._resolve_col(contacts_df, ["last_name", "LastName"], "last_name"))
+            ).alias("last_name"),
             lower(self._resolve_col(contacts_df, ["email", "Email"], "email")).alias("email"),
             self._resolve_col(contacts_df, ["phone", "Phone", "MobilePhone"], "phone").alias(
                 "phone"
@@ -427,7 +442,10 @@ class BronzeToSilverJob(BaseJob):
                 contacts_df, ["lead_source", "LeadSource"], "lead_source", required=False
             ).alias("lead_source"),
             self._resolve_col(
-                contacts_df, ["engagement_score", "EngagementScore"], "engagement_score", required=False
+                contacts_df,
+                ["engagement_score", "EngagementScore"],
+                "engagement_score",
+                required=False,
             )
             .cast("double")
             .alias("engagement_score"),
@@ -438,13 +456,19 @@ class BronzeToSilverJob(BaseJob):
                 contacts_df, ["mailing_state", "MailingState"], "mailing_state", required=False
             ).alias("mailing_state"),
             self._resolve_col(
-                contacts_df, ["mailing_country", "MailingCountry"], "mailing_country", required=False
+                contacts_df,
+                ["mailing_country", "MailingCountry"],
+                "mailing_country",
+                required=False,
             ).alias("mailing_country"),
             self._resolve_col(
                 contacts_df, ["created_date", "CreatedDate"], "created_date", required=False
             ).alias("created_date"),
             self._resolve_col(
-                contacts_df, ["last_modified_date", "LastModifiedDate"], "last_modified_date", required=False
+                contacts_df,
+                ["last_modified_date", "LastModifiedDate"],
+                "last_modified_date",
+                required=False,
             ).alias("last_modified_date"),
         )
 
@@ -467,9 +491,9 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(
                 opportunities_df, ["opportunity_name", "Name"], "opportunity_name"
             ).alias("opportunity_name"),
-            self._resolve_col(opportunities_df, ["amount", "Amount"], "amount").cast("double").alias(
-                "amount"
-            ),
+            self._resolve_col(opportunities_df, ["amount", "Amount"], "amount")
+            .cast("double")
+            .alias("amount"),
             self._resolve_col(opportunities_df, ["stage", "StageName"], "stage").alias("stage"),
             self._resolve_col(opportunities_df, ["close_date", "CloseDate"], "close_date").alias(
                 "close_date"
@@ -486,7 +510,10 @@ class BronzeToSilverJob(BaseJob):
                 "type"
             ),
             self._resolve_col(
-                opportunities_df, ["forecast_category", "ForecastCategory"], "forecast_category", required=False
+                opportunities_df,
+                ["forecast_category", "ForecastCategory"],
+                "forecast_category",
+                required=False,
             ).alias("forecast_category"),
             self._resolve_col(
                 opportunities_df, ["is_closed", "IsClosed"], "is_closed", required=False
@@ -500,7 +527,10 @@ class BronzeToSilverJob(BaseJob):
                 opportunities_df, ["created_date", "CreatedDate"], "created_date", required=False
             ).alias("created_date"),
             self._resolve_col(
-                opportunities_df, ["last_modified_date", "LastModifiedDate"], "last_modified_date", required=False
+                opportunities_df,
+                ["last_modified_date", "LastModifiedDate"],
+                "last_modified_date",
+                required=False,
             ).alias("last_modified_date"),
             self._resolve_col(
                 opportunities_df, ["sales_cycle", "SalesCycle"], "sales_cycle", required=False
@@ -508,11 +538,14 @@ class BronzeToSilverJob(BaseJob):
             .cast("int")
             .alias("sales_cycle"),
             self._resolve_col(
-                opportunities_df, ["product_interest", "ProductInterest"], "product_interest", required=False
+                opportunities_df,
+                ["product_interest", "ProductInterest"],
+                "product_interest",
+                required=False,
             ).alias("product_interest"),
-            self._resolve_col(opportunities_df, ["budget", "Budget"], "budget", required=False).alias(
-                "budget"
-            ),
+            self._resolve_col(
+                opportunities_df, ["budget", "Budget"], "budget", required=False
+            ).alias("budget"),
             self._resolve_col(
                 opportunities_df, ["timeline", "Timeline"], "timeline", required=False
             ).alias("timeline"),
@@ -578,7 +611,9 @@ class BronzeToSilverJob(BaseJob):
             "_order_date"
         )
 
-        merge_candidates = reprocess_existing.unionByName(reprocess_incoming, allowMissingColumns=True)
+        merge_candidates = reprocess_existing.unionByName(
+            reprocess_incoming, allowMissingColumns=True
+        )
         latest_ts = (
             F.coalesce(F.col("updated_at").cast("timestamp"), F.current_timestamp())
             if "updated_at" in merge_candidates.columns
@@ -615,7 +650,9 @@ class BronzeToSilverJob(BaseJob):
             spark, paths["customers"], "bronze.snowflake.customers"
         )
         orders_df = self._read_bronze_parquet(spark, paths["orders"], "bronze.snowflake.orders")
-        products_df = self._read_bronze_parquet(spark, paths["products"], "bronze.snowflake.products")
+        products_df = self._read_bronze_parquet(
+            spark, paths["products"], "bronze.snowflake.products"
+        )
 
         for name, df in {
             "customers": customers_df,
@@ -642,7 +679,10 @@ class BronzeToSilverJob(BaseJob):
             ).alias("country"),
             F.coalesce(
                 self._resolve_col(
-                    customers_df, ["registration_date", "created_at"], "registration_date", required=False
+                    customers_df,
+                    ["registration_date", "created_at"],
+                    "registration_date",
+                    required=False,
                 ),
                 F.current_date().cast("string"),
             ).alias("registration_date"),
@@ -672,7 +712,9 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(orders_df, ["product_id"], "product_id").alias("product_id"),
             to_date(self._resolve_col(orders_df, ["order_date"], "order_date")).alias("order_date"),
             F.upper(
-                self._resolve_col(orders_df, ["currency", "order_currency"], "currency", required=False)
+                self._resolve_col(
+                    orders_df, ["currency", "order_currency"], "currency", required=False
+                )
             ).alias("currency"),
             self._resolve_col(orders_df, ["unit_price", "price"], "unit_price", required=False)
             .cast("double")
@@ -717,10 +759,12 @@ class BronzeToSilverJob(BaseJob):
             self._resolve_col(products_df, ["product_id"], "product_id").alias("product_id"),
             self._resolve_col(products_df, ["product_name"], "product_name").alias("product_name"),
             self._resolve_col(products_df, ["category"], "category").alias("category"),
-            self._resolve_col(products_df, ["price_usd", "price"], "price_usd").cast("double").alias(
-                "price_usd"
-            ),
-            self._resolve_col(products_df, ["cost_usd"], "cost_usd").cast("double").alias("cost_usd"),
+            self._resolve_col(products_df, ["price_usd", "price"], "price_usd")
+            .cast("double")
+            .alias("price_usd"),
+            self._resolve_col(products_df, ["cost_usd"], "cost_usd")
+            .cast("double")
+            .alias("cost_usd"),
             self._resolve_col(products_df, ["supplier_id"], "supplier_id").alias("supplier_id"),
             to_timestamp(
                 self._resolve_col(
@@ -751,9 +795,7 @@ class BronzeToSilverJob(BaseJob):
         )
 
         lookback_days = int(
-            table_contracts.get("orders_silver", {})
-            .get("late_data", {})
-            .get("lookback_days", 3)
+            table_contracts.get("orders_silver", {}).get("late_data", {}).get("lookback_days", 3)
         )
         orders_input = orders_clean
         if self.config.is_local():
@@ -825,7 +867,9 @@ class BronzeToSilverJob(BaseJob):
             "bronze.redshift.customer_behavior",
         )
         if behavior_df.rdd.isEmpty():
-            raise ValueError("Redshift behavior input is empty - cannot build customer_behavior_silver")
+            raise ValueError(
+                "Redshift behavior input is empty - cannot build customer_behavior_silver"
+            )
 
         # Clean and standardize
         behavior_clean = behavior_df.select(
@@ -852,13 +896,15 @@ class BronzeToSilverJob(BaseJob):
             F.to_date(
                 self._resolve_col(behavior_df, ["event_date", "event_timestamp"], "event_date")
             ).alias("event_date"),
-            self._resolve_col(behavior_df, ["page_viewed", "page_url"], "page_viewed", required=False).alias(
-                "page_viewed"
-            ),
+            self._resolve_col(
+                behavior_df, ["page_viewed", "page_url"], "page_viewed", required=False
+            ).alias("page_viewed"),
             F.greatest(
                 F.coalesce(
                     self._resolve_col(
-                        behavior_df, ["time_spent_seconds", "duration_seconds"], "time_spent_seconds"
+                        behavior_df,
+                        ["time_spent_seconds", "duration_seconds"],
+                        "time_spent_seconds",
                     ).cast("int"),
                     F.lit(0),
                 ),
@@ -940,7 +986,9 @@ class BronzeToSilverJob(BaseJob):
             "customer_behavior_silver",
             table_contracts.get("customer_behavior_silver", {}),
             parent_frames={
-                "customers_silver": customers_df.select("customer_id").dropDuplicates(["customer_id"])
+                "customers_silver": customers_df.select("customer_id").dropDuplicates(
+                    ["customer_id"]
+                )
             },
         )
 
@@ -965,7 +1013,9 @@ class BronzeToSilverJob(BaseJob):
         # - tests/explicit path overrides -> prefer provided bronze_path input
         # - normal local pipeline -> prefer fx_json_to_bronze normalized delta reader
         cfg_paths = self.config.get("paths", {})
-        configured_bronze_path = cfg_paths.get("bronze_root") or cfg_paths.get("bronze") or "data/bronze"
+        configured_bronze_path = (
+            cfg_paths.get("bronze_root") or cfg_paths.get("bronze") or "data/bronze"
+        )
         prefer_explicit_input = str(bronze_path) != str(configured_bronze_path)
 
         def _read_from_explicit_path():
@@ -1004,9 +1054,9 @@ class BronzeToSilverJob(BaseJob):
 
         # Clean and standardize
         fx_clean = fx_df.select(
-            F.to_date(
-                self._coalesce_columns(fx_df, ["trade_date", "date"], "trade_date")
-            ).alias("trade_date"),
+            F.to_date(self._coalesce_columns(fx_df, ["trade_date", "date"], "trade_date")).alias(
+                "trade_date"
+            ),
             F.upper(
                 F.trim(self._coalesce_columns(fx_df, ["base_ccy", "base_currency"], "base_ccy"))
             ).alias("base_ccy"),
@@ -1033,25 +1083,30 @@ class BronzeToSilverJob(BaseJob):
             .alias("ask_rate"),
             self._coalesce_columns(
                 fx_df, ["source", "record_source"], "source", required=False
-            ).alias(
-                "source"
-            ),
+            ).alias("source"),
             F.to_timestamp(
                 self._coalesce_columns(
-                    fx_df, ["ingest_timestamp", "ingestion_timestamp"], "ingest_timestamp", required=False
+                    fx_df,
+                    ["ingest_timestamp", "ingestion_timestamp"],
+                    "ingest_timestamp",
+                    required=False,
                 )
             ).alias("ingest_timestamp"),
         )
 
         null_key_count = fx_clean.filter(
-            F.col("trade_date").isNull() | F.col("base_ccy").isNull() | F.col("counter_ccy").isNull()
+            F.col("trade_date").isNull()
+            | F.col("base_ccy").isNull()
+            | F.col("counter_ccy").isNull()
         ).count()
         if null_key_count > 0:
             raise ValueError(
                 f"fx_rates_silver: found {null_key_count} rows with null primary key columns"
             )
 
-        invalid_rate_count = fx_clean.filter((F.col("rate").isNull()) | (F.col("rate") <= 0)).count()
+        invalid_rate_count = fx_clean.filter(
+            (F.col("rate").isNull()) | (F.col("rate") <= 0)
+        ).count()
         if invalid_rate_count > 0:
             raise ValueError(
                 f"fx_rates_silver: found {invalid_rate_count} rows with invalid non-positive rates"
@@ -1178,10 +1233,20 @@ class BronzeToSilverJob(BaseJob):
                 customer_id_value_regex,
                 customer_id_headers_regex,
             ).alias("customer_id"),
-            F.coalesce(F.trim(F.lower(F.col("_payload.event_type"))), F.lower(event_type_regex), F.lit("unknown")).alias("event_type"),
-            F.to_timestamp(self._resolve_col(parsed_events, ["timestamp"], "timestamp")).alias("event_ts"),
-            F.coalesce(F.col("_payload.amount").cast("double"), amount_regex.cast("double"), F.lit(0.0)).alias("amount"),
-            F.coalesce(F.upper(F.trim(F.col("_payload.currency"))), F.upper(currency_regex), F.lit("USD")).alias("currency"),
+            F.coalesce(
+                F.trim(F.lower(F.col("_payload.event_type"))),
+                F.lower(event_type_regex),
+                F.lit("unknown"),
+            ).alias("event_type"),
+            F.to_timestamp(self._resolve_col(parsed_events, ["timestamp"], "timestamp")).alias(
+                "event_ts"
+            ),
+            F.coalesce(
+                F.col("_payload.amount").cast("double"), amount_regex.cast("double"), F.lit(0.0)
+            ).alias("amount"),
+            F.coalesce(
+                F.upper(F.trim(F.col("_payload.currency"))), F.upper(currency_regex), F.lit("USD")
+            ).alias("currency"),
             F.coalesce(F.col("_payload.metadata.source"), F.col("topic"), F.lit("kafka")).alias(
                 "channel"
             ),
@@ -1249,7 +1314,9 @@ class BronzeToSilverJob(BaseJob):
             "order_events_silver",
             table_contracts.get("order_events_silver", {}),
             parent_frames={
-                "customers_silver": customers_df.select("customer_id").dropDuplicates(["customer_id"])
+                "customers_silver": customers_df.select("customer_id").dropDuplicates(
+                    ["customer_id"]
+                )
             },
         )
 

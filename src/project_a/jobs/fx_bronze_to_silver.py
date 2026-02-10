@@ -38,13 +38,17 @@ def validate_fx_rates(df: DataFrame) -> bool:
     if missing:
         return False
 
-    nulls = df.filter(
-        F.col("ccy").isNull()
-        | F.col("rate_to_base").isNull()
-        | F.col("as_of_date").isNull()
-        | F.col("base_currency").isNull()
-        | F.col("ingestion_timestamp").isNull()
-    ).limit(1).count()
+    nulls = (
+        df.filter(
+            F.col("ccy").isNull()
+            | F.col("rate_to_base").isNull()
+            | F.col("as_of_date").isNull()
+            | F.col("base_currency").isNull()
+            | F.col("ingestion_timestamp").isNull()
+        )
+        .limit(1)
+        .count()
+    )
     if nulls > 0:
         return False
 
@@ -53,10 +57,6 @@ def validate_fx_rates(df: DataFrame) -> bool:
         return False
 
     dupes = (
-        df.groupBy("ccy", "as_of_date")
-        .count()
-        .filter(F.col("count") > F.lit(1))
-        .limit(1)
-        .count()
+        df.groupBy("ccy", "as_of_date").count().filter(F.col("count") > F.lit(1)).limit(1).count()
     )
     return dupes == 0

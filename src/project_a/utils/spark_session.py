@@ -222,7 +222,9 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
 
     # Set default Spark optimizations
     builder = (
-        builder.config("spark.sql.shuffle.partitions", str(_tuning_value("shuffle_partitions", 400)))
+        builder.config(
+            "spark.sql.shuffle.partitions", str(_tuning_value("shuffle_partitions", 400))
+        )
         .config(
             "spark.sql.adaptive.enabled",
             str(_tuning_value("enable_aqe", True)).lower(),
@@ -302,8 +304,7 @@ def build_spark(app_name: str = "project_a", config: dict | None = None) -> Spar
 
             # Apply local-specific defaults without discarding existing configs
             builder = (
-                builder
-                .config("spark.eventLog.enabled", "false")
+                builder.config("spark.eventLog.enabled", "false")
                 .config("spark.driver.memory", str(_tuning_value("driver_memory", "2g")))
                 .config("spark.executor.memory", str(_tuning_value("executor_memory", "2g")))
                 .config("spark.sql.execution.arrow.pyspark.enabled", "false")

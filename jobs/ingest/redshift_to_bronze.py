@@ -16,6 +16,7 @@ from project_a.utils.path_resolver import resolve_source_file_path
 
 logger = logging.getLogger(__name__)
 
+
 def _local_path_missing(path: str) -> bool:
     if not path:
         return True
@@ -26,11 +27,7 @@ def _local_path_missing(path: str) -> bool:
 
 
 def _read_csv_with_incremental(spark, schema, snapshot_path: str, incremental_dir: str | None):
-    reader = (
-        spark.read.schema(schema)
-        .option("header", "true")
-        .option("ignoreMissingFiles", "true")
-    )
+    reader = spark.read.schema(schema).option("header", "true").option("ignoreMissingFiles", "true")
     paths = [snapshot_path]
     if incremental_dir and not _local_path_missing(incremental_dir):
         reader = reader.option("recursiveFileLookup", "true")

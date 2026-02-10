@@ -3,6 +3,7 @@ Performance Optimization System for Project_A
 
 Manages performance benchmarking, optimization, and monitoring.
 """
+
 import json
 import logging
 import threading
@@ -30,6 +31,7 @@ class PerformanceMetric(Enum):
 @dataclass
 class PerformanceResult:
     """Result of a performance measurement"""
+
     metric: PerformanceMetric
     value: float
     unit: str
@@ -40,6 +42,7 @@ class PerformanceResult:
 @dataclass
 class OptimizationRecommendation:
     """A performance optimization recommendation"""
+
     recommendation_id: str
     title: str
     description: str
@@ -86,7 +89,7 @@ class PerformanceMonitor:
                     value=psutil.cpu_percent(),
                     unit="%",
                     timestamp=datetime.utcnow(),
-                    context={"measurement_type": "system_cpu"}
+                    context={"measurement_type": "system_cpu"},
                 )
                 self.system_metrics.append(metric)
 
@@ -95,7 +98,7 @@ class PerformanceMonitor:
                     value=psutil.virtual_memory().percent,
                     unit="%",
                     timestamp=datetime.utcnow(),
-                    context={"measurement_type": "system_memory"}
+                    context={"measurement_type": "system_memory"},
                 )
                 self.system_metrics.append(metric)
 
@@ -118,20 +121,30 @@ class PerformanceMonitor:
         memory_delta = end_memory - start_memory
 
         # Log metrics
-        self._log_metric(PerformanceMetric.EXECUTION_TIME, execution_time, "seconds",
-                        {"function_name": func.__name__, "args_count": len(args)})
-        self._log_metric(PerformanceMetric.MEMORY_USAGE, memory_delta, "MB",
-                        {"function_name": func.__name__, "type": "delta"})
+        self._log_metric(
+            PerformanceMetric.EXECUTION_TIME,
+            execution_time,
+            "seconds",
+            {"function_name": func.__name__, "args_count": len(args)},
+        )
+        self._log_metric(
+            PerformanceMetric.MEMORY_USAGE,
+            memory_delta,
+            "MB",
+            {"function_name": func.__name__, "type": "delta"},
+        )
 
         return {
-            'result': result,
-            'execution_time': execution_time,
-            'memory_used_mb': memory_delta,
-            'start_memory_mb': start_memory,
-            'end_memory_mb': end_memory
+            "result": result,
+            "execution_time": execution_time,
+            "memory_used_mb": memory_delta,
+            "start_memory_mb": start_memory,
+            "end_memory_mb": end_memory,
         }
 
-    def benchmark_data_processing(self, df: pd.DataFrame, operation: str = "transform") -> dict[str, Any]:
+    def benchmark_data_processing(
+        self, df: pd.DataFrame, operation: str = "transform"
+    ) -> dict[str, Any]:
         """Benchmark data processing operations"""
         start_time = time.time()
         start_memory = psutil.Process().memory_info().rss / 1024 / 1024
@@ -141,10 +154,10 @@ class PerformanceMonitor:
             # Example transformation
             result_df = df.copy()
         elif operation == "aggregate":
-            result_df = df.groupby(df.columns[0]).size().reset_index(name='count')
+            result_df = df.groupby(df.columns[0]).size().reset_index(name="count")
         elif operation == "join":
             # Self-join for demonstration
-            result_df = df.merge(df.head(100), on=df.columns[0], suffixes=('', '_right'))
+            result_df = df.merge(df.head(100), on=df.columns[0], suffixes=("", "_right"))
         else:
             result_df = df  # default
 
@@ -159,38 +172,49 @@ class PerformanceMonitor:
         throughput = record_count / execution_time if execution_time > 0 else 0
 
         # Log metrics
-        self._log_metric(PerformanceMetric.EXECUTION_TIME, execution_time, "seconds",
-                        {"operation": operation, "record_count": record_count})
-        self._log_metric(PerformanceMetric.RECORD_PROCESSING_RATE, throughput, "records/second",
-                        {"operation": operation, "record_count": record_count})
-
-        return {
-            'execution_time': execution_time,
-            'throughput_records_per_second': throughput,
-            'memory_delta_mb': memory_delta,
-            'input_record_count': record_count,
-            'output_record_count': len(result_df),
-            'operation': operation
-        }
-
-    def _log_metric(self, metric: PerformanceMetric, value: float, unit: str, context: dict[str, Any]):
-        """Log a performance metric"""
-        perf_result = PerformanceResult(
-            metric=metric,
-            value=value,
-            unit=unit,
-            timestamp=datetime.utcnow(),
-            context=context
+        self._log_metric(
+            PerformanceMetric.EXECUTION_TIME,
+            execution_time,
+            "seconds",
+            {"operation": operation, "record_count": record_count},
+        )
+        self._log_metric(
+            PerformanceMetric.RECORD_PROCESSING_RATE,
+            throughput,
+            "records/second",
+            {"operation": operation, "record_count": record_count},
         )
 
-        with open(self.metrics_file, 'a') as f:
-            f.write(json.dumps({
-                'metric': perf_result.metric.value,
-                'value': perf_result.value,
-                'unit': perf_result.unit,
-                'timestamp': perf_result.timestamp.isoformat(),
-                'context': perf_result.context
-            }) + '\n')
+        return {
+            "execution_time": execution_time,
+            "throughput_records_per_second": throughput,
+            "memory_delta_mb": memory_delta,
+            "input_record_count": record_count,
+            "output_record_count": len(result_df),
+            "operation": operation,
+        }
+
+    def _log_metric(
+        self, metric: PerformanceMetric, value: float, unit: str, context: dict[str, Any]
+    ):
+        """Log a performance metric"""
+        perf_result = PerformanceResult(
+            metric=metric, value=value, unit=unit, timestamp=datetime.utcnow(), context=context
+        )
+
+        with open(self.metrics_file, "a") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "metric": perf_result.metric.value,
+                        "value": perf_result.value,
+                        "unit": perf_result.unit,
+                        "timestamp": perf_result.timestamp.isoformat(),
+                        "context": perf_result.context,
+                    }
+                )
+                + "\n"
+            )
 
     def get_performance_summary(self, hours_back: int = 24) -> dict[str, Any]:
         """Get performance summary for recent period"""
@@ -202,54 +226,58 @@ class PerformanceMonitor:
             for line in f:
                 try:
                     metric = json.loads(line.strip())
-                    metric_time = datetime.fromisoformat(metric['timestamp'])
+                    metric_time = datetime.fromisoformat(metric["timestamp"])
                     if metric_time >= cutoff_time:
                         metrics.append(metric)
                 except (json.JSONDecodeError, KeyError, ValueError, TypeError):
                     continue  # Skip malformed lines
 
         if not metrics:
-            return {'error': 'No metrics available for analysis'}
+            return {"error": "No metrics available for analysis"}
 
         # Group metrics by type
         metric_groups = {}
         for metric in metrics:
-            metric_type = metric['metric']
+            metric_type = metric["metric"]
             if metric_type not in metric_groups:
                 metric_groups[metric_type] = []
             metric_groups[metric_type].append(metric)
 
         summary = {
-            'period_hours': hours_back,
-            'total_metrics': len(metrics),
-            'metric_types': list(metric_groups.keys()),
-            'averages': {},
-            'peaks': {},
-            'recommendations': []
+            "period_hours": hours_back,
+            "total_metrics": len(metrics),
+            "metric_types": list(metric_groups.keys()),
+            "averages": {},
+            "peaks": {},
+            "recommendations": [],
         }
 
         # Calculate averages and peaks
         for metric_type, metric_list in metric_groups.items():
-            values = [m['value'] for m in metric_list]
-            summary['averages'][metric_type] = sum(values) / len(values)
-            summary['peaks'][metric_type] = max(values)
+            values = [m["value"] for m in metric_list]
+            summary["averages"][metric_type] = sum(values) / len(values)
+            summary["peaks"][metric_type] = max(values)
 
         # Generate recommendations based on performance
-        if summary['averages'].get('execution_time', 0) > 10:  # More than 10 seconds average
-            summary['recommendations'].append({
-                'category': 'execution_time',
-                'issue': 'Slow execution times',
-                'suggestion': 'Consider optimizing algorithms or increasing resources',
-                'severity': 'high'
-            })
+        if summary["averages"].get("execution_time", 0) > 10:  # More than 10 seconds average
+            summary["recommendations"].append(
+                {
+                    "category": "execution_time",
+                    "issue": "Slow execution times",
+                    "suggestion": "Consider optimizing algorithms or increasing resources",
+                    "severity": "high",
+                }
+            )
 
-        if summary['averages'].get('memory_usage', 0) > 80:  # More than 80% memory usage
-            summary['recommendations'].append({
-                'category': 'memory',
-                'issue': 'High memory usage',
-                'suggestion': 'Optimize memory usage or increase available memory',
-                'severity': 'high'
-            })
+        if summary["averages"].get("memory_usage", 0) > 80:  # More than 80% memory usage
+            summary["recommendations"].append(
+                {
+                    "category": "memory",
+                    "issue": "High memory usage",
+                    "suggestion": "Optimize memory usage or increase available memory",
+                    "severity": "high",
+                }
+            )
 
         return summary
 
@@ -260,11 +288,11 @@ class SparkOptimizer:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.optimization_settings = {
-            'auto_broadcast_join_threshold': '100MB',
-            'adaptive_query_execution': True,
-            'coalesce_partitions_factor': 0.8,
-            'shuffle_partitions': 200,
-            'compression_codec': 'snappy'
+            "auto_broadcast_join_threshold": "100MB",
+            "adaptive_query_execution": True,
+            "coalesce_partitions_factor": 0.8,
+            "shuffle_partitions": 200,
+            "compression_codec": "snappy",
         }
 
     def optimize_dataframe_operations(self, df, target_partitions: int = None):
@@ -279,13 +307,17 @@ class SparkOptimizer:
 
         return df
 
-    def suggest_partitioning_strategy(self, df, operation_type: str = "transform") -> dict[str, Any]:
+    def suggest_partitioning_strategy(
+        self, df, operation_type: str = "transform"
+    ) -> dict[str, Any]:
         """Suggest optimal partitioning strategy"""
-        record_count = df.count() if hasattr(df, 'count') else len(df)  # Handle both Spark and Pandas
+        record_count = (
+            df.count() if hasattr(df, "count") else len(df)
+        )  # Handle both Spark and Pandas
         avg_partition_size = 128 * 1024 * 1024  # 128MB per partition (typical recommendation)
 
         # Estimate optimal number of partitions
-        if hasattr(df, 'rdd'):  # Spark DataFrame
+        if hasattr(df, "rdd"):  # Spark DataFrame
             # Estimate size per record
             sample_size = min(1000, record_count)
             if sample_size > 0:
@@ -298,26 +330,28 @@ class SparkOptimizer:
         else:  # Pandas DataFrame
             # Estimate based on memory usage
             import sys
+
             estimated_size = sys.getsizeof(df)
             optimal_partitions = max(1, int(estimated_size / avg_partition_size))
 
-        current_partitions = df.rdd.getNumPartitions() if hasattr(df, 'rdd') else 1
+        current_partitions = df.rdd.getNumPartitions() if hasattr(df, "rdd") else 1
 
         suggestion = {
-            'current_partitions': current_partitions,
-            'recommended_partitions': optimal_partitions,
-            'record_count': record_count,
-            'operation_type': operation_type,
-            'should_repartition': abs(current_partitions - optimal_partitions) > optimal_partitions * 0.3,
-            'reasoning': f"Optimal partition size is ~{avg_partition_size/(1024*1024):.0f}MB per partition"
+            "current_partitions": current_partitions,
+            "recommended_partitions": optimal_partitions,
+            "record_count": record_count,
+            "operation_type": operation_type,
+            "should_repartition": abs(current_partitions - optimal_partitions)
+            > optimal_partitions * 0.3,
+            "reasoning": f"Optimal partition size is ~{avg_partition_size / (1024 * 1024):.0f}MB per partition",
         }
 
         return suggestion
 
     def optimize_join_operations(self, left_df, right_df, join_type: str = "inner"):
         """Optimize join operations"""
-        left_count = left_df.count() if hasattr(left_df, 'count') else len(left_df)
-        right_count = right_df.count() if hasattr(right_df, 'count') else len(right_df)
+        left_count = left_df.count() if hasattr(left_df, "count") else len(left_df)
+        right_count = right_df.count() if hasattr(right_df, "count") else len(right_df)
 
         # Determine which side should be broadcast
         broadcast_threshold = 100000  # 100k records
@@ -337,11 +371,11 @@ class SparkOptimizer:
             optimization_type = "regular_join"
 
         return {
-            'optimization_type': optimization_type,
-            'left_count': left_count,
-            'right_count': right_count,
-            'broadcast_threshold': broadcast_threshold,
-            'recommendation': f"Use {optimization_type} for optimal performance"
+            "optimization_type": optimization_type,
+            "left_count": left_count,
+            "right_count": right_count,
+            "broadcast_threshold": broadcast_threshold,
+            "recommendation": f"Use {optimization_type} for optimal performance",
         }
 
 
@@ -353,23 +387,27 @@ class PerformanceAnalyzer:
         self.optimizer = optimizer
         self.logger = logging.getLogger(__name__)
 
-    def analyze_dataframe_performance(self, df, operation_type: str = "transform") -> list[OptimizationRecommendation]:
+    def analyze_dataframe_performance(
+        self, df, operation_type: str = "transform"
+    ) -> list[OptimizationRecommendation]:
         """Analyze DataFrame performance and suggest optimizations"""
         recommendations = []
 
         # Analyze partitioning
         partition_analysis = self.optimizer.suggest_partitioning_strategy(df, operation_type)
 
-        if partition_analysis['should_repartition']:
-            recommendations.append(OptimizationRecommendation(
-                recommendation_id=f"partition_opt_{operation_type}",
-                title="Optimize Partitioning",
-                description=f"Current partitions: {partition_analysis['current_partitions']}, Recommended: {partition_analysis['recommended_partitions']}",
-                severity="medium",
-                estimated_improvement=15.0,  # 15% improvement estimate
-                implementation_effort="low",
-                affected_components=["spark_dataframe"]
-            ))
+        if partition_analysis["should_repartition"]:
+            recommendations.append(
+                OptimizationRecommendation(
+                    recommendation_id=f"partition_opt_{operation_type}",
+                    title="Optimize Partitioning",
+                    description=f"Current partitions: {partition_analysis['current_partitions']}, Recommended: {partition_analysis['recommended_partitions']}",
+                    severity="medium",
+                    estimated_improvement=15.0,  # 15% improvement estimate
+                    implementation_effort="low",
+                    affected_components=["spark_dataframe"],
+                )
+            )
 
         # Analyze join operations if applicable
         if operation_type == "join":
@@ -384,22 +422,24 @@ class PerformanceAnalyzer:
         perf_summary = self.monitor.get_performance_summary(hours_back)
 
         report = {
-            'generated_at': datetime.utcnow().isoformat(),
-            'period_hours': hours_back,
-            'performance_summary': perf_summary,
-            'optimization_recommendations': [],
-            'benchmark_results': {}
+            "generated_at": datetime.utcnow().isoformat(),
+            "period_hours": hours_back,
+            "performance_summary": perf_summary,
+            "optimization_recommendations": [],
+            "benchmark_results": {},
         }
 
         # Add more detailed recommendations
-        if 'recommendations' in perf_summary:
-            for rec in perf_summary['recommendations']:
-                report['optimization_recommendations'].append({
-                    'category': rec['category'],
-                    'issue': rec['issue'],
-                    'suggestion': rec['suggestion'],
-                    'severity': rec.get('severity', 'medium')
-                })
+        if "recommendations" in perf_summary:
+            for rec in perf_summary["recommendations"]:
+                report["optimization_recommendations"].append(
+                    {
+                        "category": rec["category"],
+                        "issue": rec["issue"],
+                        "suggestion": rec["suggestion"],
+                        "severity": rec.get("severity", "medium"),
+                    }
+                )
 
         return report
 
@@ -415,8 +455,11 @@ def get_performance_monitor() -> PerformanceMonitor:
     global _performance_monitor
     if _performance_monitor is None:
         from ..config_loader import load_config_resolved
-        config = load_config_resolved('local/config/local.yaml')
-        metrics_path = config.get('paths', {}).get('performance_metrics_root', 'data/performance_metrics')
+
+        config = load_config_resolved("local/config/local.yaml")
+        metrics_path = config.get("paths", {}).get(
+            "performance_metrics_root", "data/performance_metrics"
+        )
         _performance_monitor = PerformanceMonitor(metrics_path)
     return _performance_monitor
 
@@ -451,7 +494,9 @@ def benchmark_data_processing(df: pd.DataFrame, operation: str = "transform") ->
     return monitor.benchmark_data_processing(df, operation)
 
 
-def analyze_dataframe_performance(df, operation_type: str = "transform") -> list[OptimizationRecommendation]:
+def analyze_dataframe_performance(
+    df, operation_type: str = "transform"
+) -> list[OptimizationRecommendation]:
     """Analyze DataFrame performance and suggest optimizations"""
     analyzer = get_performance_analyzer()
     return analyzer.analyze_dataframe_performance(df, operation_type)

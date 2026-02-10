@@ -69,9 +69,7 @@ class SilverToGoldJob(BaseJob):
         except Exception:
             return df
         if current_parts > max_parts:
-            logger.info(
-                "Coalescing %s partitions -> %s for gold output", current_parts, max_parts
-            )
+            logger.info("Coalescing %s partitions -> %s for gold output", current_parts, max_parts)
             return df.coalesce(max_parts)
         return df
 
@@ -85,13 +83,10 @@ class SilverToGoldJob(BaseJob):
             F.col("rate").alias("fx_rate"),
         )
 
-        direct = (
-            fx_base.filter(F.col("fx_counter_ccy") == F.lit("USD"))
-            .select(
-                "fx_date",
-                F.col("fx_base_ccy").alias("fx_currency"),
-                F.col("fx_rate").alias("fx_rate"),
-            )
+        direct = fx_base.filter(F.col("fx_counter_ccy") == F.lit("USD")).select(
+            "fx_date",
+            F.col("fx_base_ccy").alias("fx_currency"),
+            F.col("fx_rate").alias("fx_rate"),
         )
         inverted = (
             fx_base.filter(F.col("fx_base_ccy") == F.lit("USD"))
@@ -103,9 +98,8 @@ class SilverToGoldJob(BaseJob):
             )
         )
 
-        fx_rates_norm = (
-            direct.unionByName(inverted, allowMissingColumns=True)
-            .dropDuplicates(["fx_date", "fx_currency"])
+        fx_rates_norm = direct.unionByName(inverted, allowMissingColumns=True).dropDuplicates(
+            ["fx_date", "fx_currency"]
         )
         return fx_rates_norm
 
@@ -152,6 +146,7 @@ class SilverToGoldJob(BaseJob):
 
     def _assert_non_null(self, df, columns: list[str], table_name: str) -> None:
         from functools import reduce
+
         from pyspark.sql.functions import col
 
         if not columns:
@@ -160,12 +155,8 @@ class SilverToGoldJob(BaseJob):
         null_count = df.filter(condition).count()
         if null_count > 0:
             if self.config.get("dq.fail_on_error", True):
-                raise ValueError(
-                    f"{table_name}: Found {null_count} rows with nulls in {columns}"
-                )
-            logger.warning(
-                "%s: Found %s rows with nulls in %s", table_name, null_count, columns
-            )
+                raise ValueError(f"{table_name}: Found {null_count} rows with nulls in {columns}")
+            logger.warning("%s: Found %s rows with nulls in %s", table_name, null_count, columns)
 
     def _assert_no_join_explosion(self, left_df, joined_df, join_name: str) -> None:
         left_count = left_df.count()
@@ -254,9 +245,7 @@ class SilverToGoldJob(BaseJob):
 
             # Build Contact Dimension
             logger.info("Building Contact Dimension...")
-            contact_dim = self.build_contact_dimension(
-                spark, contacts_df, account_dim, gold_path
-            )
+            contact_dim = self.build_contact_dimension(spark, contacts_df, account_dim, gold_path)
 
             # Build Product Dimension
             logger.info("Building Product Dimension...")
@@ -409,7 +398,9 @@ class SilverToGoldJob(BaseJob):
             ]
         )
         self._assert_non_null(
-            customer_dim, ["customer_id", "customer_sk", "effective_start", "effective_end"], "dim_customer"
+            customer_dim,
+            ["customer_id", "customer_sk", "effective_start", "effective_end"],
+            "dim_customer",
         )
         self._validate_gold_schema(customer_dim, "dim_customer", expected_schema, pk="customer_sk")
 
@@ -489,7 +480,9 @@ class SilverToGoldJob(BaseJob):
             ]
         )
         self._assert_non_null(
-            product_dim, ["product_id", "product_sk", "effective_start", "effective_end"], "dim_product"
+            product_dim,
+            ["product_id", "product_sk", "effective_start", "effective_end"],
+            "dim_product",
         )
         self._validate_gold_schema(product_dim, "dim_product", expected_schema, pk="product_sk")
 
@@ -696,12 +689,13 @@ class SilverToGoldJob(BaseJob):
         self._write_gold(spark, contact_dim, "dim_contact", f"{gold_path}/dim_contact")
         return contact_dim
 
-    def build_fact_orders(self, spark, orders_df, customer_dim, product_dim, fx_rates_df, gold_path: str):
+    def build_fact_orders(
+        self, spark, orders_df, customer_dim, product_dim, fx_rates_df, gold_path: str
+    ):
         """Build Fact Orders from Silver data."""
         from pyspark.sql import functions as F
         from pyspark.sql.functions import broadcast, col
         from pyspark.sql.types import (
-            BooleanType,
             DateType,
             DoubleType,
             IntegerType,
@@ -709,7 +703,6 @@ class SilverToGoldJob(BaseJob):
             StringType,
             StructField,
             StructType,
-            TimestampType,
         )
 
         orders_base = orders_df
@@ -726,8 +719,10 @@ class SilverToGoldJob(BaseJob):
                 "unit_price",
                 F.coalesce(
                     F.col("unit_price").cast("double"),
-                    (F.col("total_amount").cast("double") / F.coalesce(F.col("quantity"), F.lit(1)))
-                    .cast("double"),
+                    (
+                        F.col("total_amount").cast("double")
+                        / F.coalesce(F.col("quantity"), F.lit(1))
+                    ).cast("double"),
                 ),
             )
             .repartition("order_date")
@@ -735,15 +730,19 @@ class SilverToGoldJob(BaseJob):
 
         fx_rates = self._prepare_fx_rates(fx_rates_df)
 
-        orders_with_fx = orders_enriched.join(
-            fx_rates,
-            (orders_enriched.order_date == fx_rates.fx_date)
-            & (orders_enriched.currency == fx_rates.fx_currency),
-            "left",
-        ).withColumn(
-            "fx_rate",
-            F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(F.col("fx_rate")),
-        ).drop("fx_date", "fx_currency")
+        orders_with_fx = (
+            orders_enriched.join(
+                fx_rates,
+                (orders_enriched.order_date == fx_rates.fx_date)
+                & (orders_enriched.currency == fx_rates.fx_currency),
+                "left",
+            )
+            .withColumn(
+                "fx_rate",
+                F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(F.col("fx_rate")),
+            )
+            .drop("fx_date", "fx_currency")
+        )
 
         missing_fx = orders_with_fx.filter(
             (F.col("currency") != F.lit("USD")) & F.col("fx_rate").isNull()
@@ -799,14 +798,11 @@ class SilverToGoldJob(BaseJob):
                     f"Fact orders: Referential integrity failure, {missing_products} orders "
                     "have no matching product"
                 )
-            logger.warning(
-                "Fact orders: %s rows missing product after join", missing_products
-            )
+            logger.warning("Fact orders: %s rows missing product after join", missing_products)
 
-        fact_orders = (
-            fact_orders.withColumn("customer_sk", F.coalesce(F.col("customer_sk"), F.lit(-1)))
-            .withColumn("product_sk", F.coalesce(F.col("product_sk"), F.lit(-1)))
-        )
+        fact_orders = fact_orders.withColumn(
+            "customer_sk", F.coalesce(F.col("customer_sk"), F.lit(-1))
+        ).withColumn("product_sk", F.coalesce(F.col("product_sk"), F.lit(-1)))
 
         fact_orders = fact_orders.select(
             "order_id",
@@ -827,9 +823,7 @@ class SilverToGoldJob(BaseJob):
             "order_month",
         )
 
-        duplicate_orders = (
-            fact_orders.groupBy("order_id").count().filter(col("count") > 1).count()
-        )
+        duplicate_orders = fact_orders.groupBy("order_id").count().filter(col("count") > 1).count()
         if duplicate_orders > 0:
             raise ValueError(
                 f"Fact orders: duplicate primary keys detected for order_id, count={duplicate_orders}"
@@ -920,7 +914,9 @@ class SilverToGoldJob(BaseJob):
             .withColumn("quarter", F.quarter("date"))
             .withColumn("month", F.month("date"))
             .withColumn("day_of_week", F.dayofweek("date"))
-            .withColumn("is_weekend", F.when(F.col("day_of_week").isin([1, 7]), True).otherwise(False))
+            .withColumn(
+                "is_weekend", F.when(F.col("day_of_week").isin([1, 7]), True).otherwise(False)
+            )
             .select("date_sk", "date", "year", "quarter", "month", "day_of_week", "is_weekend")
             .orderBy("date")
         )
@@ -1005,7 +1001,9 @@ class SilverToGoldJob(BaseJob):
         )
         return product_performance
 
-    def build_fact_opportunity(self, spark, opportunities_df, account_dim, contact_dim, gold_path: str):
+    def build_fact_opportunity(
+        self, spark, opportunities_df, account_dim, contact_dim, gold_path: str
+    ):
         """Build CRM Opportunity Fact table."""
         from pyspark.sql import functions as F
         from pyspark.sql.types import (
@@ -1061,13 +1059,17 @@ class SilverToGoldJob(BaseJob):
 
         opps_pre_account_join = opps
         fact_opps = opps.join(broadcast(current_accounts), "account_id", "left")
-        self._assert_no_join_explosion(opps_pre_account_join, fact_opps, "fact_opportunity_account_join")
+        self._assert_no_join_explosion(
+            opps_pre_account_join, fact_opps, "fact_opportunity_account_join"
+        )
         opps_pre_contact_join = fact_opps
         fact_opps = fact_opps.join(broadcast(current_contacts), "contact_id", "left")
-        self._assert_no_join_explosion(opps_pre_contact_join, fact_opps, "fact_opportunity_contact_join")
-        fact_opps = fact_opps.withColumn("account_sk", F.coalesce(F.col("account_sk"), F.lit(-1))).withColumn(
-            "contact_sk", F.coalesce(F.col("contact_sk"), F.lit(-1))
+        self._assert_no_join_explosion(
+            opps_pre_contact_join, fact_opps, "fact_opportunity_contact_join"
         )
+        fact_opps = fact_opps.withColumn(
+            "account_sk", F.coalesce(F.col("account_sk"), F.lit(-1))
+        ).withColumn("contact_sk", F.coalesce(F.col("contact_sk"), F.lit(-1)))
 
         expected_schema = StructType(
             [
@@ -1100,7 +1102,9 @@ class SilverToGoldJob(BaseJob):
         self._assert_non_null(
             fact_opps, ["opportunity_id", "account_id", "close_date"], "fact_opportunity"
         )
-        self._validate_gold_schema(fact_opps, "fact_opportunity", expected_schema, pk="opportunity_id")
+        self._validate_gold_schema(
+            fact_opps, "fact_opportunity", expected_schema, pk="opportunity_id"
+        )
 
         self._write_gold(spark, fact_opps, "fact_opportunity", f"{gold_path}/fact_opportunity")
         return fact_opps
@@ -1146,14 +1150,18 @@ class SilverToGoldJob(BaseJob):
 
         fx_rates = self._prepare_fx_rates(fx_rates_df)
         events_pre_fx_join = events
-        events = events.join(
-            fx_rates,
-            (events.event_date == fx_rates.fx_date) & (events.currency == fx_rates.fx_currency),
-            "left",
-        ).withColumn(
-            "fx_rate",
-            F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(F.col("fx_rate")),
-        ).drop("fx_date", "fx_currency")
+        events = (
+            events.join(
+                fx_rates,
+                (events.event_date == fx_rates.fx_date) & (events.currency == fx_rates.fx_currency),
+                "left",
+            )
+            .withColumn(
+                "fx_rate",
+                F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(F.col("fx_rate")),
+            )
+            .drop("fx_date", "fx_currency")
+        )
         self._assert_no_join_explosion(events_pre_fx_join, events, "fact_order_events_fx_join")
 
         missing_fx = events.filter(
@@ -1193,7 +1201,9 @@ class SilverToGoldJob(BaseJob):
         )
         events_pre_order_join = events
         events = events.join(orders_lookup, "order_id", "left")
-        self._assert_no_join_explosion(events_pre_order_join, events, "fact_order_events_order_join")
+        self._assert_no_join_explosion(
+            events_pre_order_join, events, "fact_order_events_order_join"
+        )
 
         expected_schema = StructType(
             [
@@ -1219,9 +1229,7 @@ class SilverToGoldJob(BaseJob):
                 StructField("order_date", DateType(), True),
             ]
         )
-        self._assert_non_null(
-            events, ["event_id", "customer_id", "event_ts"], "fact_order_events"
-        )
+        self._assert_non_null(events, ["event_id", "customer_id", "event_ts"], "fact_order_events")
         self._validate_gold_schema(events, "fact_order_events", expected_schema, pk="event_id")
 
         self._write_gold(spark, events, "fact_order_events", f"{gold_path}/fact_order_events")
@@ -1230,24 +1238,24 @@ class SilverToGoldJob(BaseJob):
     def build_customer_360(self, spark, customer_dim, fact_orders, behavior_df, gold_path: str):
         """Build Customer 360 view combining multiple data sources."""
         from pyspark.sql import functions as F
-        from pyspark.sql.types import DoubleType, IntegerType, LongType, StringType, StructField, StructType
+        from pyspark.sql.types import (
+            DoubleType,
+            LongType,
+            StringType,
+            StructField,
+            StructType,
+        )
 
         # Aggregate order metrics
-        order_metrics = (
-            fact_orders.groupBy("customer_id")
-            .agg(
-                F.sum("order_amount_usd").alias("total_spent"),
-                F.countDistinct("order_id").alias("order_count"),
-            )
+        order_metrics = fact_orders.groupBy("customer_id").agg(
+            F.sum("order_amount_usd").alias("total_spent"),
+            F.countDistinct("order_id").alias("order_count"),
         )
 
         # Aggregate behavior metrics
-        behavior_metrics = (
-            behavior_df.groupBy("customer_id")
-            .agg(
-                F.sum(F.col("time_spent_seconds").cast("double")).alias("total_time_spent"),
-                F.countDistinct("session_id").alias("session_count"),
-            )
+        behavior_metrics = behavior_df.groupBy("customer_id").agg(
+            F.sum(F.col("time_spent_seconds").cast("double")).alias("total_time_spent"),
+            F.countDistinct("session_id").alias("session_count"),
         )
 
         # Combine all data for customer 360 view
@@ -1262,9 +1270,7 @@ class SilverToGoldJob(BaseJob):
         from pyspark.sql.functions import broadcast
 
         customer_360 = current_customers.join(broadcast(order_metrics), "customer_id", "left")
-        self._assert_no_join_explosion(
-            current_customers, customer_360, "customer_360_orders_join"
-        )
+        self._assert_no_join_explosion(current_customers, customer_360, "customer_360_orders_join")
         customer_360_pre_behavior = customer_360
         customer_360 = customer_360.join(broadcast(behavior_metrics), "customer_id", "left")
         self._assert_no_join_explosion(
@@ -1329,9 +1335,7 @@ class SilverToGoldJob(BaseJob):
             ]
         )
         self._assert_non_null(behavior_analytics, ["customer_id"], "behavior_analytics")
-        self._validate_gold_schema(
-            behavior_analytics, "behavior_analytics", expected_schema
-        )
+        self._validate_gold_schema(behavior_analytics, "behavior_analytics", expected_schema)
 
         # Write to gold
         self._write_gold(

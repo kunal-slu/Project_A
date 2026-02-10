@@ -75,13 +75,13 @@ def test_config():
     return {
         "spark": {
             "shuffle_partitions": 200,
-            "broadcast_threshold": 10485760  # 10MB
+            "broadcast_threshold": 10485760,  # 10MB
         },
         "output": {
             "bronze_path": "data/lakehouse/bronze",
             "silver_path": "data/lakehouse/silver",
-            "gold_path": "data/lakehouse/gold"
-        }
+            "gold_path": "data/lakehouse/gold",
+        },
     }
 
 
@@ -220,7 +220,7 @@ class TestPerformanceOptimizer:
         optimizer = PerformanceOptimizer(mock_spark_session, test_config)
 
         # Mock the benchmark to avoid actual operations
-        with patch.object(optimizer.benchmark, 'benchmark_dataset') as mock_benchmark:
+        with patch.object(optimizer.benchmark, "benchmark_dataset") as mock_benchmark:
             mock_benchmark.return_value = PerformanceMetrics(
                 dataset_name="test",
                 row_count=10000,
@@ -232,7 +232,7 @@ class TestPerformanceOptimizer:
                 shuffle_read_mb=0.0,
                 shuffle_write_mb=0.0,
                 storage_level="NONE",
-                optimization_applied=[]
+                optimization_applied=[],
             )
 
             # Test optimization
@@ -275,19 +275,21 @@ class TestPerformanceOptimizer:
         # With 50k rows and 3 columns, optimal partitions = 1 (very small dataset)
         df.repartition.assert_called_once_with(1)
 
-    def test_run_full_optimization_pipeline(self, mock_spark_session, sample_dataframe, test_config):
+    def test_run_full_optimization_pipeline(
+        self, mock_spark_session, sample_dataframe, test_config
+    ):
         """Test full optimization pipeline."""
         optimizer = PerformanceOptimizer(mock_spark_session, test_config)
 
         datasets = {
             "returns_raw": sample_dataframe,
             "customers": sample_dataframe,
-            "orders": sample_dataframe
+            "orders": sample_dataframe,
         }
 
         # Mock benchmark to avoid actual operations
-        with patch.object(optimizer.benchmark, 'benchmark_dataset'):
-            with patch.object(optimizer.benchmark, 'export_benchmark_results'):
+        with patch.object(optimizer.benchmark, "benchmark_dataset"):
+            with patch.object(optimizer.benchmark, "export_benchmark_results"):
                 optimized = optimizer.run_full_optimization_pipeline(datasets)
 
                 assert len(optimized) == 3
@@ -316,7 +318,7 @@ class TestPerformanceOptimizer:
                 shuffle_read_mb=0.0,
                 shuffle_write_mb=0.0,
                 storage_level="MEMORY_ONLY",
-                optimization_applied=["caching", "partitioning"]
+                optimization_applied=["caching", "partitioning"],
             )
         ]
 
@@ -352,11 +354,20 @@ class TestPerformanceOptimizerIntegration:
         large_df.rdd.getNumPartitions = Mock(return_value=50)
 
         # Mock all DataFrame operations
-        for method in ['filter', 'join', 'groupBy', 'orderBy', 'limit', 'persist', 'coalesce', 'repartition']:
+        for method in [
+            "filter",
+            "join",
+            "groupBy",
+            "orderBy",
+            "limit",
+            "persist",
+            "coalesce",
+            "repartition",
+        ]:
             setattr(large_df, method, Mock(return_value=large_df))
 
         # Mock benchmark
-        with patch.object(optimizer.benchmark, 'benchmark_dataset') as mock_benchmark:
+        with patch.object(optimizer.benchmark, "benchmark_dataset") as mock_benchmark:
             mock_benchmark.return_value = PerformanceMetrics(
                 dataset_name="returns_raw_large",
                 row_count=1000000,
@@ -368,7 +379,7 @@ class TestPerformanceOptimizerIntegration:
                 shuffle_read_mb=100.0,
                 shuffle_write_mb=100.0,
                 storage_level="DISK_ONLY",
-                optimization_applied=["caching", "partitioning", "compaction"]
+                optimization_applied=["caching", "partitioning", "compaction"],
             )
 
             # Test optimization
@@ -385,10 +396,10 @@ class TestPerformanceOptimizerIntegration:
         # Test different dataset sizes with realistic calculations
         # 3 columns * 8 bytes * row_count / (1024*1024) = size in MB
         test_cases = [
-            (1000, "MEMORY_ONLY"),      # ~0.023 MB (< 100MB)
-            (5000000, "MEMORY_AND_DISK"), # ~114 MB (100-500MB)
-            (20000000, "DISK_ONLY"),    # ~458 MB (500MB-2GB)
-            (100000000, "OFF_HEAP")     # ~2.3 GB (> 2GB)
+            (1000, "MEMORY_ONLY"),  # ~0.023 MB (< 100MB)
+            (5000000, "MEMORY_AND_DISK"),  # ~114 MB (100-500MB)
+            (20000000, "DISK_ONLY"),  # ~458 MB (500MB-2GB)
+            (100000000, "OFF_HEAP"),  # ~2.3 GB (> 2GB)
         ]
 
         for row_count, expected_strategy in test_cases:

@@ -6,6 +6,7 @@ Manages backup strategies, recovery procedures, and disaster recovery plans.
 
 import json
 import logging
+import os
 import shutil
 import zipfile
 from dataclasses import dataclass
@@ -125,9 +126,9 @@ class BackupManager:
             return path.stat().st_size
         else:
             total_size = 0
-            for dirpath, _dirnames, filenames in path.walk():
+            for dirpath, _dirnames, filenames in os.walk(path):
                 for filename in filenames:
-                    filepath = dirpath / filename
+                    filepath = Path(dirpath) / filename
                     total_size += filepath.stat().st_size
             return total_size
 

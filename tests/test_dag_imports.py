@@ -40,8 +40,7 @@ def test_all_dags_import_fast():
     assert len(failed_imports) == 0, f"Failed to import DAGs: {failed_imports}"
     max_import_seconds = float(os.getenv("DAG_IMPORT_MAX_SECONDS", "8.0"))
     assert elapsed_time < max_import_seconds, (
-        f"DAG import took too long: {elapsed_time:.2f}s "
-        f"(threshold={max_import_seconds:.2f}s)"
+        f"DAG import took too long: {elapsed_time:.2f}s (threshold={max_import_seconds:.2f}s)"
     )
     assert len(imported_dags) > 0, "No DAGs were imported"
 

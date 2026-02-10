@@ -90,8 +90,19 @@ def _resolve_value(value: Any, config: dict[str, Any] | None = None) -> Any:
     value = _SECRET_PATTERN.sub(replace_secret, value)
 
     # Then resolve config variable references (${paths.bronze_root})
+    # and short env forms (${VAR}, ${VAR:-default}).
     def replace_var(match: re.Match) -> str:
         var_path = match.group(1)
+
+        # Support bash-like default expansion.
+        if ":-" in var_path:
+            var_name, default = var_path.split(":-", 1)
+            return os.environ.get(var_name, default)
+
+        # Keep legacy explicit tokens untouched in this phase.
+        if var_path.startswith(("ENV:", "SECRET:")):
+            return match.group(0)
+
         if config:
             try:
                 parts = var_path.split(".")
@@ -105,6 +116,11 @@ def _resolve_value(value: Any, config: dict[str, Any] | None = None) -> Any:
                     return str(result)
             except Exception:
                 pass
+
+        # Plain ${VAR} -> environment variable lookup.
+        if var_path in os.environ:
+            return os.environ[var_path]
+
         return match.group(0)
 
     return _VAR_PATTERN.sub(replace_var, value)
@@ -185,9 +201,7 @@ def load_conf(config_path: str, env: str = "dev") -> dict[str, Any]:
     return load_config(config_path, env)
 
 
-def load_config_resolved(
-    config_path: str | None = None, env: str | None = None
-) -> dict[str, Any]:
+def load_config_resolved(config_path: str | None = None, env: str | None = None) -> dict[str, Any]:
     """
     Load config from a path, or pick by environment if path not provided.
 

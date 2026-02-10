@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
-from pyspark.sql import DataFrame, functions as F
+from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
 from pyspark.sql.types import DecimalType, IntegerType, StringType, StructField, StructType
 
 from project_a.dq.great_expectations_runner import GreatExpectationsRunner
 from project_a.monitoring.metrics_collector import emit_metrics
 
 logger = logging.getLogger(__name__)
+
 
 def _storage_format(config: dict[str, Any]) -> str:
     storage_cfg = config.get("storage", {}) or {}
@@ -66,9 +69,7 @@ def _read_with_fallbacks(spark, fmt: str, path: str, table_name: str | None = No
     return None, last_error
 
 
-def _safe_read(
-    spark, fmt: str, path: str, table_name: str | None = None
-) -> DataFrame | None:
+def _safe_read(spark, fmt: str, path: str, table_name: str | None = None) -> DataFrame | None:
     result = _read_with_fallbacks(spark, fmt, path, table_name)
     if isinstance(result, tuple):
         df, _err = result
@@ -91,8 +92,7 @@ def build_customer_360(spark, config: dict):
     fmt = _storage_format(config)
     silver_base, gold_base = _get_root_paths(config)
     strict_mode = bool(
-        (config.get("dq", {}) or {}).get("fail_on_error", False)
-        or config.get("strict_mode", False)
+        (config.get("dq", {}) or {}).get("fail_on_error", False) or config.get("strict_mode", False)
     )
 
     iceberg_cfg = config.get("iceberg", {}) or {}
@@ -102,9 +102,7 @@ def build_customer_360(spark, config: dict):
     customers = _safe_read(
         spark, fmt, f"{silver_base}/customers_silver", f"{catalog}.customers_silver"
     )
-    orders = _safe_read(
-        spark, fmt, f"{silver_base}/orders_silver", f"{catalog}.orders_silver"
-    )
+    orders = _safe_read(spark, fmt, f"{silver_base}/orders_silver", f"{catalog}.orders_silver")
     if orders is None:
         orders = _safe_read(spark, fmt, f"{silver_base}/snowflake/orders")
 
@@ -162,9 +160,9 @@ def build_customer_360(spark, config: dict):
         base_df = base_df.join(order_agg, "customer_id", "left")
     else:
         logger.warning("Orders input missing; defaulting order metrics to 0")
-        base_df = base_df.withColumn("lifetime_value_usd", F.lit(0).cast("decimal(18,2)")).withColumn(
-            "total_orders", F.lit(0).cast("int")
-        )
+        base_df = base_df.withColumn(
+            "lifetime_value_usd", F.lit(0).cast("decimal(18,2)")
+        ).withColumn("total_orders", F.lit(0).cast("int"))
 
     if behavior is not None and "customer_id" in behavior.columns:
         behavior_agg = behavior.groupBy("customer_id").agg(
@@ -190,7 +188,9 @@ def build_customer_360(spark, config: dict):
     if checkpoint_name:
         ge_runner = GreatExpectationsRunner()
         ge_runner.init_context()
-        ge_runner.run_checkpoint(checkpoint_name, fail_on_error=bool(dq_cfg.get("fail_on_error", True)))
+        ge_runner.run_checkpoint(
+            checkpoint_name, fail_on_error=bool(dq_cfg.get("fail_on_error", True))
+        )
 
     output_path = f"{gold_base}/customer_360"
     if fmt == "iceberg":

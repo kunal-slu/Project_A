@@ -36,10 +36,7 @@ SAFE_TYPE_CHANGES: tuple[tuple[type[DataType], type[DataType]], ...] = (
 def _is_safe_type_change(old_type: DataType, new_type: DataType) -> bool:
     if type(old_type) is type(new_type):
         if isinstance(old_type, DecimalType):
-            return (
-                new_type.precision >= old_type.precision
-                and new_type.scale >= old_type.scale
-            )
+            return new_type.precision >= old_type.precision and new_type.scale >= old_type.scale
         return True
 
     for old_cls, new_cls in SAFE_TYPE_CHANGES:
@@ -63,9 +60,7 @@ def _save_baseline(path: Path, schema: StructType) -> None:
     path.write_text(json.dumps(schema.jsonValue(), indent=2))
 
 
-def _compare_schema(
-    actual: StructType, baseline: StructType, policy: str
-) -> dict[str, Any]:
+def _compare_schema(actual: StructType, baseline: StructType, policy: str) -> dict[str, Any]:
     actual_fields = {f.name: f for f in actual.fields}
     baseline_fields = {f.name: f for f in baseline.fields}
 

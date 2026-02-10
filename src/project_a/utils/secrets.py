@@ -68,4 +68,3 @@ def get_redshift_credentials(config: dict[str, Any]) -> dict[str, str]:
             return secret
 
     return config.get("data_sources", {}).get("redshift", {})
-

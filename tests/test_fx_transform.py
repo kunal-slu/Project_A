@@ -2,8 +2,9 @@
 Tests for FX data transformation logic.
 """
 
-import pytest
 from datetime import date
+
+import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 from pyspark.sql.types import DateType, DoubleType, StringType, StructField, StructType
@@ -19,11 +20,7 @@ from project_a.jobs.fx_bronze_to_silver import (
 def spark_session():
     """Create Spark session for testing."""
     try:
-        return (
-            SparkSession.builder.appName("test-fx-transform")
-            .master("local[2]")
-            .getOrCreate()
-        )
+        return SparkSession.builder.appName("test-fx-transform").master("local[2]").getOrCreate()
     except Exception:
         pytest.skip("Spark unavailable in current environment")
 

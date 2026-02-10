@@ -6,16 +6,11 @@ Contract-driven ingestion with explicit schema enforcement.
 """
 
 import logging
-import sys
-from datetime import datetime
-from pathlib import Path
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 import tempfile
 import time
 import uuid
+from datetime import datetime
+from pathlib import Path
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F

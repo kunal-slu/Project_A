@@ -66,4 +66,3 @@ def apply_pii_masking(df: DataFrame, pii_config: dict[str, str]) -> DataFrame:
             result = result.withColumn(col_name, mask_name_udf(col_name))
 
     return result
-

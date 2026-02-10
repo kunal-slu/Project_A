@@ -41,4 +41,3 @@ def collect_run_summary(spark, config: dict, run_id: str, execution_date: str) -
         "metrics": metrics,
         "errors": errors,
     }
-

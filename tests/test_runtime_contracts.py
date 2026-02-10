@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+
 import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.types import DoubleType, IntegerType, StringType, StructField, StructType
@@ -13,7 +14,9 @@ from project_a.contracts.runtime_contracts import load_table_contracts, validate
 @pytest.fixture(scope="module")
 def spark():
     try:
-        spark = SparkSession.builder.master("local[1]").appName("test_runtime_contracts").getOrCreate()
+        spark = (
+            SparkSession.builder.master("local[1]").appName("test_runtime_contracts").getOrCreate()
+        )
     except Exception:
         pytest.skip("Spark unavailable in current environment")
     yield spark

@@ -76,7 +76,10 @@ def run_contract_validation(contract_path: str, data_path: str) -> dict[str, Any
         checked_rules: list[str] = []
 
         if contract_file.suffix.lower() == ".yaml":
-            from project_a.contracts.runtime_contracts import load_table_contracts, validate_contract
+            from project_a.contracts.runtime_contracts import (
+                load_table_contracts,
+                validate_contract,
+            )
 
             tables = load_table_contracts(contract_path)
             table_name = Path(data_path.rstrip("/")).name
@@ -114,7 +117,7 @@ def run_contract_validation(contract_path: str, data_path: str) -> dict[str, Any
                     null_count = df.filter(F.col(col_name).isNull()).count()
                     if null_count > 0:
                         errors.append(f"Null violations in {col_name}: {null_count}")
-            unique_keys = ((payload.get("constraints") or {}).get("unique_keys") or [])
+            unique_keys = (payload.get("constraints") or {}).get("unique_keys") or []
             for key in unique_keys:
                 if key in df.columns:
                     dup_count = df.groupBy(key).count().filter(F.col("count") > 1).count()

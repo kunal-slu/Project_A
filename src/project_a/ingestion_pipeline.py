@@ -19,4 +19,3 @@ class IngestionPipeline:
             "started_at": datetime.utcnow().isoformat(),
             "metrics": {},
         }
-

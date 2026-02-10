@@ -6,7 +6,6 @@ Validates date/timestamp columns for future or too-old values.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
 from typing import Any
 
 from pyspark.sql import DataFrame
@@ -25,9 +24,7 @@ def check_date_realism(df: DataFrame, table_name: str, config: dict[str, Any]) -
     max_past_years = int(realism_cfg.get("max_past_years", 20))
     fail_on_violation = bool(realism_cfg.get("fail_on_violation", False))
 
-    date_cols = [
-        c for c in df.columns if "date" in c.lower() or "timestamp" in c.lower()
-    ]
+    date_cols = [c for c in df.columns if "date" in c.lower() or "timestamp" in c.lower()]
     if not date_cols:
         return {"enabled": True, "table": table_name, "checked": False, "reason": "no date columns"}
 

@@ -293,7 +293,9 @@ def initialize_iceberg_spark(
         builder = builder.config(key, value)
 
     # Add Iceberg JARs via Spark packages (no separate install required)
-    resolved_packages = packages or os.environ.get("ICEBERG_SPARK_PACKAGES") or DEFAULT_ICEBERG_PACKAGES
+    resolved_packages = (
+        packages or os.environ.get("ICEBERG_SPARK_PACKAGES") or DEFAULT_ICEBERG_PACKAGES
+    )
     if resolved_packages:
         builder = builder.config("spark.jars.packages", resolved_packages)
 

@@ -2,7 +2,6 @@
 Tests for config utilities.
 """
 
-
 import pytest
 import yaml
 
@@ -32,3 +31,23 @@ def test_load_conf_file_not_found():
     """Test loading config when file doesn't exist."""
     with pytest.raises(FileNotFoundError):
         load_conf("nonexistent_config.yaml")
+
+
+def test_load_conf_resolves_short_env_placeholder(monkeypatch, tmp_path):
+    """Test ${VAR} interpolation from environment variables."""
+    monkeypatch.setenv("PROJECT_A_TEST_ENV", "resolved-value")
+    config_file = tmp_path / "env_short.yaml"
+    config_file.write_text("token: ${PROJECT_A_TEST_ENV}\n", encoding="utf-8")
+
+    result = load_conf(str(config_file))
+    assert result["token"] == "resolved-value"
+
+
+def test_load_conf_resolves_short_env_default(monkeypatch, tmp_path):
+    """Test ${VAR:-default} interpolation fallback."""
+    monkeypatch.delenv("PROJECT_A_MISSING_ENV", raising=False)
+    config_file = tmp_path / "env_default.yaml"
+    config_file.write_text("token: ${PROJECT_A_MISSING_ENV:-fallback}\n", encoding="utf-8")
+
+    result = load_conf(str(config_file))
+    assert result["token"] == "fallback"

@@ -13,6 +13,7 @@ Orchestrates all DQ checks:
 9. Kafka streaming fitness
 10. Performance optimization
 """
+
 import json
 import logging
 from datetime import datetime
@@ -51,9 +52,7 @@ class ComprehensiveValidator:
         self.results: dict[str, Any] = {}
 
     def validate_bronze_layer(
-        self,
-        bronze_data: dict[str, DataFrame],
-        expected_schemas: dict[str, Any]
+        self, bronze_data: dict[str, DataFrame], expected_schemas: dict[str, Any]
     ) -> dict[str, Any]:
         """Validate Bronze layer data."""
         logger.info("🔍 Validating Bronze layer...")
@@ -62,7 +61,7 @@ class ComprehensiveValidator:
             "layer": "bronze",
             "timestamp": datetime.utcnow().isoformat(),
             "tables": {},
-            "overall_status": "PASS"
+            "overall_status": "PASS",
         }
 
         for table_name, df in bronze_data.items():
@@ -70,7 +69,7 @@ class ComprehensiveValidator:
                 "row_count": df.count(),
                 "schema_valid": True,
                 "null_analysis": {},
-                "uniqueness": {}
+                "uniqueness": {},
             }
 
             sample_df, sample_meta = self._sample_df(df)
@@ -118,7 +117,10 @@ class ComprehensiveValidator:
                     sample_df if sample_df is not None else df,
                     table_name=table_name,
                 )
-                if table_results["date_realism"].get("violations") and self._realism_fail_on_violation():
+                if (
+                    table_results["date_realism"].get("violations")
+                    and self._realism_fail_on_violation()
+                ):
                     results["overall_status"] = "FAIL"
 
             if self._profiling_enabled():
@@ -136,8 +138,7 @@ class ComprehensiveValidator:
             results["tables"][table_name] = table_results
 
             if (
-                not table_results["schema_valid"]
-                and not self._allow_bronze_schema_drift()
+                not table_results["schema_valid"] and not self._allow_bronze_schema_drift()
             ) or not uniqueness_result.get("valid", True):
                 results["overall_status"] = "FAIL"
 
@@ -145,9 +146,7 @@ class ComprehensiveValidator:
         return results
 
     def validate_silver_layer(
-        self,
-        silver_data: dict[str, DataFrame],
-        bronze_data: dict[str, DataFrame]
+        self, silver_data: dict[str, DataFrame], bronze_data: dict[str, DataFrame]
     ) -> dict[str, Any]:
         """Validate Silver layer data and relationships."""
         logger.info("🔍 Validating Silver layer...")
@@ -157,7 +156,7 @@ class ComprehensiveValidator:
             "timestamp": datetime.utcnow().isoformat(),
             "tables": {},
             "relationships": {},
-            "overall_status": "PASS"
+            "overall_status": "PASS",
         }
 
         # Validate each silver table
@@ -165,7 +164,7 @@ class ComprehensiveValidator:
             table_results = {
                 "row_count": df.count(),
                 "null_analysis": self._analyze_nulls(df, table_name),
-                "timestamp_validation": {}
+                "timestamp_validation": {},
             }
 
             sample_df, sample_meta = self._sample_df(df)
@@ -173,16 +172,23 @@ class ComprehensiveValidator:
                 table_results["sample"] = sample_meta
 
             # Timestamp validation
-            timestamp_cols = [col for col in df.columns if "timestamp" in col.lower() or "date" in col.lower()]
+            timestamp_cols = [
+                col for col in df.columns if "timestamp" in col.lower() or "date" in col.lower()
+            ]
             if timestamp_cols:
-                table_results["timestamp_validation"] = self._validate_timestamps(df, timestamp_cols[0])
+                table_results["timestamp_validation"] = self._validate_timestamps(
+                    df, timestamp_cols[0]
+                )
 
             if self._realism_enabled():
                 table_results["date_realism"] = self._validate_date_realism(
                     sample_df if sample_df is not None else df,
                     table_name=table_name,
                 )
-                if table_results["date_realism"].get("violations") and self._realism_fail_on_violation():
+                if (
+                    table_results["date_realism"].get("violations")
+                    and self._realism_fail_on_violation()
+                ):
                     results["overall_status"] = "FAIL"
 
             if self._profiling_enabled():
@@ -202,8 +208,7 @@ class ComprehensiveValidator:
         # Check referential integrity
         if "orders" in silver_data and "customers" in silver_data:
             ref_result = self.ref_integrity_checker.check_orders_customers(
-                silver_data["orders"],
-                silver_data["customers"]
+                silver_data["orders"], silver_data["customers"]
             )
             results["relationships"]["orders_customers"] = ref_result
             if not ref_result["valid"]:
@@ -211,8 +216,7 @@ class ComprehensiveValidator:
 
         if "orders" in silver_data and "products" in silver_data:
             ref_result = self.ref_integrity_checker.check_orders_products(
-                silver_data["orders"],
-                silver_data["products"]
+                silver_data["orders"], silver_data["products"]
             )
             results["relationships"]["orders_products"] = ref_result
             if not ref_result["valid"]:
@@ -230,9 +234,7 @@ class ComprehensiveValidator:
         return results
 
     def validate_gold_layer(
-        self,
-        gold_data: dict[str, DataFrame],
-        silver_data: dict[str, DataFrame]
+        self, gold_data: dict[str, DataFrame], silver_data: dict[str, DataFrame]
     ) -> dict[str, Any]:
         """Validate Gold layer data."""
         logger.info("🔍 Validating Gold layer...")
@@ -241,14 +243,14 @@ class ComprehensiveValidator:
             "layer": "gold",
             "timestamp": datetime.utcnow().isoformat(),
             "tables": {},
-            "overall_status": "PASS"
+            "overall_status": "PASS",
         }
 
         for table_name, df in gold_data.items():
             table_results = {
                 "row_count": df.count(),
                 "null_analysis": self._analyze_nulls(df, table_name),
-                "semantic_validation": {}
+                "semantic_validation": {},
             }
 
             sample_df, sample_meta = self._sample_df(df)
@@ -266,7 +268,10 @@ class ComprehensiveValidator:
                     sample_df if sample_df is not None else df,
                     table_name=table_name,
                 )
-                if table_results["date_realism"].get("violations") and self._realism_fail_on_violation():
+                if (
+                    table_results["date_realism"].get("violations")
+                    and self._realism_fail_on_violation()
+                ):
                     results["overall_status"] = "FAIL"
 
             if self._profiling_enabled():
@@ -305,18 +310,14 @@ class ComprehensiveValidator:
             null_counts[col] = {
                 "null_count": null_count,
                 "null_percentage": round(null_pct, 2),
-                "critical": null_pct > 50 and col.endswith("_id")
+                "critical": null_pct > 50 and col.endswith("_id"),
             }
 
         return null_counts
 
     def _validate_timestamps(self, df: DataFrame, timestamp_col: str) -> dict[str, Any]:
         """Validate timestamp column."""
-        result = {
-            "column": timestamp_col,
-            "valid": True,
-            "issues": []
-        }
+        result = {"column": timestamp_col, "valid": True, "issues": []}
 
         # Check for null timestamps
         null_count = df.filter(F.col(timestamp_col).isNull()).count()
@@ -332,6 +333,7 @@ class ComprehensiveValidator:
 
         # Check for very old timestamps (older than 10 years)
         from datetime import timedelta
+
         ten_years_ago = datetime.utcnow() - timedelta(days=3650)
         old_count = df.filter(F.col(timestamp_col) < F.lit(ten_years_ago)).count()
         if old_count > 0:
@@ -341,10 +343,7 @@ class ComprehensiveValidator:
 
     def _validate_fact_orders(self, df: DataFrame) -> dict[str, Any]:
         """Validate fact_orders semantic rules."""
-        result = {
-            "valid": True,
-            "issues": []
-        }
+        result = {"valid": True, "issues": []}
 
         # Check total_amount >= 0
         if "sales_amount" in df.columns:
@@ -364,10 +363,7 @@ class ComprehensiveValidator:
 
     def _validate_dim_customer(self, df: DataFrame) -> dict[str, Any]:
         """Validate dim_customer semantic rules."""
-        result = {
-            "valid": True,
-            "issues": []
-        }
+        result = {"valid": True, "issues": []}
 
         # Check for valid emails (basic check)
         if "email" in df.columns:
@@ -423,7 +419,9 @@ class ComprehensiveValidator:
             "row_count": sample_count,
         }
 
-    def _profile_df(self, df: DataFrame, table_name: str, layer: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    def _profile_df(
+        self, df: DataFrame, table_name: str, layer: str
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
         profile = {
             "table": table_name,
             "layer": layer,
@@ -447,7 +445,12 @@ class ComprehensiveValidator:
             )
 
             dtype_lower = str(dtype).lower()
-            if dtype_lower.startswith("decimal") or dtype_lower in {"int", "bigint", "double", "float"}:
+            if dtype_lower.startswith("decimal") or dtype_lower in {
+                "int",
+                "bigint",
+                "double",
+                "float",
+            }:
                 stats = df.select(
                     F.min(col_name).alias("min"),
                     F.max(col_name).alias("max"),
@@ -576,9 +579,7 @@ class ComprehensiveValidator:
         max_future_days = int(self.realism_cfg.get("max_future_days", 3))
         max_past_years = int(self.realism_cfg.get("max_past_years", 20))
         date_cols = [
-            col
-            for col in df.columns
-            if "date" in col.lower() or "timestamp" in col.lower()
+            col for col in df.columns if "date" in col.lower() or "timestamp" in col.lower()
         ]
 
         if not date_cols:
@@ -626,7 +627,7 @@ class ComprehensiveValidator:
             "COMPREHENSIVE DATA QUALITY REPORT",
             "=" * 70,
             f"Generated: {datetime.utcnow().isoformat()}",
-            ""
+            "",
         ]
 
         for layer, results in self.results.items():
@@ -647,7 +648,8 @@ class ComprehensiveValidator:
 
                     if "null_analysis" in table_results:
                         critical_nulls = [
-                            col for col, stats in table_results["null_analysis"].items()
+                            col
+                            for col, stats in table_results["null_analysis"].items()
                             if stats.get("critical", False)
                         ]
                         if critical_nulls:
@@ -657,7 +659,9 @@ class ComprehensiveValidator:
                 report.append("  Relationships:")
                 for rel_name, rel_result in results["relationships"].items():
                     status = "✅" if rel_result.get("valid", False) else "❌"
-                    report.append(f"    {status} {rel_name}: {rel_result.get('orphaned_count', 0)} orphaned keys")
+                    report.append(
+                        f"    {status} {rel_name}: {rel_result.get('orphaned_count', 0)} orphaned keys"
+                    )
             if "reconciliation" in results:
                 report.append("  Reconciliation:")
                 for rel_name, rel_result in results["reconciliation"].items():
@@ -679,9 +683,13 @@ class ComprehensiveValidator:
         """Get summary of all validation results."""
         summary = {
             "total_layers_validated": len(self.results),
-            "layers_passed": sum(1 for r in self.results.values() if r.get("overall_status") == "PASS"),
-            "layers_failed": sum(1 for r in self.results.values() if r.get("overall_status") == "FAIL"),
-            "timestamp": datetime.utcnow().isoformat()
+            "layers_passed": sum(
+                1 for r in self.results.values() if r.get("overall_status") == "PASS"
+            ),
+            "layers_failed": sum(
+                1 for r in self.results.values() if r.get("overall_status") == "FAIL"
+            ),
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         return summary

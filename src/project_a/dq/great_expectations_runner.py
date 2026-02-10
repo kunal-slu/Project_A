@@ -10,6 +10,7 @@ from typing import Any
 try:
     from great_expectations.data_context import DataContext  # type: ignore
 except Exception:  # pragma: no cover
+
     class DataContext:  # type: ignore
         def __init__(self, *_args, **_kwargs):
             pass

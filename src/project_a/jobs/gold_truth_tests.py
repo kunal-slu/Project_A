@@ -12,16 +12,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
-
-project_root = Path(__file__).parent.parent.parent
-src_path = project_root / "src"
-if src_path.exists() and str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -118,13 +112,10 @@ def _prepare_fx_rates(fx_rates_df):
         F.col("rate").alias("fx_rate"),
     )
 
-    direct = (
-        fx_base.filter(F.col("fx_counter_ccy") == F.lit("USD"))
-        .select(
-            "fx_date",
-            F.col("fx_base_ccy").alias("fx_currency"),
-            F.col("fx_rate").alias("fx_rate"),
-        )
+    direct = fx_base.filter(F.col("fx_counter_ccy") == F.lit("USD")).select(
+        "fx_date",
+        F.col("fx_base_ccy").alias("fx_currency"),
+        F.col("fx_rate").alias("fx_rate"),
     )
     inverted = (
         fx_base.filter(F.col("fx_base_ccy") == F.lit("USD"))
@@ -136,20 +127,21 @@ def _prepare_fx_rates(fx_rates_df):
         )
     )
 
-    fx_rates_norm = (
-        direct.unionByName(inverted, allowMissingColumns=True)
-        .dropDuplicates(["fx_date", "fx_currency"])
+    fx_rates_norm = direct.unionByName(inverted, allowMissingColumns=True).dropDuplicates(
+        ["fx_date", "fx_currency"]
     )
     return fx_rates_norm
 
 
 def _json_safe(value: Any) -> Any:
-    if isinstance(value, (datetime,)):
+    if isinstance(value, datetime):
         return value.isoformat()
     return value
 
 
-def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, window_days: int | None) -> dict[str, Any]:
+def run_gold_truth_tests(
+    config_path: str, env: str, output_path: str | None, window_days: int | None
+) -> dict[str, Any]:
     config = load_config_resolved(config_path, env)
     spark = build_spark(app_name="gold-truth-tests", config=config)
 
@@ -165,7 +157,6 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
     catalog = iceberg_cfg.get("catalog_name", "local")
 
     gold_root_local = _to_local(gold_root)
-    silver_root_local = _to_local(silver_root)
 
     report: dict[str, Any] = {
         "run_id": run_id,
@@ -215,9 +206,7 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
 
     for table in gold_table_names:
         path = f"{gold_root}/{table}"
-        df, error = _try_load_table(
-            spark, fmt_gold, path, table_name=table, catalog_name=catalog
-        )
+        df, error = _try_load_table(spark, fmt_gold, path, table_name=table, catalog_name=catalog)
         if error:
             report["null_duplicate_checks"][table] = {
                 "status": "missing",
@@ -278,25 +267,53 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
 
     # Load silver tables needed
     orders_silver, err_orders = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/orders_silver", table_name="orders_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/orders_silver",
+        table_name="orders_silver",
+        catalog_name=catalog,
     )
     customers_silver, err_customers = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/customers_silver", table_name="customers_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/customers_silver",
+        table_name="customers_silver",
+        catalog_name=catalog,
     )
     products_silver, err_products = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/products_silver", table_name="products_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/products_silver",
+        table_name="products_silver",
+        catalog_name=catalog,
     )
     behavior_silver, err_behavior = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/customer_behavior_silver", table_name="customer_behavior_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/customer_behavior_silver",
+        table_name="customer_behavior_silver",
+        catalog_name=catalog,
     )
     opportunities_silver, err_opps = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/opportunities_silver", table_name="opportunities_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/opportunities_silver",
+        table_name="opportunities_silver",
+        catalog_name=catalog,
     )
     order_events_silver, err_events = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/order_events_silver", table_name="order_events_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/order_events_silver",
+        table_name="order_events_silver",
+        catalog_name=catalog,
     )
     fx_rates_silver, err_fx = _try_load_table(
-        spark, fmt_silver, f"{silver_root}/fx_rates_silver", table_name="fx_rates_silver", catalog_name=catalog
+        spark,
+        fmt_silver,
+        f"{silver_root}/fx_rates_silver",
+        table_name="fx_rates_silver",
+        catalog_name=catalog,
     )
 
     dim_customer = loaded_gold.get("dim_customer")
@@ -312,10 +329,16 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         current_customers = dim_customer.filter(F.col("is_current") == F.lit(True)).select(
             "customer_id", "customer_sk"
         )
-        join_check(orders_silver, current_customers, ["customer_id"], "orders_silver -> dim_customer")
+        join_check(
+            orders_silver, current_customers, ["customer_id"], "orders_silver -> dim_customer"
+        )
     else:
         report["join_checks"].append(
-            {"label": "orders_silver -> dim_customer", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "orders_silver -> dim_customer",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
     if orders_silver is not None and dim_product is not None:
@@ -345,7 +368,11 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "dim_customer (current) -> order_metrics", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "dim_customer (current) -> order_metrics",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
     if behavior_silver is not None and dim_customer is not None:
@@ -364,7 +391,11 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "dim_customer (current) -> behavior_metrics", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "dim_customer (current) -> behavior_metrics",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
     # Product performance join check
@@ -384,11 +415,19 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "dim_product (current) -> product_agg", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "dim_product (current) -> product_agg",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
     # Opportunity join checks (only if gold fact exists)
-    if fact_opportunity is not None and opportunities_silver is not None and dim_account is not None:
+    if (
+        fact_opportunity is not None
+        and opportunities_silver is not None
+        and dim_account is not None
+    ):
         current_accounts = dim_account.filter(F.col("is_current") == F.lit(True)).select(
             "account_id", "account_sk"
         )
@@ -400,10 +439,18 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "opportunities_silver -> dim_account", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "opportunities_silver -> dim_account",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
-    if fact_opportunity is not None and opportunities_silver is not None and dim_contact is not None:
+    if (
+        fact_opportunity is not None
+        and opportunities_silver is not None
+        and dim_contact is not None
+    ):
         current_contacts = dim_contact.filter(F.col("is_current") == F.lit(True)).select(
             "contact_id", "contact_sk"
         )
@@ -415,11 +462,19 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "opportunities_silver -> dim_contact", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "opportunities_silver -> dim_contact",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
     # Kafka order events join checks (only if gold fact exists)
-    if fact_order_events is not None and order_events_silver is not None and dim_customer is not None:
+    if (
+        fact_order_events is not None
+        and order_events_silver is not None
+        and dim_customer is not None
+    ):
         current_customers = dim_customer.filter(F.col("is_current") == F.lit(True)).select(
             "customer_id", "customer_sk"
         )
@@ -431,10 +486,18 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "order_events_silver -> dim_customer", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "order_events_silver -> dim_customer",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
-    if fact_order_events is not None and order_events_silver is not None and fact_orders is not None:
+    if (
+        fact_order_events is not None
+        and order_events_silver is not None
+        and fact_orders is not None
+    ):
         join_check(
             order_events_silver,
             fact_orders.select("order_id").dropDuplicates(["order_id"]),
@@ -443,7 +506,11 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
         )
     else:
         report["join_checks"].append(
-            {"label": "order_events_silver -> fact_orders", "status": "skipped", "reason": "missing data"}
+            {
+                "label": "order_events_silver -> fact_orders",
+                "status": "skipped",
+                "reason": "missing data",
+            }
         )
 
     # Contract checks for interview-grade correctness guarantees
@@ -491,11 +558,15 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
     product_performance = loaded_gold.get("product_performance")
     if fact_orders is not None and product_performance is not None:
         fact_revenue = (
-            fact_orders.agg(F.sum(F.col("order_amount_usd")).alias("sum_rev")).collect()[0]["sum_rev"]
+            fact_orders.agg(F.sum(F.col("order_amount_usd")).alias("sum_rev")).collect()[0][
+                "sum_rev"
+            ]
             or 0.0
         )
         perf_revenue = (
-            product_performance.agg(F.sum(F.col("total_revenue_usd")).alias("sum_rev")).collect()[0]["sum_rev"]
+            product_performance.agg(F.sum(F.col("total_revenue_usd")).alias("sum_rev")).collect()[
+                0
+            ]["sum_rev"]
             or 0.0
         )
         diff = abs(float(fact_revenue) - float(perf_revenue))
@@ -522,7 +593,9 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
             fact_order_events.filter(F.col("order_id").isNotNull())
             .select("order_id")
             .dropDuplicates(["order_id"])
-            .join(fact_orders.select("order_id").dropDuplicates(["order_id"]), "order_id", "left_anti")
+            .join(
+                fact_orders.select("order_id").dropDuplicates(["order_id"]), "order_id", "left_anti"
+            )
             .count()
         )
         report["contract_checks"]["fact_order_events_order_fk_coverage"] = {
@@ -684,7 +757,9 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
 
     if fact_order_events is not None and dim_customer is not None:
         customer_sk_orphans = (
-            fact_order_events.filter(F.col("customer_sk").isNotNull() & (F.col("customer_sk") != -1))
+            fact_order_events.filter(
+                F.col("customer_sk").isNotNull() & (F.col("customer_sk") != -1)
+            )
             .select("customer_sk")
             .dropDuplicates(["customer_sk"])
             .join(
@@ -717,7 +792,8 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
             "missing_fx_pct": (missing_fx / non_usd_count) * 100 if non_usd_count else 0.0,
         }
         inconsistent = fact_orders.filter(
-            F.abs(F.col("order_amount_usd") - (F.col("total_amount") * F.col("fx_rate"))) > F.lit(0.01)
+            F.abs(F.col("order_amount_usd") - (F.col("total_amount") * F.col("fx_rate")))
+            > F.lit(0.01)
         ).count()
         report["fx_coverage"]["fact_orders"]["amount_usd_inconsistent"] = inconsistent
     else:
@@ -772,14 +848,21 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
 
         if fx_rates_silver is not None:
             fx_rates = _prepare_fx_rates(fx_rates_silver)
-            orders = orders.join(
-                fx_rates,
-                (orders.order_date == fx_rates.fx_date) & (orders.currency == fx_rates.fx_currency),
-                "left",
-            ).withColumn(
-                "fx_rate",
-                F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(F.col("fx_rate")),
-            ).drop("fx_date", "fx_currency")
+            orders = (
+                orders.join(
+                    fx_rates,
+                    (orders.order_date == fx_rates.fx_date)
+                    & (orders.currency == fx_rates.fx_currency),
+                    "left",
+                )
+                .withColumn(
+                    "fx_rate",
+                    F.when(F.col("currency") == F.lit("USD"), F.lit(1.0)).otherwise(
+                        F.col("fx_rate")
+                    ),
+                )
+                .drop("fx_date", "fx_currency")
+            )
             orders = orders.withColumn(
                 "order_amount_usd",
                 (F.col("total_amount").cast("double") * F.col("fx_rate")).cast("double"),
@@ -789,21 +872,15 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
             orders = orders.withColumn("order_amount_usd", F.lit(None).cast("double"))
 
         def reconcile(grain_cols: list[str], label: str) -> None:
-            silver_agg = (
-                orders.groupBy(*grain_cols)
-                .agg(
-                    F.sum("total_amount").alias("silver_sum"),
-                    F.sum("order_amount_usd").alias("silver_usd_sum"),
-                    F.countDistinct("order_id").alias("silver_count"),
-                )
+            silver_agg = orders.groupBy(*grain_cols).agg(
+                F.sum("total_amount").alias("silver_sum"),
+                F.sum("order_amount_usd").alias("silver_usd_sum"),
+                F.countDistinct("order_id").alias("silver_count"),
             )
-            gold_agg = (
-                fact_orders_filtered.groupBy(*grain_cols)
-                .agg(
-                    F.sum("total_amount").alias("gold_sum"),
-                    F.sum("order_amount_usd").alias("gold_usd_sum"),
-                    F.countDistinct("order_id").alias("gold_count"),
-                )
+            gold_agg = fact_orders_filtered.groupBy(*grain_cols).agg(
+                F.sum("total_amount").alias("gold_sum"),
+                F.sum("order_amount_usd").alias("gold_usd_sum"),
+                F.countDistinct("order_id").alias("gold_count"),
             )
 
             joined = silver_agg.join(gold_agg, on=grain_cols, how="full")
@@ -836,9 +913,15 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
                 "groups": total_groups,
                 "mismatched_groups_total": mismatch_total,
                 "mismatched_groups_usd": mismatch_usd,
-                "max_abs_sum_diff": float(max_abs_sum_diff) if max_abs_sum_diff is not None else 0.0,
-                "max_abs_usd_diff": float(max_abs_usd_diff) if max_abs_usd_diff is not None else 0.0,
-                "max_abs_count_diff": int(max_abs_count_diff) if max_abs_count_diff is not None else 0,
+                "max_abs_sum_diff": float(max_abs_sum_diff)
+                if max_abs_sum_diff is not None
+                else 0.0,
+                "max_abs_usd_diff": float(max_abs_usd_diff)
+                if max_abs_usd_diff is not None
+                else 0.0,
+                "max_abs_count_diff": int(max_abs_count_diff)
+                if max_abs_count_diff is not None
+                else 0,
             }
 
             if mismatch_total > 0:
@@ -850,7 +933,11 @@ def run_gold_truth_tests(config_path: str, env: str, output_path: str | None, wi
                     .limit(5)
                 )
                 result["top_mismatches_total"] = [
-                    {**{c: row[c] for c in grain_cols}, "sum_diff": row["sum_diff"], "count_diff": row["count_diff"]}
+                    {
+                        **{c: row[c] for c in grain_cols},
+                        "sum_diff": row["sum_diff"],
+                        "count_diff": row["count_diff"],
+                    }
                     for row in top.collect()
                 ]
 

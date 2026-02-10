@@ -20,6 +20,7 @@ from project_a.utils.path_resolver import resolve_source_file_path
 
 logger = logging.getLogger(__name__)
 
+
 def _local_path_missing(path: str) -> bool:
     if not path:
         return True
@@ -30,11 +31,7 @@ def _local_path_missing(path: str) -> bool:
 
 
 def _read_csv_with_incremental(spark, schema, snapshot_path: str, incremental_dir: str | None):
-    reader = (
-        spark.read.schema(schema)
-        .option("header", "true")
-        .option("ignoreMissingFiles", "true")
-    )
+    reader = spark.read.schema(schema).option("header", "true").option("ignoreMissingFiles", "true")
     paths = [snapshot_path]
     if incremental_dir and not _local_path_missing(incremental_dir):
         reader = reader.option("recursiveFileLookup", "true")
@@ -70,7 +67,9 @@ class CrmToBronzeJob(BaseJob):
                     raise ValueError(f"Missing local file: {accounts_path}")
             except ValueError:
                 source_path = (
-                    self.config.get("sources", {}).get("crm", {}).get("base_path", "data/samples/crm")
+                    self.config.get("sources", {})
+                    .get("crm", {})
+                    .get("base_path", "data/samples/crm")
                 )
                 accounts_path = f"{source_path}/accounts.csv"
             incremental_dirs = (
@@ -89,7 +88,9 @@ class CrmToBronzeJob(BaseJob):
                     raise ValueError(f"Missing local file: {contacts_path}")
             except ValueError:
                 source_path = (
-                    self.config.get("sources", {}).get("crm", {}).get("base_path", "data/samples/crm")
+                    self.config.get("sources", {})
+                    .get("crm", {})
+                    .get("base_path", "data/samples/crm")
                 )
                 contacts_path = f"{source_path}/contacts.csv"
             contacts_df = _read_csv_with_incremental(
@@ -105,11 +106,16 @@ class CrmToBronzeJob(BaseJob):
                     raise ValueError(f"Missing local file: {opportunities_path}")
             except ValueError:
                 source_path = (
-                    self.config.get("sources", {}).get("crm", {}).get("base_path", "data/samples/crm")
+                    self.config.get("sources", {})
+                    .get("crm", {})
+                    .get("base_path", "data/samples/crm")
                 )
                 opportunities_path = f"{source_path}/opportunities.csv"
             opportunities_df = _read_csv_with_incremental(
-                spark, CRM_OPPORTUNITIES_SCHEMA, opportunities_path, incremental_dirs.get("opportunities")
+                spark,
+                CRM_OPPORTUNITIES_SCHEMA,
+                opportunities_path,
+                incremental_dirs.get("opportunities"),
             )
             opportunities_df.write.mode("overwrite").parquet(f"{bronze_path}/opportunities")
 

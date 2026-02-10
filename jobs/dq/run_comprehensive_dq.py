@@ -49,6 +49,7 @@ from project_a.utils.spark_session import build_spark
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def _is_strict_mode(config: dict[str, Any]) -> bool:
     dq_cfg = config.get("dq", {})
     return (
@@ -109,7 +110,6 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
 
     bronze_data = {}
     missing: list[str] = []
-    fmt = _layer_format(config, "bronze")
 
     def _read_bronze_output(path: str) -> Any:
         # Attempt to read from Bronze output folder first (parquet/delta/iceberg).
@@ -209,7 +209,9 @@ def load_bronze_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
         kafka_files = kafka_cfg.get("files", {})
         events = _read_bronze_output(f"{bronze_root}/kafka/events")
         if events is None:
-            kafka_path = f"{kafka_base}/{kafka_files.get('orders_seed', 'stream_kafka_events_100000.csv')}"
+            kafka_path = (
+                f"{kafka_base}/{kafka_files.get('orders_seed', 'stream_kafka_events_100000.csv')}"
+            )
             events = _read_csv_source(kafka_path, KAFKA_EVENTS_SCHEMA)
         bronze_data["kafka_events"] = events
     except Exception as e:
@@ -256,7 +258,11 @@ def load_silver_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str,
     for key, table_name in table_names.items():
         try:
             silver_data[key] = _read_table(
-                spark, fmt, f"{silver_root}/{table_name}", table_name=table_name, catalog_name=catalog_name
+                spark,
+                fmt,
+                f"{silver_root}/{table_name}",
+                table_name=table_name,
+                catalog_name=catalog_name,
             )
         except Exception as e:
             missing.append(f"silver.{table_name}")
@@ -287,7 +293,11 @@ def load_gold_tables(spark: SparkSession, config: dict[str, Any]) -> dict[str, A
     for key, table_name in table_names.items():
         try:
             gold_data[key] = _read_table(
-                spark, fmt, f"{gold_root}/{table_name}", table_name=table_name, catalog_name=catalog_name
+                spark,
+                fmt,
+                f"{gold_root}/{table_name}",
+                table_name=table_name,
+                catalog_name=catalog_name,
             )
         except Exception as e:
             missing.append(f"gold.{table_name}")

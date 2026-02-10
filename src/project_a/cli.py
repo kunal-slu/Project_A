@@ -153,6 +153,7 @@ def run_pipeline(config_path: str, env: str) -> int:
 def _run_job(job_name: str, config_path: str, env: str) -> int:
     """Run a single job through the canonical pipeline runner."""
     from argparse import Namespace
+
     from project_a.pipeline.run_pipeline import JOB_MAP
 
     job_fn = JOB_MAP.get(job_name)

@@ -11,4 +11,3 @@ __all__ = [
     "transform_orders_bronze_to_silver",
     "transform_products_bronze_to_silver",
 ]
-

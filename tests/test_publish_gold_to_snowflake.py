@@ -2,10 +2,10 @@
 Tests for publish_gold_to_snowflake job.
 """
 
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-from decimal import Decimal
 from pyspark.sql.types import DecimalType, StringType, StructField, StructType
 
 from jobs.publish_gold_to_snowflake import load_customer_360_to_snowflake
@@ -27,8 +27,8 @@ def mock_config():
 def sample_gold_data(spark):
     """Sample Gold customer_360 data."""
     data = [
-            ("C1", "John", "Doe", "john@example.com", "ACC1", Decimal("500.00"), 5),
-            ("C2", "Jane", "Smith", "jane@example.com", "ACC2", Decimal("1000.00"), 10),
+        ("C1", "John", "Doe", "john@example.com", "ACC1", Decimal("500.00"), 5),
+        ("C2", "Jane", "Smith", "jane@example.com", "ACC2", Decimal("1000.00"), 10),
     ]
     schema = StructType(
         [

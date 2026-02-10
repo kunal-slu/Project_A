@@ -78,7 +78,9 @@ def validate_schema_drift(actual: StructType, expected: StructType, table_name: 
 
     missing = set(expected_fields) - set(actual_fields)
     if missing:
-        raise RuntimeError(f"Schema drift detected for {table_name}: missing columns {sorted(missing)}")
+        raise RuntimeError(
+            f"Schema drift detected for {table_name}: missing columns {sorted(missing)}"
+        )
 
     mismatched = []
     for col_name in set(expected_fields) & set(actual_fields):
@@ -89,4 +91,3 @@ def validate_schema_drift(actual: StructType, expected: StructType, table_name: 
         raise RuntimeError(
             f"Schema drift detected for {table_name}: type mismatch in {sorted(mismatched)}"
         )
-

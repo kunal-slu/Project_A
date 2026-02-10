@@ -21,12 +21,6 @@ class DQChecks:
         """Raise ValueError if duplicates exist in the given column."""
         if column not in df.columns:
             raise ValueError(f"Column not found: {column}")
-        dup_exists = (
-            df.groupBy(column)
-            .count()
-            .filter(F.col("count") > F.lit(1))
-            .limit(1)
-            .count()
-        )
+        dup_exists = df.groupBy(column).count().filter(F.col("count") > F.lit(1)).limit(1).count()
         if dup_exists > 0:
             raise ValueError(f"Duplicate values detected in {column}")

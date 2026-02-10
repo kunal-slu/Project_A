@@ -53,13 +53,10 @@ def _read_bronze_behavior(spark, bronze_path: str, config: dict[str, Any]):
                 return spark.read.format("iceberg").load(f"{catalog}.{table_name}")
         except Exception as exc:
             last_error = exc
-            logger.warning(
-                "Read attempt failed for bronze behavior (%s): %s", attempt, exc
-            )
+            logger.warning("Read attempt failed for bronze behavior (%s): %s", attempt, exc)
 
     raise RuntimeError(
-        f"Unable to read bronze behavior dataset from {bronze_path} "
-        f"using formats {read_attempts}"
+        f"Unable to read bronze behavior dataset from {bronze_path} using formats {read_attempts}"
     ) from last_error
 
 
@@ -108,7 +105,9 @@ def transform_bronze_to_silver_behavior(spark, config: dict):
     bronze_path = f"{bronze_base}/redshift/behavior"
     silver_path = f"{silver_base}/behavior"
 
-    emit_start("bronze_to_silver_behavior", [{"name": bronze_path}], [{"name": silver_path}], config)
+    emit_start(
+        "bronze_to_silver_behavior", [{"name": bronze_path}], [{"name": silver_path}], config
+    )
 
     try:
         local_bronze = bronze_path

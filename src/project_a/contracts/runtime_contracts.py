@@ -31,7 +31,9 @@ def _validate_required_columns(df: DataFrame, table_name: str, required_columns:
         raise ValueError(f"{table_name}: Missing required columns: {missing}")
 
 
-def _validate_required_non_null(df: DataFrame, table_name: str, required_columns: list[str]) -> None:
+def _validate_required_non_null(
+    df: DataFrame, table_name: str, required_columns: list[str]
+) -> None:
     violations: dict[str, int] = {}
     for column in required_columns:
         count = df.filter(F.col(column).isNull()).count()
@@ -53,9 +55,7 @@ def _validate_primary_key(df: DataFrame, table_name: str, primary_key: list[str]
     if null_pk_count > 0:
         raise ValueError(f"{table_name}: Found {null_pk_count} null primary keys for {primary_key}")
 
-    duplicate_count = (
-        df.groupBy(*primary_key).count().filter(F.col("count") > F.lit(1)).count()
-    )
+    duplicate_count = df.groupBy(*primary_key).count().filter(F.col("count") > F.lit(1)).count()
     if duplicate_count > 0:
         raise ValueError(
             f"{table_name}: Found {duplicate_count} duplicate primary keys for {primary_key}"

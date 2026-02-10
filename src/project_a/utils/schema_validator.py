@@ -163,7 +163,9 @@ class SchemaValidator:
             return False
         return True
 
-    def validate_silver_schema(self, df: DataFrame, table_name: str, existing_schema_path: str) -> bool:
+    def validate_silver_schema(
+        self, df: DataFrame, table_name: str, existing_schema_path: str
+    ) -> bool:
         """
         Validate that silver schema is backward compatible with an existing schema.
 
@@ -172,8 +174,9 @@ class SchemaValidator:
         - New fields are allowed
         """
         try:
-            from pyspark.sql.types import StructType
             import json
+
+            from pyspark.sql.types import StructType
 
             with open(existing_schema_path) as f:
                 existing_schema = StructType.fromJson(json.load(f))
@@ -206,6 +209,7 @@ class SchemaValidator:
         """
         try:
             import json
+
             from pyspark.sql.types import (
                 BooleanType,
                 DateType,

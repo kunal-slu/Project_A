@@ -11,4 +11,3 @@ def write_avro(df, path: str) -> None:
 
 def write_json(df, path: str) -> None:
     df.write.mode("overwrite").json(path)
-

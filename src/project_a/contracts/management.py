@@ -3,6 +3,7 @@ Data Contract Management System for Project_A
 
 Manages schema contracts, validation, and contract lifecycle.
 """
+
 import hashlib
 import json
 import logging
@@ -27,6 +28,7 @@ class ContractStatus(Enum):
 @dataclass
 class SchemaField:
     """Represents a single field in a schema"""
+
     name: str
     type: str
     required: bool = True
@@ -38,6 +40,7 @@ class SchemaField:
 @dataclass
 class DataContract:
     """Represents a data contract"""
+
     contract_id: str
     name: str
     version: str
@@ -69,33 +72,38 @@ class SchemaRegistry:
         self._validate_contract(contract)
 
         # Save contract
-        contract_filename = f"{contract.name.replace('/', '_').replace('.', '_')}_{contract.version}.json"
+        contract_filename = (
+            f"{contract.name.replace('/', '_').replace('.', '_')}_{contract.version}.json"
+        )
         contract_path = self.contracts_path / contract_filename
 
-        with open(contract_path, 'w') as f:
+        with open(contract_path, "w") as f:
             contract_dict = {
-                'contract_id': contract.contract_id,
-                'name': contract.name,
-                'version': contract.version,
-                'description': contract.description,
-                'schema': [
+                "contract_id": contract.contract_id,
+                "name": contract.name,
+                "version": contract.version,
+                "description": contract.description,
+                "schema": [
                     {
-                        'name': field.name,
-                        'type': field.type,
-                        'required': field.required,
-                        'description': field.description,
-                        'example': field.example,
-                        'constraints': field.constraints
-                    } for field in contract.schema
+                        "name": field.name,
+                        "type": field.type,
+                        "required": field.required,
+                        "description": field.description,
+                        "example": field.example,
+                        "constraints": field.constraints,
+                    }
+                    for field in contract.schema
                 ],
-                'owners': contract.owners,
-                'consumers': contract.consumers,
-                'status': contract.status.value,
-                'created_at': contract.created_at.isoformat(),
-                'updated_at': contract.updated_at.isoformat(),
-                'deprecated_at': contract.deprecated_at.isoformat() if contract.deprecated_at else None,
-                'changelog': contract.changelog or [],
-                'tags': contract.tags or []
+                "owners": contract.owners,
+                "consumers": contract.consumers,
+                "status": contract.status.value,
+                "created_at": contract.created_at.isoformat(),
+                "updated_at": contract.updated_at.isoformat(),
+                "deprecated_at": contract.deprecated_at.isoformat()
+                if contract.deprecated_at
+                else None,
+                "changelog": contract.changelog or [],
+                "tags": contract.tags or [],
             }
             json.dump(contract_dict, f, indent=2)
 
@@ -109,11 +117,13 @@ class SchemaRegistry:
             path = self.contracts_path / filename
         else:
             # Get latest version
-            files = list(self.contracts_path.glob(f"{name.replace('/', '_').replace('.', '_')}_*.json"))
+            files = list(
+                self.contracts_path.glob(f"{name.replace('/', '_').replace('.', '_')}_*.json")
+            )
             if not files:
                 return None
             # Sort by version (assuming semantic versioning)
-            files.sort(key=lambda x: [int(i) for i in x.stem.split('_')[-1].split('.')])
+            files.sort(key=lambda x: [int(i) for i in x.stem.split("_")[-1].split(".")])
             path = files[-1]
 
         if not path.exists():
@@ -124,29 +134,32 @@ class SchemaRegistry:
 
         schema = [
             SchemaField(
-                name=field['name'],
-                type=field['type'],
-                required=field.get('required', True),
-                description=field.get('description', ''),
-                example=field.get('example'),
-                constraints=field.get('constraints')
-            ) for field in data['schema']
+                name=field["name"],
+                type=field["type"],
+                required=field.get("required", True),
+                description=field.get("description", ""),
+                example=field.get("example"),
+                constraints=field.get("constraints"),
+            )
+            for field in data["schema"]
         ]
 
         return DataContract(
-            contract_id=data['contract_id'],
-            name=data['name'],
-            version=data['version'],
-            description=data['description'],
+            contract_id=data["contract_id"],
+            name=data["name"],
+            version=data["version"],
+            description=data["description"],
             schema=schema,
-            owners=data['owners'],
-            consumers=data['consumers'],
-            status=ContractStatus(data['status']),
-            created_at=datetime.fromisoformat(data['created_at']),
-            updated_at=datetime.fromisoformat(data['updated_at']),
-            deprecated_at=datetime.fromisoformat(data['deprecated_at']) if data.get('deprecated_at') else None,
-            changelog=data.get('changelog', []),
-            tags=data.get('tags', [])
+            owners=data["owners"],
+            consumers=data["consumers"],
+            status=ContractStatus(data["status"]),
+            created_at=datetime.fromisoformat(data["created_at"]),
+            updated_at=datetime.fromisoformat(data["updated_at"]),
+            deprecated_at=datetime.fromisoformat(data["deprecated_at"])
+            if data.get("deprecated_at")
+            else None,
+            changelog=data.get("changelog", []),
+            tags=data.get("tags", []),
         )
 
     def get_all_versions(self, name: str) -> list[str]:
@@ -154,7 +167,7 @@ class SchemaRegistry:
         files = self.contracts_path.glob(f"{name.replace('/', '_').replace('.', '_')}_*.json")
         versions = []
         for file in files:
-            version = file.stem.split('_')[-1]  # Extract version from filename
+            version = file.stem.split("_")[-1]  # Extract version from filename
             versions.append(version)
         return sorted(versions)
 
@@ -163,7 +176,7 @@ class SchemaRegistry:
         if not contract.name:
             raise ValueError("Contract name is required")
 
-        if not re.match(r'^\d+\.\d+\.\d+$', contract.version):
+        if not re.match(r"^\d+\.\d+\.\d+$", contract.version):
             raise ValueError("Version must follow semantic versioning (X.Y.Z)")
 
         # Check for duplicate field names
@@ -172,22 +185,33 @@ class SchemaRegistry:
             raise ValueError("Duplicate field names in schema")
 
         # Validate field types
-        valid_types = {'string', 'integer', 'float', 'boolean', 'timestamp', 'array', 'object', 'decimal'}
+        valid_types = {
+            "string",
+            "integer",
+            "float",
+            "boolean",
+            "timestamp",
+            "array",
+            "object",
+            "decimal",
+        }
         for field in contract.schema:
-            if ':' in field.type:  # Handle complex types like array<string>
-                base_type = field.type.split('<')[0]
+            if ":" in field.type:  # Handle complex types like array<string>
+                base_type = field.type.split("<")[0]
                 if base_type not in valid_types and f"{base_type}s" not in valid_types:
                     raise ValueError(f"Invalid field type: {field.type}")
             elif field.type not in valid_types:
                 raise ValueError(f"Invalid field type: {field.type}")
 
-    def check_compatibility(self, old_contract: DataContract, new_contract: DataContract) -> dict[str, Any]:
+    def check_compatibility(
+        self, old_contract: DataContract, new_contract: DataContract
+    ) -> dict[str, Any]:
         """Check compatibility between two contract versions"""
         result = {
-            'compatible': True,
-            'breaking_changes': [],
-            'non_breaking_changes': [],
-            'semantic_version_change': ''  # major, minor, patch
+            "compatible": True,
+            "breaking_changes": [],
+            "non_breaking_changes": [],
+            "semantic_version_change": "",  # major, minor, patch
         }
 
         # Compare schemas
@@ -197,8 +221,8 @@ class SchemaRegistry:
         # Check for removed fields (breaking change)
         for field_name in old_fields:
             if field_name not in new_fields:
-                result['compatible'] = False
-                result['breaking_changes'].append(f"Field '{field_name}' was removed")
+                result["compatible"] = False
+                result["breaking_changes"].append(f"Field '{field_name}' was removed")
 
         # Check for changed field types (breaking change)
         for field_name, old_field in old_fields.items():
@@ -207,38 +231,34 @@ class SchemaRegistry:
                 if old_field.type != new_field.type:
                     # Allow string to more specific type (non-breaking)
                     # But specific type to string is breaking
-                    if old_field.type != 'string' or new_field.type == 'string':
-                        result['compatible'] = False
-                        result['breaking_changes'].append(
+                    if old_field.type != "string" or new_field.type == "string":
+                        result["compatible"] = False
+                        result["breaking_changes"].append(
                             f"Field '{field_name}' type changed from '{old_field.type}' to '{new_field.type}'"
                         )
 
                 # Check if required flag changed from false to true (breaking)
                 if not old_field.required and new_field.required:
-                    result['compatible'] = False
-                    result['breaking_changes'].append(
+                    result["compatible"] = False
+                    result["breaking_changes"].append(
                         f"Field '{field_name}' changed from optional to required"
                     )
 
         # Check for added required fields (potentially breaking)
         for field_name, new_field in new_fields.items():
             if field_name not in old_fields and new_field.required:
-                result['breaking_changes'].append(
-                    f"Required field '{field_name}' was added"
-                )
-                result['compatible'] = False
+                result["breaking_changes"].append(f"Required field '{field_name}' was added")
+                result["compatible"] = False
             elif field_name not in old_fields and not new_field.required:
-                result['non_breaking_changes'].append(
-                    f"Optional field '{field_name}' was added"
-                )
+                result["non_breaking_changes"].append(f"Optional field '{field_name}' was added")
 
         # Determine semantic version change
-        if result['breaking_changes']:
-            result['semantic_version_change'] = 'major'
-        elif result['non_breaking_changes']:
-            result['semantic_version_change'] = 'minor'
+        if result["breaking_changes"]:
+            result["semantic_version_change"] = "major"
+        elif result["non_breaking_changes"]:
+            result["semantic_version_change"] = "minor"
         else:
-            result['semantic_version_change'] = 'patch'
+            result["semantic_version_change"] = "patch"
 
         return result
 
@@ -250,20 +270,21 @@ class ContractValidator:
         self.registry = registry
         self.logger = logging.getLogger(__name__)
 
-    def validate_data(self, data: pd.DataFrame | dict | list,
-                     contract_name: str, version: str = None) -> dict[str, Any]:
+    def validate_data(
+        self, data: pd.DataFrame | dict | list, contract_name: str, version: str = None
+    ) -> dict[str, Any]:
         """Validate data against a contract"""
         contract = self.registry.get_contract(contract_name, version)
         if not contract:
             raise ValueError(f"Contract not found: {contract_name} v{version or 'latest'}")
 
         validation_result = {
-            'contract_name': contract_name,
-            'version': version or contract.version,
-            'valid': True,
-            'errors': [],
-            'warnings': [],
-            'validated_at': datetime.utcnow().isoformat()
+            "contract_name": contract_name,
+            "version": version or contract.version,
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+            "validated_at": datetime.utcnow().isoformat(),
         }
 
         # Convert to DataFrame if needed
@@ -275,10 +296,10 @@ class ContractValidator:
         # Check required fields
         for field in contract.schema:
             if field.required and field.name not in data.columns:
-                validation_result['valid'] = False
-                validation_result['errors'].append(f"Required field '{field.name}' is missing")
+                validation_result["valid"] = False
+                validation_result["errors"].append(f"Required field '{field.name}' is missing")
 
-        if not validation_result['valid']:
+        if not validation_result["valid"]:
             return validation_result
 
         # Validate each field
@@ -290,19 +311,21 @@ class ContractValidator:
 
         return validation_result
 
-    def _validate_field(self, series: pd.Series, field: SchemaField, result: dict[str, Any]) -> dict[str, Any]:
+    def _validate_field(
+        self, series: pd.Series, field: SchemaField, result: dict[str, Any]
+    ) -> dict[str, Any]:
         """Validate a single field"""
         # Check data type
         type_errors = self._check_type_compatibility(series, field.type)
         if type_errors:
-            result['valid'] = False
-            result['errors'].extend(type_errors)
+            result["valid"] = False
+            result["errors"].extend(type_errors)
 
         # Check constraints
         constraint_errors = self._check_constraints(series, field.constraints)
         if constraint_errors:
-            result['valid'] = False
-            result['errors'].extend(constraint_errors)
+            result["valid"] = False
+            result["errors"].extend(constraint_errors)
 
         return result
 
@@ -311,23 +334,25 @@ class ContractValidator:
         errors = []
 
         # Handle complex types
-        if '<' in expected_type:  # e.g., array<string>, struct<...>
-            base_type = expected_type.split('<')[0]
-            if base_type == 'array':
+        if "<" in expected_type:  # e.g., array<string>, struct<...>
+            base_type = expected_type.split("<")[0]
+            if base_type == "array":
                 # Check if all values are arrays/lists
                 for idx, value in enumerate(series):
-                    if pd.notna(value) and not isinstance(value, list | str):  # String arrays are common
+                    if pd.notna(value) and not isinstance(
+                        value, list | str
+                    ):  # String arrays are common
                         errors.append(f"Value at index {idx} is not an array/list")
             # Add more complex type validations as needed
         else:
             # Map expected types to pandas types
             type_mapping = {
-                'string': 'object',
-                'integer': 'int',
-                'float': 'float',
-                'boolean': 'bool',
-                'timestamp': 'datetime64',
-                'decimal': 'float'  # Treat decimals as floats for validation
+                "string": "object",
+                "integer": "int",
+                "float": "float",
+                "boolean": "bool",
+                "timestamp": "datetime64",
+                "decimal": "float",  # Treat decimals as floats for validation
             }
 
             expected_pandas_type = type_mapping.get(expected_type)
@@ -337,7 +362,9 @@ class ContractValidator:
 
         return errors
 
-    def _check_constraints(self, series: pd.Series, constraints: dict[str, Any] | None) -> list[str]:
+    def _check_constraints(
+        self, series: pd.Series, constraints: dict[str, Any] | None
+    ) -> list[str]:
         """Check field constraints"""
         if not constraints:
             return []
@@ -351,21 +378,21 @@ class ContractValidator:
 
         # Check min/max for numeric fields
         if pd.api.types.is_numeric_dtype(series):
-            if 'min' in constraints and series.min() < constraints['min']:
+            if "min" in constraints and series.min() < constraints["min"]:
                 errors.append(f"Value below minimum: {series.min()} < {constraints['min']}")
-            if 'max' in constraints and series.max() > constraints['max']:
+            if "max" in constraints and series.max() > constraints["max"]:
                 errors.append(f"Value above maximum: {series.max()} > {constraints['max']}")
 
         # Check regex for string fields
-        if pd.api.types.is_object_dtype(series) and 'pattern' in constraints:
-            pattern = constraints['pattern']
+        if pd.api.types.is_object_dtype(series) and "pattern" in constraints:
+            pattern = constraints["pattern"]
             invalid_values = series[not series.astype(str).str.match(pattern)]
             if len(invalid_values) > 0:
                 errors.append(f"Values don't match pattern '{pattern}': {invalid_values.tolist()}")
 
         # Check enum values
-        if 'enum' in constraints:
-            allowed_values = set(constraints['enum'])
+        if "enum" in constraints:
+            allowed_values = set(constraints["enum"])
             invalid_values = set(series.unique()) - allowed_values
             if invalid_values:
                 errors.append(f"Invalid enum values: {list(invalid_values)}")
@@ -381,12 +408,21 @@ class ContractManager:
         self.validator = validator
         self.logger = logging.getLogger(__name__)
 
-    def create_contract(self, name: str, version: str, description: str,
-                       schema: list[SchemaField], owners: list[str],
-                       consumers: list[str], tags: list[str] = None) -> DataContract:
+    def create_contract(
+        self,
+        name: str,
+        version: str,
+        description: str,
+        schema: list[SchemaField],
+        owners: list[str],
+        consumers: list[str],
+        tags: list[str] = None,
+    ) -> DataContract:
         """Create a new data contract"""
         contract = DataContract(
-            contract_id=hashlib.sha256(f"{name}_{version}_{datetime.utcnow().isoformat()}".encode()).hexdigest()[:16],
+            contract_id=hashlib.sha256(
+                f"{name}_{version}_{datetime.utcnow().isoformat()}".encode()
+            ).hexdigest()[:16],
             name=name,
             version=version,
             description=description,
@@ -396,16 +432,28 @@ class ContractManager:
             status=ContractStatus.DRAFT,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
-            changelog=[{'version': version, 'description': 'Initial version', 'date': datetime.utcnow().isoformat()}],
-            tags=tags or []
+            changelog=[
+                {
+                    "version": version,
+                    "description": "Initial version",
+                    "date": datetime.utcnow().isoformat(),
+                }
+            ],
+            tags=tags or [],
         )
 
         self.registry.register_contract(contract)
         return contract
 
-    def update_contract(self, name: str, new_version: str, description: str = None,
-                       schema: list[SchemaField] = None, status: ContractStatus = None,
-                       changelog_entry: str = None) -> DataContract | None:
+    def update_contract(
+        self,
+        name: str,
+        new_version: str,
+        description: str = None,
+        schema: list[SchemaField] = None,
+        status: ContractStatus = None,
+        changelog_entry: str = None,
+    ) -> DataContract | None:
         """Update an existing contract"""
         current_contract = self.registry.get_contract(name)
         if not current_contract:
@@ -413,7 +461,8 @@ class ContractManager:
 
         # Check compatibility
         if schema:
-            compatibility = self.registry.check_compatibility(current_contract,
+            compatibility = self.registry.check_compatibility(
+                current_contract,
                 DataContract(
                     contract_id=current_contract.contract_id,
                     name=current_contract.name,
@@ -425,11 +474,14 @@ class ContractManager:
                     status=status or current_contract.status,
                     created_at=current_contract.created_at,
                     updated_at=datetime.utcnow(),
-                    changelog=current_contract.changelog
-                ))
+                    changelog=current_contract.changelog,
+                ),
+            )
 
-            if not compatibility['compatible'] and new_version <= current_contract.version:
-                self.logger.error(f"Incompatible changes require a higher version number: {compatibility['breaking_changes']}")
+            if not compatibility["compatible"] and new_version <= current_contract.version:
+                self.logger.error(
+                    f"Incompatible changes require a higher version number: {compatibility['breaking_changes']}"
+                )
                 return None
 
         # Create updated contract
@@ -445,14 +497,17 @@ class ContractManager:
             created_at=current_contract.created_at,
             updated_at=datetime.utcnow(),
             deprecated_at=current_contract.deprecated_at,
-            changelog=current_contract.changelog + [
+            changelog=current_contract.changelog
+            + [
                 {
-                    'version': new_version,
-                    'description': changelog_entry or 'Updated contract',
-                    'date': datetime.utcnow().isoformat()
+                    "version": new_version,
+                    "description": changelog_entry or "Updated contract",
+                    "date": datetime.utcnow().isoformat(),
                 }
-            ] if changelog_entry else current_contract.changelog,
-            tags=current_contract.tags
+            ]
+            if changelog_entry
+            else current_contract.changelog,
+            tags=current_contract.tags,
         )
 
         self.registry.register_contract(updated_contract)
@@ -477,14 +532,15 @@ class ContractManager:
             created_at=contract.created_at,
             updated_at=datetime.utcnow(),
             deprecated_at=datetime.utcnow(),
-            changelog=contract.changelog + [
+            changelog=contract.changelog
+            + [
                 {
-                    'version': contract.version,
-                    'description': 'Contract deprecated',
-                    'date': datetime.utcnow().isoformat()
+                    "version": contract.version,
+                    "description": "Contract deprecated",
+                    "date": datetime.utcnow().isoformat(),
                 }
             ],
-            tags=contract.tags
+            tags=contract.tags,
         )
 
         self.registry.register_contract(updated_contract)
@@ -501,8 +557,9 @@ def get_schema_registry() -> SchemaRegistry:
     global _registry
     if _registry is None:
         from ..config_loader import load_config_resolved
-        config = load_config_resolved('local/config/local.yaml')
-        registry_path = config.get('paths', {}).get('contracts_root', 'data/contracts')
+
+        config = load_config_resolved("local/config/local.yaml")
+        registry_path = config.get("paths", {}).get("contracts_root", "data/contracts")
         _registry = SchemaRegistry(registry_path)
     return _registry
 
@@ -526,9 +583,15 @@ def get_contract_manager() -> ContractManager:
     return _contract_manager
 
 
-def create_contract(name: str, version: str, description: str,
-                   schema: list[SchemaField], owners: list[str],
-                   consumers: list[str], tags: list[str] = None) -> DataContract:
+def create_contract(
+    name: str,
+    version: str,
+    description: str,
+    schema: list[SchemaField],
+    owners: list[str],
+    consumers: list[str],
+    tags: list[str] = None,
+) -> DataContract:
     """Create a new data contract"""
     manager = get_contract_manager()
     return manager.create_contract(name, version, description, schema, owners, consumers, tags)
@@ -540,16 +603,22 @@ def get_contract(name: str, version: str = None) -> DataContract | None:
     return registry.get_contract(name, version)
 
 
-def validate_data(data: pd.DataFrame | dict | list,
-                 contract_name: str, version: str = None) -> dict[str, Any]:
+def validate_data(
+    data: pd.DataFrame | dict | list, contract_name: str, version: str = None
+) -> dict[str, Any]:
     """Validate data against a contract"""
     validator = get_contract_validator()
     return validator.validate_data(data, contract_name, version)
 
 
-def update_contract(name: str, new_version: str, description: str = None,
-                   schema: list[SchemaField] = None, status: ContractStatus = None,
-                   changelog_entry: str = None) -> DataContract | None:
+def update_contract(
+    name: str,
+    new_version: str,
+    description: str = None,
+    schema: list[SchemaField] = None,
+    status: ContractStatus = None,
+    changelog_entry: str = None,
+) -> DataContract | None:
     """Update an existing contract"""
     manager = get_contract_manager()
     return manager.update_contract(name, new_version, description, schema, status, changelog_entry)

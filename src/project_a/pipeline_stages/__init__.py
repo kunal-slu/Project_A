@@ -1,2 +1,1 @@
 """Compatibility pipeline stages package."""
-

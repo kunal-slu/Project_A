@@ -93,7 +93,9 @@ def test_transform_kafka_events_parses_payload_and_dedupes(
     assert out.filter("event_id = 'E2'").select("currency").collect()[0][0] == "EUR"
 
 
-def test_transform_fx_data_dedupes_latest_rate(spark, tmp_path, bronze_to_silver_job, silver_contracts):
+def test_transform_fx_data_dedupes_latest_rate(
+    spark, tmp_path, bronze_to_silver_job, silver_contracts
+):
     bronze_path = tmp_path / "bronze" / "fx" / "fx_rates"
     bronze_path.mkdir(parents=True, exist_ok=True)
 

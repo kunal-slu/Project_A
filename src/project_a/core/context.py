@@ -158,7 +158,9 @@ class JobContext:
                 "spark.sql.catalog.spark_catalog",
                 "org.apache.spark.sql.delta.catalog.DeltaCatalog",
             )
-            logger.info("Delta Lake extension enabled for EMR runtime (cluster-provided jars expected)")
+            logger.info(
+                "Delta Lake extension enabled for EMR runtime (cluster-provided jars expected)"
+            )
         else:
             logger.warning("delta_spark not installed; Delta Lake features disabled")
 
@@ -337,9 +339,7 @@ class JobContext:
             except Exception as e:
                 logger.warning(f"AWS S3 configuration failed: {e}")
 
-    def resolve_path(
-        self, layer: str, source: str | None = None, table: str | None = None
-    ) -> str:
+    def resolve_path(self, layer: str, source: str | None = None, table: str | None = None) -> str:
         """
         Resolve data path for a layer.
 

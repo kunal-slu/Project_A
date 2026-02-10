@@ -14,11 +14,7 @@ def _cw_client(config: dict[str, Any]):
 
 
 def _namespace(config: dict[str, Any]) -> str:
-    return (
-        config.get("monitoring", {})
-        .get("cloudwatch", {})
-        .get("namespace", "ETL/Pipeline")
-    )
+    return config.get("monitoring", {}).get("cloudwatch", {}).get("namespace", "ETL/Pipeline")
 
 
 def emit_rowcount(
@@ -75,4 +71,3 @@ def emit_metrics(
     emit_rowcount("rows_in", rows_in, labels, config)
     emit_rowcount("rows_out", rows_out, labels, config)
     emit_duration("duration_seconds", duration_seconds, labels, config)
-
