@@ -1,9 +1,12 @@
-"""Compatibility wrapper for DQ runner."""
+"""Public DQ runner API."""
 
 from __future__ import annotations
 
-from importlib import import_module
+from project_a.pyspark_interview_project.dq.runner import (
+    DQResult,
+    print_dq_summary,
+    run_suite,
+    run_yaml_policy,
+)
 
-_legacy_module = import_module("project_a.pyspark_interview_project.dq.runner")
-__all__ = [name for name in dir(_legacy_module) if not name.startswith("_")]
-globals().update({name: getattr(_legacy_module, name) for name in __all__})
+__all__ = ["DQResult", "run_suite", "run_yaml_policy", "print_dq_summary"]

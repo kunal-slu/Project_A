@@ -1,9 +1,7 @@
-"""Compatibility wrapper for safe Delta writer."""
+"""Public safe Delta writer API."""
 
 from __future__ import annotations
 
-from importlib import import_module
+from project_a.pyspark_interview_project.utils.safe_writer import SafeDeltaWriter
 
-_legacy_module = import_module("project_a.pyspark_interview_project.utils.safe_writer")
-__all__ = [name for name in dir(_legacy_module) if not name.startswith("_")]
-globals().update({name: getattr(_legacy_module, name) for name in __all__})
+__all__ = ["SafeDeltaWriter"]

@@ -1,9 +1,19 @@
-"""Compatibility wrapper for performance optimization helpers."""
+"""Public performance optimization API."""
 
 from __future__ import annotations
 
-from importlib import import_module
+from project_a.pyspark_interview_project.performance_optimizer import (
+    CacheManager,
+    PerformanceBenchmark,
+    PerformanceMetrics,
+    PerformanceOptimizer,
+    create_performance_optimizer,
+)
 
-_legacy_module = import_module("project_a.pyspark_interview_project.performance_optimizer")
-__all__ = [name for name in dir(_legacy_module) if not name.startswith("_")]
-globals().update({name: getattr(_legacy_module, name) for name in __all__})
+__all__ = [
+    "CacheManager",
+    "PerformanceBenchmark",
+    "PerformanceMetrics",
+    "PerformanceOptimizer",
+    "create_performance_optimizer",
+]

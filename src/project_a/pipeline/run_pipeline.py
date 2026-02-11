@@ -27,77 +27,61 @@ Backward-compatible aliases:
 import argparse
 import logging
 import sys
+from collections.abc import Callable
+from importlib import import_module
 
 logger = logging.getLogger(__name__)
 
-# Import job main functions
-try:
-    from project_a.jobs import (
-        bronze_to_silver,
-        crm_to_bronze,
-        dq_gold_gate,
-        dq_silver_gate,
-        fx_json_to_bronze,
-        gold_truth_tests,
-        kafka_csv_to_bronze,
-        kafka_stream_to_bronze,
-        orders_silver_to_iceberg,
-        publish_gold_to_redshift,
-        publish_gold_to_snowflake,
-        redshift_to_bronze,
-        silver_to_gold,
-        snowflake_to_bronze,
-    )
-except ImportError as import_error:
-    logger.warning(f"Some job imports failed: {import_error}. Continuing with available jobs.")
-    import_error_msg = str(import_error)
-
-    # Create dummy modules to prevent errors
-    class DummyModule:
-        def main(self, args):
-            logger.error(f"Job module not available: {import_error_msg}")
-            sys.exit(1)
-
-    fx_json_to_bronze = DummyModule()
-    snowflake_to_bronze = DummyModule()
-    crm_to_bronze = DummyModule()
-    redshift_to_bronze = DummyModule()
-    kafka_csv_to_bronze = DummyModule()
-    kafka_stream_to_bronze = DummyModule()
-    bronze_to_silver = DummyModule()
-    dq_silver_gate = DummyModule()
-    silver_to_gold = DummyModule()
-    dq_gold_gate = DummyModule()
-    gold_truth_tests = DummyModule()
-    orders_silver_to_iceberg = DummyModule()
-    publish_gold_to_redshift = DummyModule()
-    publish_gold_to_snowflake = DummyModule()
-
-
-JOB_MAP = {
+_CANONICAL_JOB_TARGETS: dict[str, str] = {
     # Bronze ingestion jobs
-    "fx_json_to_bronze": fx_json_to_bronze.main,
-    "snowflake_to_bronze": snowflake_to_bronze.main,
-    "crm_to_bronze": crm_to_bronze.main,
-    "redshift_to_bronze": redshift_to_bronze.main,
-    "kafka_csv_to_bronze": kafka_csv_to_bronze.main,
-    "kafka_events_csv_snapshot_to_bronze": kafka_csv_to_bronze.main,
-    "kafka_events_to_bronze": kafka_csv_to_bronze.main,
-    "fx_to_bronze": fx_json_to_bronze.main,
-    "kafka_stream_to_bronze": kafka_stream_to_bronze.main,
+    "fx_json_to_bronze": "project_a.jobs.fx_json_to_bronze:main",
+    "snowflake_to_bronze": "project_a.jobs.snowflake_to_bronze:main",
+    "crm_to_bronze": "project_a.jobs.crm_to_bronze:main",
+    "redshift_to_bronze": "project_a.jobs.redshift_to_bronze:main",
+    "kafka_csv_to_bronze": "project_a.jobs.kafka_csv_to_bronze:main",
+    "kafka_stream_to_bronze": "project_a.jobs.kafka_stream_to_bronze:main",
     # Transformation jobs
-    "bronze_to_silver": bronze_to_silver.main,
-    "silver_to_gold": silver_to_gold.main,
+    "bronze_to_silver": "project_a.jobs.bronze_to_silver:main",
+    "silver_to_gold": "project_a.jobs.silver_to_gold:main",
     # DQ gate jobs
-    "dq_silver_gate": dq_silver_gate.main,
-    "dq_gold_gate": dq_gold_gate.main,
-    "gold_truth_tests": gold_truth_tests.main,
+    "dq_silver_gate": "project_a.jobs.dq_silver_gate:main",
+    "dq_gold_gate": "project_a.jobs.dq_gold_gate:main",
+    "gold_truth_tests": "project_a.jobs.gold_truth_tests:main",
     # Publish jobs
-    "publish_gold_to_redshift": publish_gold_to_redshift.main,
-    "publish_gold_to_snowflake": publish_gold_to_snowflake.main,
+    "publish_gold_to_redshift": "project_a.jobs.publish_gold_to_redshift:main",
+    "publish_gold_to_snowflake": "project_a.jobs.publish_gold_to_snowflake:main",
     # Iceberg maintenance
-    "orders_silver_to_iceberg": orders_silver_to_iceberg.main,
+    "orders_silver_to_iceberg": "project_a.jobs.orders_silver_to_iceberg:main",
 }
+
+_ALIASES: dict[str, str] = {
+    "kafka_events_csv_snapshot_to_bronze": "kafka_csv_to_bronze",
+    "kafka_events_to_bronze": "kafka_csv_to_bronze",
+    "fx_to_bronze": "fx_json_to_bronze",
+}
+
+
+def _load_job_callable(target: str) -> Callable:
+    module_name, attr_name = target.split(":", 1)
+    module = import_module(module_name)
+    job_fn = getattr(module, attr_name, None)
+    if not callable(job_fn):
+        raise AttributeError(f"{target} is not a callable job entrypoint")
+    return job_fn
+
+
+def _build_job_dispatcher(target: str) -> Callable:
+    def _dispatch(args):
+        return _load_job_callable(target)(args)
+
+    return _dispatch
+
+
+JOB_MAP: dict[str, Callable] = {
+    name: _build_job_dispatcher(target) for name, target in _CANONICAL_JOB_TARGETS.items()
+}
+for alias, canonical in _ALIASES.items():
+    JOB_MAP[alias] = JOB_MAP[canonical]
 
 
 def parse_args() -> argparse.Namespace:
